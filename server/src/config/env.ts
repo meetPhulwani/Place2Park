@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// server/src/config → server/.env
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
 export const env = {
@@ -17,6 +18,11 @@ export const env = {
   RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID ?? "",
   RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET ?? "",
   RAZORPAY_WEBHOOK_SECRET: process.env.RAZORPAY_WEBHOOK_SECRET ?? "",
+  EMAIL_FROM: process.env.EMAIL_FROM ?? "",
+  SMTP_HOST: process.env.SMTP_HOST ?? "",
+  SMTP_PORT: Number(process.env.SMTP_PORT ?? 0),
+  SMTP_USER: process.env.SMTP_USER ?? "",
+  SMTP_PASS: process.env.SMTP_PASS ?? "",
 };
 
 export const isProd = env.NODE_ENV === "production";

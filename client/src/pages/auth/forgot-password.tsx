@@ -3,12 +3,13 @@ import Link from "@/components/link";
 import { MailCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
-import { api } from "@/services/api";
+import { api, errorMessage } from "@/services/api";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = React.useState("");
   const [sent, setSent] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState("");
 
   React.useEffect(() => {
     document.title = "Reset password · Parkly";
@@ -17,9 +18,15 @@ export default function ForgotPasswordPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    await api.post("/auth/forgot-password", { email }).catch(() => undefined);
-    setLoading(false);
-    setSent(true); // Always show success — never reveal whether an email exists.
+    setError("");
+    try {
+      await api.post("/auth/forgot-password", { email });
+      setSent(true);
+    } catch (err) {
+      setError(errorMessage(err, "We couldn't send the reset email. Try again shortly."));
+    } finally {
+      setLoading(false);
+    }
   }
 
   if (sent) {
@@ -64,6 +71,7 @@ export default function ForgotPasswordPage() {
             placeholder="you@example.com"
           />
         </div>
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <Button type="submit" size="lg" className="w-full" loading={loading}>
           Send reset link
         </Button>

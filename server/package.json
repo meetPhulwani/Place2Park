@@ -7,7 +7,7 @@
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "seed": "tsx src/seed.ts",
-    "test:unit": "tsx --test src/services/availability.test.ts src/utils/pricing.test.ts src/services/payments.test.ts src/utils/rate-limit.test.ts",
+    "test:unit": "tsx --test src/services/availability.test.ts src/utils/pricing.test.ts src/services/payments.test.ts src/utils/rate-limit.test.ts src/services/email.test.ts",
     "test:booking-flow": "tsx src/scripts/test-booking-flow.ts",
     "test:payments": "tsx --test src/services/payments.test.ts && tsx src/scripts/test-payment-flow.ts",
     "typecheck": "tsc --noEmit"
@@ -22,6 +22,7 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.9.0",
     "multer": "^1.4.5-lts.1",
+    "nodemailer": "^10.1.0",
     "parkly": "file:..",
     "razorpay": "^2.9.5",
     "zod": "^3.24.1"
@@ -33,6 +34,7 @@
     "@types/jsonwebtoken": "^9.0.7",
     "@types/multer": "^1.4.12",
     "@types/node": "^22.10.0",
+    "@types/nodemailer": "^8.0.2",
     "mongodb-memory-server": "^10.1.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"

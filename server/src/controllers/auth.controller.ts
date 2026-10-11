@@ -6,6 +6,7 @@ import { User } from "../models/index.js";
 import { ApiError } from "../middleware/error.js";
 import { signToken, type AuthedRequest } from "../middleware/auth.js";
 import { env, isProd } from "../config/env.js";
+import { deliverPasswordResetLink, isSmtpConfigured } from "../services/email.js";
 
 function hashResetToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -73,9 +74,13 @@ export async function googleLogin(req: Request, res: Response) {
   res.json({ success: true, data: { token: signToken(String(user._id)), user: publicUser(user) } });
 }
 
-/** Always responds success; never reveals whether the email exists. */
+/** Always responds success when no send is attempted; never reveals whether the email exists. */
 export async function forgotPassword(req: Request, res: Response) {
   const email = String((req.body as { email?: string }).email ?? "").toLowerCase().trim();
+  if (!isSmtpConfigured() && isProd) {
+    console.error("[smtp] password-reset skipped: SMTP is not configured");
+    throw new ApiError(503, "We couldn't send the reset email. Try again shortly.");
+  }
   if (email) {
     const user = await User.findOne({ email });
     if (user) {
@@ -84,8 +89,10 @@ export async function forgotPassword(req: Request, res: Response) {
         { _id: user._id },
         { $set: { resetToken: hashResetToken(token), resetTokenExpires: new Date(Date.now() + 30 * 60000) } }
       );
-      if (!isProd) {
-        console.info(`[password-reset] ${email}: ${env.CLIENT_URL}/reset-password?token=${token}`);
+      try {
+        await deliverPasswordResetLink({ email, token, clientUrl: env.CLIENT_URL });
+      } catch {
+        throw new ApiError(503, "We couldn't send the reset email. Try again shortly.");
       }
     }
   }

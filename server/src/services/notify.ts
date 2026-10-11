@@ -1,4 +1,5 @@
 import { Notification, User } from "../models/index.js";
+import { describeSmtpError, isSmtpConfigured, sendMail } from "./email.js";
 
 export type NotificationType =
   | "BOOKING_CONFIRMED"
@@ -26,14 +27,12 @@ export async function notify(
 }
 
 async function sendEmailIfConfigured(userId: string, subject: string, text: string) {
-  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
-  if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS) return; // email disabled
+  if (!isSmtpConfigured()) return;
   try {
     const user = await User.findById(userId).select("email notifyEmail");
     if (!user?.email || user.notifyEmail === false) return;
-    // Integration boundary: plug an SMTP/transactional provider here.
-    console.info(`[email→${user.email}] ${subject}: ${text}`);
+    await sendMail({ to: user.email, subject, text });
   } catch (e) {
-    console.error("notify email failed", e);
+    console.error(`[smtp] notify failed: ${describeSmtpError(e)}`);
   }
 }
