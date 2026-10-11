@@ -84,7 +84,9 @@ Never put `JWT_SECRET`, `GOOGLE_CLIENT_SECRET`, or `RAZORPAY_KEY_SECRET` in the 
 
 ```bash
 # server
-cd server && npm run dev          # tsx watch
+cd server && npm run dev          # tsx watch (local)
+cd server && npm run build        # compile TypeScript to dist/
+cd server && npm start            # node dist/server.js
 cd server && npm run seed         # MongoDB seed
 cd server && npm run typecheck
 
@@ -112,7 +114,8 @@ Webhook: `POST /api/payments/webhook` (`payment.captured` / `payment.failed`).
 
 ## Production
 
-1. Set `NODE_ENV=production`, a real `MONGODB_URI`, and a strong `JWT_SECRET`.
-2. `cd client && npm run build` — serve `client/dist` from a CDN or static host.
-3. Point `VITE_API_URL` at the Express origin (or reverse-proxy `/api` + `/uploads` + `/demo`).
-4. `cd server && npm start`.
+1. Set `NODE_ENV=production`, a real `MONGODB_URI`, a strong `JWT_SECRET` (≥32 chars), and a public `CLIENT_URL` (the exact frontend origin).
+2. Set `RAZORPAY_WEBHOOK_SECRET` if you use Razorpay webhooks.
+3. Client: set `VITE_API_URL` to the public API base (for example `https://api.example.com/api`) when the SPA is on another host, then `cd client && npm run build`. Serve `client/dist` from a static host.
+4. Server: `cd server && npm run build && npm start` (`node dist/server.js`). `tsx` is only for local `dev` / `seed`.
+5. If the frontend and API are on different hosts, listing photos (`/uploads`, `/demo`) are resolved from `VITE_API_URL`. Alternatively reverse-proxy those paths.

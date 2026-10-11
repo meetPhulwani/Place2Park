@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "start": "tsx src/server.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/server.js",
     "seed": "tsx src/seed.ts",
     "test:unit": "tsx --test src/services/availability.test.ts src/utils/pricing.test.ts src/services/payments.test.ts src/utils/rate-limit.test.ts src/services/email.test.ts",
     "test:booking-flow": "tsx src/scripts/test-booking-flow.ts",

@@ -1,9 +1,8 @@
 import { Router } from "express";
 import multer from "multer";
-import path from "node:path";
 import crypto from "node:crypto";
 import fs from "node:fs";
-import { fileURLToPath } from "node:url";
+import { UPLOADS_DIR } from "../config/paths.js";
 import * as auth from "../controllers/auth.controller.js";
 import * as users from "../controllers/users.controller.js";
 import * as parking from "../controllers/parking.controller.js";
@@ -100,8 +99,7 @@ r.post("/admin/reports/:id/resolve", authenticate, adminOnly, a(admin.resolveRep
 r.get("/admin/reviews", authenticate, adminOnly, a(admin.listReviews));
 
 // ---- Uploads (dev: local disk; swap this block for S3/Cloudinary in production)
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const uploadDir = path.resolve(__dirname, "../../uploads");
+const uploadDir = UPLOADS_DIR;
 fs.mkdirSync(uploadDir, { recursive: true });
 const UPLOAD_TYPES: Record<string, string> = {
   "image/jpeg": ".jpg",

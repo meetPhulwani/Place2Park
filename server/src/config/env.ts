@@ -1,10 +1,7 @@
 import dotenv from "dotenv";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { ENV_FILE } from "./paths.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// server/src/config → server/.env
-dotenv.config({ path: path.resolve(__dirname, "../../.env") });
+dotenv.config({ path: ENV_FILE });
 
 export const env = {
   PORT: Number(process.env.PORT ?? 5000),

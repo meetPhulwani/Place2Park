@@ -1,13 +1,10 @@
 import express, { type Request } from "express";
 import cors from "cors";
 import helmet from "helmet";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import routes from "./routes/index.js";
 import { errorHandler, notFoundHandler } from "./middleware/error.js";
 import { env, isProd } from "./config/env.js";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { DEMO_DIR, UPLOADS_DIR } from "./config/paths.js";
 
 export function createApp() {
   const app = express();
@@ -33,8 +30,8 @@ export function createApp() {
   app.get("/api/health", (_req, res) => res.json({ success: true, data: { status: "ok" } }));
   app.use("/api", routes);
   // Static: uploaded photos + demo images
-  app.use("/uploads", express.static(path.resolve(__dirname, "../uploads"), { maxAge: "7d" }));
-  app.use("/demo", express.static(path.resolve(__dirname, "../public/demo"), { maxAge: "7d" }));
+  app.use("/uploads", express.static(UPLOADS_DIR, { maxAge: "7d" }));
+  app.use("/demo", express.static(DEMO_DIR, { maxAge: "7d" }));
 
   app.use(notFoundHandler);
   app.use(errorHandler);
