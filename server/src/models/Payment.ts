@@ -11,6 +11,8 @@ const paymentSchema = new Schema(
     currency: { type: String, default: "INR" },
     status: { type: String, enum: ["CREATED", "PAID", "FAILED", "REFUNDED"], default: "CREATED", index: true },
     method: { type: String },
+    refundId: { type: String, index: true, sparse: true },
+    refundStatus: { type: String, enum: ["PENDING", "PROCESSED", "FAILED"] },
   },
   {
     timestamps: true,

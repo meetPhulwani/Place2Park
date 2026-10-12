@@ -4,6 +4,7 @@ import type { AuthedRequest } from "../middleware/auth.js";
 import { ApiError } from "../middleware/error.js";
 import { confirmBookingPaid, failBookingPayment } from "../services/bookings.js";
 import {
+  applyRefundEvent,
   createOrReusePaymentOrder,
   verifyRazorpaySignature,
   verifyWebhookSignature,
@@ -75,12 +76,27 @@ export async function webhook(req: Request, res: Response) {
     return;
   }
 
-  let event: { event?: string; payload?: { payment?: { entity?: { id?: string; order_id?: string } } } };
+  let event: {
+    event?: string;
+    payload?: {
+      payment?: { entity?: { id?: string; order_id?: string } };
+      refund?: { entity?: { id?: string; payment_id?: string; status?: string } };
+    };
+  };
   try {
     event = JSON.parse(raw) as typeof event;
   } catch {
     res.status(400).json({ success: false, message: "Invalid payload." });
     return;
+  }
+
+  const refundEntity = event.payload?.refund?.entity;
+  if (refundEntity && (event.event === "refund.processed" || event.event === "refund.failed")) {
+    await applyRefundEvent({
+      event: event.event,
+      refundId: refundEntity.id,
+      paymentId: refundEntity.payment_id,
+    });
   }
 
   const entity = event.payload?.payment?.entity;

@@ -41,7 +41,7 @@ Restart the API after changing `.env`.
 ## 4. Webhook (optional locally)
 
 1. In the dashboard, add webhook URL `https://<your-tunnel>/api/payments/webhook`.
-2. Enable `payment.captured` and `payment.failed`.
+2. Enable `payment.captured`, `payment.failed`, `refund.processed`, and `refund.failed`.
 3. Copy the webhook secret into `RAZORPAY_WEBHOOK_SECRET`.
 4. The handler verifies `x-razorpay-signature` against the **raw** JSON body and ignores duplicate `payment.captured` events.
 

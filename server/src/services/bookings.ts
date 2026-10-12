@@ -10,7 +10,7 @@ import {
   hasConflict,
   validateWindow,
 } from "./availability.js";
-import { createPaymentOrder } from "./payments.js";
+import { createPaymentOrder, refundRazorpayPayment, type RefundPaymentFn } from "./payments.js";
 import { notify } from "./notify.js";
 import { formatDateTime } from "../utils/format.js";
 
@@ -209,33 +209,127 @@ export async function failBookingPayment(bookingId: string) {
   return booking;
 }
 
-/** Cancel by the driver (or admin). Refund when outside the cutoff window. */
-export async function cancelBooking(bookingId: string, byUserId: string, isAdmin: boolean) {
+export interface CancelBookingDeps {
+  notify?: typeof notify;
+  refundPayment?: RefundPaymentFn;
+}
+
+function isRefundWindow(start: Date) {
+  return start.getTime() - Date.now() > FREE_CANCEL_BEFORE_MINS * 60000;
+}
+
+/** Claim PAID → refund in-flight, call Razorpay, persist id/state. Never mark REFUNDED on request alone. */
+async function settlePaidRefund(
+  booking: { _id: unknown; start: Date },
+  deps: CancelBookingDeps
+): Promise<boolean> {
+  const payment = await Payment.findOne({ bookingId: booking._id });
+  if (!payment) return false;
+  if (payment.status === "REFUNDED" || payment.refundStatus === "PROCESSED") {
+    await Booking.updateOne({ _id: booking._id }, { $set: { refunded: true } });
+    return true;
+  }
+  if (payment.refundStatus === "PENDING" && payment.refundId) return true;
+  if (payment.status !== "PAID" || !isRefundWindow(booking.start)) return false;
+
+  const claimed = await Payment.findOneAndUpdate(
+    {
+      _id: payment._id,
+      status: "PAID",
+      $or: [{ refundStatus: { $exists: false } }, { refundStatus: null }, { refundStatus: "FAILED" }],
+    },
+    { $set: { refundStatus: "PENDING" } },
+    { new: true }
+  );
+  if (!claimed) {
+    const latest = await Payment.findById(payment._id);
+    if (latest?.status === "REFUNDED" || latest?.refundStatus === "PROCESSED") return true;
+    if (latest?.refundStatus === "PENDING") return true;
+    return false;
+  }
+  if (!claimed.paymentId) {
+    await Payment.updateOne({ _id: claimed._id, status: { $ne: "REFUNDED" } }, { $set: { refundStatus: "FAILED" } });
+    throw new ApiError(503, "We couldn't process the refund. Try again shortly.");
+  }
+
+  try {
+    const result = await refundRazorpayPayment(claimed.paymentId, claimed.amount, deps.refundPayment);
+    if (result.processed) {
+      await Payment.updateOne(
+        { _id: claimed._id },
+        { $set: { status: "REFUNDED", refundStatus: "PROCESSED", refundId: result.refundId } }
+      );
+      await Booking.updateOne({ _id: booking._id }, { $set: { refunded: true } });
+      return true;
+    }
+    await Payment.updateOne(
+      { _id: claimed._id, status: { $ne: "REFUNDED" } },
+      { $set: { refundStatus: "PENDING", refundId: result.refundId } }
+    );
+    return true;
+  } catch {
+    await Payment.updateOne({ _id: claimed._id, status: { $ne: "REFUNDED" } }, { $set: { refundStatus: "FAILED" } });
+    throw new ApiError(503, "We couldn't process the refund. Try again shortly.");
+  }
+}
+
+/** Cancel by the driver (or admin). Refund eligible paid bookings through Razorpay. */
+export async function cancelBooking(
+  bookingId: string,
+  byUserId: string,
+  isAdmin: boolean,
+  deps: CancelBookingDeps = {}
+) {
   if (!mongoose.isValidObjectId(bookingId)) throw new ApiError(404, "Booking not found.");
   await expireStalePendingBookings();
   const booking = await Booking.findById(bookingId).populate<{ spaceId: { title: string } }>("spaceId", "title");
   if (!booking) throw new ApiError(404, "Booking not found.");
   if (!isAdmin && String(booking.userId) !== byUserId) throw new ApiError(403, "Not your booking.");
+
+  const send = deps.notify ?? notify;
+  if (booking.status === "CANCELLED") {
+    const refunded = await settlePaidRefund(booking, deps);
+    if (refunded) return { booking, refunded: true };
+    throw new ApiError(409, "This booking can't be cancelled anymore.");
+  }
   if (!["PENDING", "CONFIRMED"].includes(booking.status))
     throw new ApiError(409, "This booking can't be cancelled anymore.");
   if (booking.status === "CONFIRMED" && booking.start.getTime() <= Date.now())
     throw new ApiError(409, "This booking has already started and can't be cancelled.");
 
-  const paid = await Payment.exists({ bookingId: booking._id, status: "PAID" });
-  const refundable = !!paid && booking.start.getTime() - Date.now() > FREE_CANCEL_BEFORE_MINS * 60000;
-  booking.status = "CANCELLED";
-  booking.cancelledAt = new Date();
-  booking.refunded = refundable;
-  await booking.save();
-  if (refundable) {
-    await Payment.updateOne({ bookingId: booking._id, status: "PAID" }, { $set: { status: "REFUNDED" } });
+  const claimed = await Booking.findOneAndUpdate(
+    {
+      _id: booking._id,
+      $or: [{ status: "PENDING" }, { status: "CONFIRMED", start: { $gt: new Date() } }],
+    },
+    { $set: { status: "CANCELLED", cancelledAt: new Date() } },
+    { new: true }
+  );
+  if (!claimed) {
+    const latest = await Booking.findById(booking._id);
+    if (latest?.status === "CANCELLED") {
+      const refunded = await settlePaidRefund(latest, deps);
+      if (refunded) return { booking: latest, refunded: true };
+    }
+    throw new ApiError(409, "This booking can't be cancelled anymore.");
   }
 
+  const refunded = await settlePaidRefund(claimed, deps);
+
   const title = (booking.spaceId as unknown as { title: string }).title;
-  await notify(String(booking.userId), "BOOKING_CANCELLED", "Booking cancelled",
-    refundable ? "Your booking was cancelled. A full refund has been initiated." : "Your booking was cancelled.",
-    { bookingId });
-  await notify(String(booking.hostId), "BOOKING_CANCELLED", "Booking cancelled",
-    `${title}: the ${formatDateTime(booking.start)} booking was cancelled.`, { bookingId });
-  return { booking, refunded: refundable };
+  await send(
+    String(booking.userId),
+    "BOOKING_CANCELLED",
+    "Booking cancelled",
+    refunded ? "Your booking was cancelled. A full refund has been initiated." : "Your booking was cancelled.",
+    { bookingId }
+  );
+  await send(
+    String(booking.hostId),
+    "BOOKING_CANCELLED",
+    "Booking cancelled",
+    `${title}: the ${formatDateTime(booking.start)} booking was cancelled.`,
+    { bookingId }
+  );
+  return { booking: claimed, refunded };
 }

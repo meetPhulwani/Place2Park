@@ -130,3 +130,64 @@ export function verifyWebhookSignature(rawBody: string, signature: string) {
   if (!env.RAZORPAY_WEBHOOK_SECRET) return false;
   return safeEqualHex(webhookSignature(rawBody, env.RAZORPAY_WEBHOOK_SECRET), signature);
 }
+
+export interface RazorpayRefundResult {
+  refundId: string;
+  processed: boolean;
+}
+
+export type RefundPaymentFn = (paymentId: string, amountPaise: number) => Promise<RazorpayRefundResult>;
+
+/** Refund a captured payment. Amount always comes from the caller (Mongo), never the client. */
+export async function refundRazorpayPayment(
+  paymentId: string,
+  amountPaise: number,
+  refundFn?: RefundPaymentFn
+): Promise<RazorpayRefundResult> {
+  if (refundFn) return refundFn(paymentId, amountPaise);
+  if (!razorpayConfigured()) {
+    throw new ApiError(503, "We couldn't process the refund. Try again shortly.");
+  }
+  if (!paymentId || !Number.isFinite(amountPaise) || amountPaise <= 0) {
+    throw new ApiError(503, "We couldn't process the refund. Try again shortly.");
+  }
+  const Razorpay = (await import("razorpay")).default;
+  const rzp = new Razorpay({ key_id: env.RAZORPAY_KEY_ID, key_secret: env.RAZORPAY_KEY_SECRET });
+  const refund = await rzp.payments.refund(paymentId, { amount: amountPaise });
+  const refundId = String((refund as { id?: string }).id ?? "");
+  if (!refundId) throw new ApiError(503, "We couldn't process the refund. Try again shortly.");
+  const status = String((refund as { status?: string }).status ?? "").toLowerCase();
+  return { refundId, processed: status === "processed" };
+}
+
+export async function applyRefundEvent(input: { event?: string; refundId?: string; paymentId?: string }) {
+  const event = input.event ?? "";
+  if (!input.refundId && !input.paymentId) return;
+  if (event === "refund.processed") {
+    const payment = await Payment.findOne({
+      $or: [
+        ...(input.refundId ? [{ refundId: input.refundId }] : []),
+        ...(input.paymentId ? [{ paymentId: input.paymentId }] : []),
+      ],
+    });
+    if (!payment || payment.status === "REFUNDED") return;
+    payment.status = "REFUNDED";
+    payment.refundStatus = "PROCESSED";
+    if (input.refundId) payment.refundId = input.refundId;
+    await payment.save();
+    await Booking.updateOne({ _id: payment.bookingId }, { $set: { refunded: true } });
+    return;
+  }
+  if (event === "refund.failed" && (input.refundId || input.paymentId)) {
+    await Payment.updateOne(
+      {
+        status: { $ne: "REFUNDED" },
+        $or: [
+          ...(input.refundId ? [{ refundId: input.refundId }] : []),
+          ...(input.paymentId ? [{ paymentId: input.paymentId }] : []),
+        ],
+      },
+      { $set: { refundStatus: "FAILED" } }
+    );
+  }
+}
