@@ -15,7 +15,7 @@ This document describes the **verified** architecture of the Place2Park (Parkly)
 | Payments | Razorpay orders, checkout HMAC, webhooks, refunds | `server/src/services/payments.ts`, `server/src/services/bookings.ts` |
 | Maps | Google Maps JS + Places; catalog fallback | `client/src/lib/google-maps.ts`, `client/src/components/map/places-autocomplete.tsx` |
 | Email | Nodemailer SMTP | `server/src/services/email.ts` |
-| Deploy | Vercel (SPA) + Render (API) — **dashboards, not in-repo IaC** | No `vercel.json` / `render.yaml` in the repo |
+| Deploy | Vercel (SPA) + Render (API) | `vercel.json`, `client/vercel.json`; Render start is `npm run build && npm start` |
 
 ---
 
@@ -265,9 +265,9 @@ sequenceDiagram
 | Cancel unpaid PENDING | Slot released; `refunded: false` |
 | Cancel CONFIRMED started | 409 |
 | Cancel paid, >60 min before start | Claim payment `refundStatus: PENDING`, `payments.refund(paymentId, { amount })` using Mongo amount |
-| Refund processed | Payment `REFUNDED`, `booking.refunded = true` |
-| Refund pending | Payment stays `PAID` + `refundStatus: PENDING` + `refundId` until webhook |
-| Refund API error | Payment stays `PAID`, `refundStatus: FAILED`, HTTP **503**; retry on later cancel; one in-flight claim prevents duplicates |
+| Refund processed | Payment `REFUNDED`, `booking.refunded = true`, `refundProcessedAt` set |
+| Refund pending | Payment stays `PAID` + `refundStatus: PENDING` + `refundId` + `refundAmount` until webhook; cancel API `refunded` means requested, not completed |
+| Refund API error | Payment stays `PAID`, `refundStatus: FAILED`, `refundFailedAt`, HTTP **503**; retry on later cancel; one in-flight claim prevents duplicates |
 
 **Proposed:** persist less of `signature` at rest; require webhook secret in production boot (currently verify returns false if unset).
 
@@ -353,7 +353,7 @@ Never commit or paste real values. Names only.
 | `GOOGLE_CLIENT_ID` | Render | Google login |
 | `GOOGLE_CLIENT_SECRET` | Render | unused by GIS ID-token flow |
 | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` | Render | checkout + refunds |
-| `RAZORPAY_WEBHOOK_SECRET` | Render | webhook + refund events |
+| `RAZORPAY_WEBHOOK_SECRET` | Render | webhook + refund events; **required in production** |
 | `EMAIL_FROM`, `SMTP_*` | Render | password-reset mail |
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Render | listing photos; required in production |
 
@@ -368,7 +368,7 @@ Never commit or paste real values. Names only.
 
 `.gitignore` ignores `**/.env`; examples are tracked. No `VITE_` secrets.
 
-**Repo vs dashboard:** there is **no** `vercel.json` or `render.yaml`. SPA rewrites and Render `npm run build && npm start` must be set in the hosts. Google JS origins and Maps referrers must include the Vercel domain.
+**Repo vs dashboard:** `vercel.json` (repo root) and `client/vercel.json` rewrite SPA routes to `index.html` and exclude `/api`. There is no `render.yaml`; Render must still use `cd server && npm run build && npm start`. Google JS origins and Maps referrers must include the Vercel domain.
 
 ---
 
@@ -393,8 +393,8 @@ Never commit or paste real values. Names only.
 |---|---|---|---|
 | P0-1 | `confirmBookingPaid` is read-modify-write; verify + webhook can double-notify and `$inc bookingsCount` twice | `bookings.ts` `confirmBookingPaid` | **Implemented:** atomic PENDING→CONFIRMED claim |
 | P0-2 | Listing photos on Render disk | `routes/index.ts` multer; `app.ts` static | **Implemented:** Cloudinary in production; local `/uploads` fallback in development |
-| P0-3 | No in-repo SPA rewrite / Render blueprint | repo root | Confirm Vercel rewrite → `index.html`; Render start `node dist/server.js` |
-| P0-4 | Webhook secret optional at boot | `verifyWebhookSignature` returns false if unset | Fail closed in production if secret missing |
+| P0-3 | No in-repo SPA rewrite / Render blueprint | repo root | **Implemented:** `vercel.json` + `client/vercel.json` SPA rewrite; `/api` excluded. Render start still documented as `npm run build && npm start`. |
+| P0-4 | Webhook secret optional at boot | `verifyWebhookSignature` returns false if unset | **Implemented:** `RAZORPAY_WEBHOOK_SECRET` required when `NODE_ENV=production`; verification still fails closed if the secret is empty |
 
 **P1 — production reliability and security**
 
@@ -432,7 +432,7 @@ Never commit or paste real values. Names only.
 
 1. **P0-1** Atomic payment confirm (verify + webhook). **Done.**
 2. **P0-2** Durable listing images (Cloudinary). **Done** — set Render Cloudinary env vars; re-upload listings whose `/uploads` files are already gone.
-3. **P0-3 / P0-4** Confirm Vercel rewrite + Render start; require webhook secret in production.
+3. **P0-3 / P0-4** Vercel SPA rewrite + require webhook secret in production. **Done** — set `RAZORPAY_WEBHOOK_SECRET` on Render before the next production deploy; confirm `/search` and `/dashboard` refresh on Vercel.
 4. **P1** Search rate limit, Zod on reset, stop storing signatures, fetch error states.
 5. **P1-6** Same-process scheduled expiry (not a new platform).
 6. **P2** Search indexing and stats TTL after traffic grows.

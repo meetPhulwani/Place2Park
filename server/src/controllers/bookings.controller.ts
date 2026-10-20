@@ -172,6 +172,6 @@ export async function detail(req: AuthedRequest, res: Response) {
 }
 
 export async function cancel(req: AuthedRequest, res: Response) {
-  const { refunded } = await cancelBooking(req.params.id, req.userId, req.userRole === "ADMIN");
-  res.json({ success: true, data: { refunded } });
+  const { refunded, refundStatus } = await cancelBooking(req.params.id, req.userId, req.userRole === "ADMIN");
+  res.json({ success: true, data: { refunded, refundStatus } });
 }

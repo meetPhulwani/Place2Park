@@ -93,6 +93,14 @@ export default function BookingDetailPage() {
     PAYMENT_PENDING: "PAYMENT_PENDING",
     PAYMENT_PAID: "PAYMENT_PAID",
   };
+  const paymentStatusText =
+    payment?.status === "REFUNDED" || payment?.refundStatus === "PROCESSED"
+      ? "Refunded"
+      : payment?.refundStatus === "PENDING"
+        ? "Refund in progress"
+        : payment?.refundStatus === "FAILED"
+          ? "Refund unsuccessful"
+          : paymentLabel[payment?.status ?? "CREATED"];
 
   return (
     <div className="mx-auto max-w-4xl animate-fade-in">
@@ -224,7 +232,7 @@ export default function BookingDetailPage() {
                 )}
               </span>
               <span className="font-semibold text-slate-900">
-                {paymentLabel[payment?.status ?? "CREATED"]}
+                {paymentStatusText}
               </span>
             </div>
             {payment?.paymentId && (

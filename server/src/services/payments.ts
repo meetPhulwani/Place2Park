@@ -127,8 +127,9 @@ export function verifyRazorpaySignature(orderId: string, paymentId: string, sign
 
 /** Verify a Razorpay webhook signature against the raw request body. */
 export function verifyWebhookSignature(rawBody: string, signature: string) {
-  if (!env.RAZORPAY_WEBHOOK_SECRET) return false;
-  return safeEqualHex(webhookSignature(rawBody, env.RAZORPAY_WEBHOOK_SECRET), signature);
+  const secret = String(env.RAZORPAY_WEBHOOK_SECRET ?? "").trim();
+  if (!secret) return false;
+  return safeEqualHex(webhookSignature(rawBody, secret), signature);
 }
 
 export interface RazorpayRefundResult {
@@ -173,6 +174,8 @@ export async function applyRefundEvent(input: { event?: string; refundId?: strin
     if (!payment || payment.status === "REFUNDED") return;
     payment.status = "REFUNDED";
     payment.refundStatus = "PROCESSED";
+    payment.refundProcessedAt = new Date();
+    if (!payment.refundAmount) payment.refundAmount = payment.amount;
     if (input.refundId) payment.refundId = input.refundId;
     await payment.save();
     await Booking.updateOne({ _id: payment.bookingId }, { $set: { refunded: true } });
@@ -187,7 +190,7 @@ export async function applyRefundEvent(input: { event?: string; refundId?: strin
           ...(input.paymentId ? [{ paymentId: input.paymentId }] : []),
         ],
       },
-      { $set: { refundStatus: "FAILED" } }
+      { $set: { refundStatus: "FAILED", refundFailedAt: new Date() } }
     );
   }
 }

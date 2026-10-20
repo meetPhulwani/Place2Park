@@ -296,19 +296,30 @@ function isRefundWindow(start: Date) {
   return start.getTime() - Date.now() > FREE_CANCEL_BEFORE_MINS * 60000;
 }
 
+export type RefundStatus = "PENDING" | "PROCESSED" | "FAILED";
+
+export type RefundSettlement = {
+  refunded: boolean;
+  refundStatus: RefundStatus | null;
+};
+
+function settlement(refundStatus: RefundStatus | null): RefundSettlement {
+  return { refunded: refundStatus === "PENDING" || refundStatus === "PROCESSED", refundStatus };
+}
+
 /** Claim PAID → refund in-flight, call Razorpay, persist id/state. Never mark REFUNDED on request alone. */
 async function settlePaidRefund(
   booking: { _id: unknown; start: Date },
   deps: CancelBookingDeps
-): Promise<boolean> {
+): Promise<RefundSettlement> {
   const payment = await Payment.findOne({ bookingId: booking._id });
-  if (!payment) return false;
+  if (!payment) return settlement(null);
   if (payment.status === "REFUNDED" || payment.refundStatus === "PROCESSED") {
     await Booking.updateOne({ _id: booking._id }, { $set: { refunded: true } });
-    return true;
+    return settlement("PROCESSED");
   }
-  if (payment.refundStatus === "PENDING" && payment.refundId) return true;
-  if (payment.status !== "PAID" || !isRefundWindow(booking.start)) return false;
+  if (payment.refundStatus === "PENDING" && payment.refundId) return settlement("PENDING");
+  if (payment.status !== "PAID" || !isRefundWindow(booking.start)) return settlement(null);
 
   const claimed = await Payment.findOneAndUpdate(
     {
@@ -316,17 +327,27 @@ async function settlePaidRefund(
       status: "PAID",
       $or: [{ refundStatus: { $exists: false } }, { refundStatus: null }, { refundStatus: "FAILED" }],
     },
-    { $set: { refundStatus: "PENDING" } },
+    {
+      $set: {
+        refundStatus: "PENDING",
+        refundAmount: payment.amount,
+        refundRequestedAt: new Date(),
+      },
+      $unset: { refundFailedAt: 1 },
+    },
     { new: true }
   );
   if (!claimed) {
     const latest = await Payment.findById(payment._id);
-    if (latest?.status === "REFUNDED" || latest?.refundStatus === "PROCESSED") return true;
-    if (latest?.refundStatus === "PENDING") return true;
-    return false;
+    if (latest?.status === "REFUNDED" || latest?.refundStatus === "PROCESSED") return settlement("PROCESSED");
+    if (latest?.refundStatus === "PENDING") return settlement("PENDING");
+    return settlement(null);
   }
   if (!claimed.paymentId) {
-    await Payment.updateOne({ _id: claimed._id, status: { $ne: "REFUNDED" } }, { $set: { refundStatus: "FAILED" } });
+    await Payment.updateOne(
+      { _id: claimed._id, status: { $ne: "REFUNDED" } },
+      { $set: { refundStatus: "FAILED", refundFailedAt: new Date() } }
+    );
     throw new ApiError(503, "We couldn't process the refund. Try again shortly.");
   }
 
@@ -335,18 +356,29 @@ async function settlePaidRefund(
     if (result.processed) {
       await Payment.updateOne(
         { _id: claimed._id },
-        { $set: { status: "REFUNDED", refundStatus: "PROCESSED", refundId: result.refundId } }
+        {
+          $set: {
+            status: "REFUNDED",
+            refundStatus: "PROCESSED",
+            refundId: result.refundId,
+            refundAmount: claimed.amount,
+            refundProcessedAt: new Date(),
+          },
+        }
       );
       await Booking.updateOne({ _id: booking._id }, { $set: { refunded: true } });
-      return true;
+      return settlement("PROCESSED");
     }
     await Payment.updateOne(
       { _id: claimed._id, status: { $ne: "REFUNDED" } },
-      { $set: { refundStatus: "PENDING", refundId: result.refundId } }
+      { $set: { refundStatus: "PENDING", refundId: result.refundId, refundAmount: claimed.amount } }
     );
-    return true;
+    return settlement("PENDING");
   } catch {
-    await Payment.updateOne({ _id: claimed._id, status: { $ne: "REFUNDED" } }, { $set: { refundStatus: "FAILED" } });
+    await Payment.updateOne(
+      { _id: claimed._id, status: { $ne: "REFUNDED" } },
+      { $set: { refundStatus: "FAILED", refundFailedAt: new Date() } }
+    );
     throw new ApiError(503, "We couldn't process the refund. Try again shortly.");
   }
 }
@@ -366,8 +398,8 @@ export async function cancelBooking(
 
   const send = deps.notify ?? notify;
   if (booking.status === "CANCELLED") {
-    const refunded = await settlePaidRefund(booking, deps);
-    if (refunded) return { booking, refunded: true };
+    const settled = await settlePaidRefund(booking, deps);
+    if (settled.refunded) return { booking, ...settled };
     throw new ApiError(409, "This booking can't be cancelled anymore.");
   }
   if (!["PENDING", "CONFIRMED"].includes(booking.status))
@@ -386,20 +418,22 @@ export async function cancelBooking(
   if (!claimed) {
     const latest = await Booking.findById(booking._id);
     if (latest?.status === "CANCELLED") {
-      const refunded = await settlePaidRefund(latest, deps);
-      if (refunded) return { booking: latest, refunded: true };
+      const settled = await settlePaidRefund(latest, deps);
+      if (settled.refunded) return { booking: latest, ...settled };
     }
     throw new ApiError(409, "This booking can't be cancelled anymore.");
   }
 
-  const refunded = await settlePaidRefund(claimed, deps);
+  const settled = await settlePaidRefund(claimed, deps);
 
   const title = (booking.spaceId as unknown as { title: string }).title;
   await send(
     String(booking.userId),
     "BOOKING_CANCELLED",
     "Booking cancelled",
-    refunded ? "Your booking was cancelled. A full refund has been initiated." : "Your booking was cancelled.",
+    settled.refunded
+      ? "Your booking was cancelled. A refund has been requested; it can take a few days to appear."
+      : "Your booking was cancelled.",
     { bookingId }
   );
   await send(
@@ -409,5 +443,5 @@ export async function cancelBooking(
     `${title}: the ${formatDateTime(booking.start)} booking was cancelled.`,
     { bookingId }
   );
-  return { booking: claimed, refunded };
+  return { booking: claimed, ...settled };
 }

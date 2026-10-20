@@ -13,6 +13,10 @@ const paymentSchema = new Schema(
     method: { type: String },
     refundId: { type: String, index: true, sparse: true },
     refundStatus: { type: String, enum: ["PENDING", "PROCESSED", "FAILED"] },
+    refundAmount: { type: Number }, // paise actually sent to Razorpay
+    refundRequestedAt: { type: Date },
+    refundProcessedAt: { type: Date },
+    refundFailedAt: { type: Date },
   },
   {
     timestamps: true,

@@ -109,6 +109,7 @@ describe("cancelBooking Razorpay refunds", () => {
       },
     });
     assert.equal(result.refunded, true);
+    assert.equal(result.refundStatus, "PROCESSED");
     assert.equal(calls.length, 1);
     assert.equal(calls[0]?.paymentId, "pay_test_1");
     assert.equal(calls[0]?.amount, 7350);
@@ -116,6 +117,9 @@ describe("cancelBooking Razorpay refunds", () => {
     assert.equal(payment?.status, "REFUNDED");
     assert.equal(payment?.refundId, "rfnd_ok");
     assert.equal(payment?.refundStatus, "PROCESSED");
+    assert.equal(payment?.refundAmount, 7350);
+    assert.ok(payment?.refundRequestedAt instanceof Date);
+    assert.ok(payment?.refundProcessedAt instanceof Date);
     const fresh = await Booking.findById(booking._id);
     assert.equal(fresh?.status, "CANCELLED");
     assert.equal(fresh?.refunded, true);
@@ -137,6 +141,8 @@ describe("cancelBooking Razorpay refunds", () => {
     assert.equal(payment?.status, "PAID");
     assert.equal(payment?.refundStatus, "FAILED");
     assert.equal(payment?.refundId, undefined);
+    assert.ok(payment?.refundFailedAt instanceof Date);
+    assert.equal(payment?.refundProcessedAt, undefined);
     const fresh = await Booking.findById(booking._id);
     assert.equal(fresh?.status, "CANCELLED");
     assert.equal(fresh?.refunded, false);
@@ -205,6 +211,7 @@ describe("cancelBooking Razorpay refunds", () => {
       },
     });
     assert.equal(close.refunded, false);
+    assert.equal(close.refundStatus, null);
     assert.equal((await Payment.findOne({ bookingId: soon._id }))?.status, "PAID");
 
     const pending = await seedBooking({ status: "PENDING", start: hoursFromNow(3) });
@@ -255,10 +262,15 @@ describe("cancelBooking Razorpay refunds", () => {
       refundPayment: async () => ({ refundId: "rfnd_pend", processed: false }),
     });
     assert.equal(result.refunded, true);
+    assert.equal(result.refundStatus, "PENDING");
     const payment = await Payment.findOne({ bookingId: booking._id });
     assert.equal(payment?.status, "PAID");
     assert.equal(payment?.refundStatus, "PENDING");
     assert.equal(payment?.refundId, "rfnd_pend");
+    assert.equal(payment?.refundAmount, 7350);
+    assert.ok(payment?.refundRequestedAt instanceof Date);
+    assert.equal(payment?.refundProcessedAt, undefined);
+    assert.equal((await Booking.findById(booking._id))?.refunded, false);
     await applyRefundEvent({
       event: "refund.processed",
       refundId: "rfnd_pend",
@@ -267,6 +279,7 @@ describe("cancelBooking Razorpay refunds", () => {
     const after = await Payment.findOne({ bookingId: booking._id });
     assert.equal(after?.status, "REFUNDED");
     assert.equal(after?.refundStatus, "PROCESSED");
+    assert.ok(after?.refundProcessedAt instanceof Date);
     assert.equal((await Booking.findById(booking._id))?.refunded, true);
   });
 });

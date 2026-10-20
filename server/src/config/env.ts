@@ -27,6 +27,13 @@ export const env = {
 
 export const isProd = env.NODE_ENV === "production";
 
+/** Production boot check. Development may omit the webhook secret. Never log the value. */
+export function assertRazorpayWebhookSecret(nodeEnv: string, webhookSecret: string) {
+  if (nodeEnv === "production" && !String(webhookSecret ?? "").trim()) {
+    throw new Error("RAZORPAY_WEBHOOK_SECRET is required in production.");
+  }
+}
+
 const DEV_JWT_FALLBACK = "dev-only-secret-change-me";
 if (!env.JWT_SECRET) {
   if (isProd) throw new Error("JWT_SECRET is required in production.");
@@ -45,3 +52,4 @@ if (isProd && (!env.CLIENT_URL || /localhost|127\.0\.0\.1/.test(env.CLIENT_URL))
 if (isProd && (!env.CLOUDINARY_CLOUD_NAME || !env.CLOUDINARY_API_KEY || !env.CLOUDINARY_API_SECRET)) {
   throw new Error("CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET are required in production.");
 }
+assertRazorpayWebhookSecret(env.NODE_ENV, env.RAZORPAY_WEBHOOK_SECRET);

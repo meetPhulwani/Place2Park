@@ -20,8 +20,13 @@ export function CancelBookingButton({
     setBusy(true);
     try {
       const { data } = await api.post(`/bookings/${bookingId}/cancel`);
+      const refundStatus = data.data.refundStatus as string | null | undefined;
       toast.success(
-        data.data.refunded ? "Booking cancelled — full refund initiated." : "Booking cancelled."
+        refundStatus === "PROCESSED"
+          ? "Booking cancelled. Razorpay has confirmed the refund."
+          : refundStatus === "PENDING" || data.data.refunded
+            ? "Booking cancelled. A refund was requested — it can take a few days to appear."
+            : "Booking cancelled."
       );
       onCancelled?.();
     } catch (e) {
@@ -46,7 +51,7 @@ export function CancelBookingButton({
         title="Cancel this booking?"
         description={
           refundable
-            ? "You're within the free-cancellation window, so you'll receive a full refund."
+            ? "You're within the free-cancellation window. We'll request a full refund from Razorpay. It can take a few business days, and this booking won't show as refunded until Razorpay confirms it."
             : "You're past the free-cancellation window — this booking is non-refundable."
         }
         confirmLabel="Yes, cancel it"

@@ -46,4 +46,17 @@ describe("Razorpay signature helpers", () => {
     assert.equal(verifyWebhookSignature(raw, good), true);
     assert.equal(verifyWebhookSignature(raw, "0".repeat(good.length)), false);
   });
+
+  it("fails closed when the webhook secret is absent or only whitespace", () => {
+    const prev = env.RAZORPAY_WEBHOOK_SECRET;
+    const raw = '{"event":"payment.captured"}';
+    try {
+      env.RAZORPAY_WEBHOOK_SECRET = "";
+      assert.equal(verifyWebhookSignature(raw, webhookSignature(raw, "")), false);
+      env.RAZORPAY_WEBHOOK_SECRET = "   ";
+      assert.equal(verifyWebhookSignature(raw, webhookSignature(raw, "   ")), false);
+    } finally {
+      env.RAZORPAY_WEBHOOK_SECRET = prev;
+    }
+  });
 });

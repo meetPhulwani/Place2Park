@@ -141,6 +141,12 @@ export interface Payment {
   status: "CREATED" | "PAID" | "FAILED" | "REFUNDED";
   paymentState?: "PAYMENT_PENDING" | "PAYMENT_PAID" | string;
   method?: string;
+  refundId?: string;
+  refundStatus?: "PENDING" | "PROCESSED" | "FAILED";
+  refundAmount?: number;
+  refundRequestedAt?: string;
+  refundProcessedAt?: string;
+  refundFailedAt?: string;
   createdAt: string;
   bookingCode?: string;
   spaceTitle?: string;

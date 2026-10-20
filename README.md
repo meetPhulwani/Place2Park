@@ -66,7 +66,7 @@ Seed listings are fictional Mumbai-inspired demo data.
 | `GOOGLE_CLIENT_ID` | optional | Google login (token verified on the server) |
 | `GOOGLE_CLIENT_SECRET` | optional | Google OAuth (not exposed to the client) |
 | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | for checkout | Test or live Razorpay keys (secret stays on the server) |
-| `RAZORPAY_WEBHOOK_SECRET` | for webhooks | Dashboard webhook secret; verifies the raw request body |
+| `RAZORPAY_WEBHOOK_SECRET` | production | Dashboard webhook secret; required when `NODE_ENV=production`. Optional in local development. |
 | `SMTP_*` / `EMAIL_FROM` | optional | Email notifications (in-app always works) |
 
 **Client** (`client/.env`)
@@ -119,8 +119,17 @@ See [docs/cloudinary.md](docs/cloudinary.md). Never put Cloudinary secrets in `c
 ## Production
 
 1. Set `NODE_ENV=production`, a real `MONGODB_URI`, a strong `JWT_SECRET` (≥32 chars), and a public `CLIENT_URL` (the exact frontend origin).
-2. Set `RAZORPAY_WEBHOOK_SECRET` if you use Razorpay webhooks.
+2. Set `RAZORPAY_WEBHOOK_SECRET` on Render. Production boot fails without it. Local development can omit it.
 3. Set `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET` on the API host (Render). The API will not boot in production without them.
 4. Client: set `VITE_API_URL` to the public API base (for example `https://api.example.com/api`) when the SPA is on another host, then `cd client && npm run build`. Serve `client/dist` from a static host.
-5. Server: `cd server && npm run build && npm start` (`node dist/server.js`). `tsx` is only for local `dev` / `seed`.
+5. Server: `cd server && npm run build && npm start` (`node dist/server.js`). `tsx` is only for local `dev` / `seed`. On Render, use that build + start command (Root Directory `server` if the Git repo is the monorepo).
 6. If the frontend and API are on different hosts, listing photos (`/uploads`, `/demo`) are resolved from `VITE_API_URL`. Cloudinary `https://` URLs are used as-is. Alternatively reverse-proxy `/uploads` and `/demo`.
+7. Vercel: Root Directory `client` (or deploy from the repo root using the root `vercel.json`). `client/vercel.json` rewrites SPA paths to `index.html` and does **not** rewrite `/api` (the API stays on Render).
+
+### Verify Vercel SPA routes after deploy
+
+1. Open `https://<vercel-host>/search` in a new tab (direct URL, not an in-app click). The search page should load, not a Vercel 404.
+2. Refresh `/search`. It should stay on search.
+3. Open `https://<vercel-host>/dashboard` while logged out. You should get the app login/guard, not a Vercel 404.
+4. After login, refresh `/dashboard`. The dashboard should reload.
+5. In DevTools, API calls should go to the Render origin (`VITE_API_URL`), not `https://<vercel-host>/api`.
