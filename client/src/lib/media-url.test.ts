@@ -26,6 +26,13 @@ describe("resolveMediaUrl", () => {
       "https://cdn.example.com/uploads/a.jpg"
     );
     assert.equal(
+      resolveMediaUrl(
+        "https://res.cloudinary.com/demo/image/upload/v1/place2park/listings/abc.jpg",
+        "https://api.example.com/api"
+      ),
+      "https://res.cloudinary.com/demo/image/upload/v1/place2park/listings/abc.jpg"
+    );
+    assert.equal(
       resolveMediaUrl("https://api.example.com/uploads/a.jpg", "https://api.example.com/api"),
       "https://api.example.com/uploads/a.jpg"
     );

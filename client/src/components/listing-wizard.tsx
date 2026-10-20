@@ -62,7 +62,7 @@ export interface WizardData {
   priceRupees: string;
   minDurationMins: number;
   maxDurationMins: number;
-  images: { url: string; alt: string }[];
+  images: { url: string; alt: string; publicId?: string }[];
   open247: boolean;
   days: { day: number; enabled: boolean; start: string; end: string }[];
 }
@@ -314,7 +314,8 @@ export function ListingWizard({
           headers: { "Content-Type": "multipart/form-data" },
         });
         const url = d.data.url as string;
-        setData((prev) => ({ ...prev, images: [...prev.images, { url, alt: "" }] }));
+        const publicId = typeof d.data.publicId === "string" && d.data.publicId ? d.data.publicId : undefined;
+        setData((prev) => ({ ...prev, images: [...prev.images, { url, alt: "", ...(publicId ? { publicId } : {}) }] }));
       } catch (e) {
         toast.error(errorMessage(e, `Couldn't upload ${file.name}.`));
       }

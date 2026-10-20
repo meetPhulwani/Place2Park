@@ -7,6 +7,7 @@ import { expireStalePendingBookings, hasConflict, progressBookingStatuses } from
 import { redactBooking } from "../utils/privacy.js";
 import { isProd } from "../config/env.js";
 import type { ListingInput } from "../utils/validation.js";
+import { persistListingImages } from "../services/media.js";
 
 function publishStatus() {
   // Production always requires review. Development auto-verifies so the host→book flow can be tested.
@@ -72,7 +73,12 @@ function listingDataFromInput(input: ListingInput) {
     pricePerHour: input.pricePerHour,
     minDurationMins: input.minDurationMins,
     maxDurationMins: input.maxDurationMins,
-    images: input.images.map((img, i) => ({ url: img.url, alt: img.alt, sortOrder: i })),
+    images: input.images.map((img, i) => ({
+      url: img.url,
+      alt: img.alt,
+      sortOrder: i,
+      publicId: img.publicId || "",
+    })),
     availability: input.availability,
   };
 }
@@ -145,24 +151,34 @@ export async function getListing(req: AuthedRequest, res: Response) {
 export async function createListing(req: AuthedRequest, res: Response) {
   const input = req.body as ListingInput;
   const published = !!input.publish;
-  const space = await ParkingSpace.create({
-    ...listingDataFromInput(input),
-    hostId: req.userId,
-    status: published ? publishStatus() : "DRAFT",
-    verified: published && !isProd,
+  const payload = listingDataFromInput(input);
+  let space: InstanceType<typeof ParkingSpace> | undefined;
+  await persistListingImages([], payload.images, async () => {
+    space = await ParkingSpace.create({
+      ...payload,
+      hostId: req.userId,
+      status: published ? publishStatus() : "DRAFT",
+      verified: published && !isProd,
+    });
   });
-  res.status(201).json({ success: true, data: { listing: space.toJSON() } });
+  res.status(201).json({ success: true, data: { listing: space!.toJSON() } });
 }
 
 export async function updateListing(req: AuthedRequest, res: Response) {
   const space = await ownedSpace(req.params.id, req.userId);
   const input = req.body as ListingInput;
+  const previous = (space.images ?? []).map((img) => ({
+    url: img.url,
+    publicId: img.publicId || undefined,
+  }));
   Object.assign(space, listingDataFromInput(input));
   if (input.publish && ["DRAFT", "REJECTED", "PENDING_REVIEW"].includes(space.status)) {
     space.status = publishStatus();
     if (!isProd) space.verified = true;
   }
-  await space.save();
+  await persistListingImages(previous, space.images as { url: string; publicId?: string }[], async () => {
+    await space.save();
+  });
   res.json({ success: true, data: { listing: space.toJSON() } });
 }
 

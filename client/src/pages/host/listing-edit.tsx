@@ -82,7 +82,11 @@ export default function EditListingPage() {
     priceRupees: String(Math.round(listing.pricePerHour / 100)),
     minDurationMins: listing.minDurationMins,
     maxDurationMins: listing.maxDurationMins,
-    images: listing.images.map((i) => ({ url: i.url, alt: i.alt ?? "" })),
+    images: listing.images.map((i) => ({
+      url: i.url,
+      alt: i.alt ?? "",
+      ...(i.publicId ? { publicId: i.publicId } : {}),
+    })),
     open247: availability.length === 0,
     days: base.days.map((d) => {
       const rule = availability.find((a) => a.dayOfWeek === d.day);

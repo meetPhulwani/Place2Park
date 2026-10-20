@@ -6,6 +6,7 @@ const imageSchema = new Schema(
     url: { type: String, required: true },
     alt: { type: String, default: "" },
     sortOrder: { type: Number, default: 0 },
+    publicId: { type: String, default: "" },
   },
   { _id: false }
 );

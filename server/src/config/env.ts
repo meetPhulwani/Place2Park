@@ -20,6 +20,9 @@ export const env = {
   SMTP_PORT: Number(process.env.SMTP_PORT ?? 0),
   SMTP_USER: process.env.SMTP_USER ?? "",
   SMTP_PASS: process.env.SMTP_PASS ?? "",
+  CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME ?? "",
+  CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY ?? "",
+  CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET ?? "",
 };
 
 export const isProd = env.NODE_ENV === "production";
@@ -38,4 +41,7 @@ if (isProd && !env.MONGODB_URI) {
 }
 if (isProd && (!env.CLIENT_URL || /localhost|127\.0\.0\.1/.test(env.CLIENT_URL))) {
   throw new Error("CLIENT_URL must be the public site origin in production.");
+}
+if (isProd && (!env.CLOUDINARY_CLOUD_NAME || !env.CLOUDINARY_API_KEY || !env.CLOUDINARY_API_SECRET)) {
+  throw new Error("CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET are required in production.");
 }

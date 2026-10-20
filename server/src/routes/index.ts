@@ -1,8 +1,5 @@
 import { Router } from "express";
 import multer from "multer";
-import crypto from "node:crypto";
-import fs from "node:fs";
-import { UPLOADS_DIR } from "../config/paths.js";
 import * as auth from "../controllers/auth.controller.js";
 import * as users from "../controllers/users.controller.js";
 import * as parking from "../controllers/parking.controller.js";
@@ -11,6 +8,7 @@ import * as payments from "../controllers/payments.controller.js";
 import * as engagement from "../controllers/engagement.controller.js";
 import * as host from "../controllers/host.controller.js";
 import * as admin from "../controllers/admin.controller.js";
+import * as uploads from "../controllers/uploads.controller.js";
 import { adminOnly, authenticate, hostOnly, maybeAuthenticate } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { asyncHandler } from "../middleware/error.js";
@@ -20,6 +18,7 @@ import {
   listingSchema, loginSchema, profileSchema, reportSchema, reviewSchema, signupSchema,
   vehicleSchema, verifyPaymentSchema,
 } from "../utils/validation.js";
+import { ALLOWED_UPLOAD_TYPES, MAX_UPLOAD_BYTES } from "../services/media.js";
 
 const r = Router();
 const a = asyncHandler;
@@ -98,32 +97,15 @@ r.get("/admin/reports", authenticate, adminOnly, a(admin.listReports));
 r.post("/admin/reports/:id/resolve", authenticate, adminOnly, a(admin.resolveReport));
 r.get("/admin/reviews", authenticate, adminOnly, a(admin.listReviews));
 
-// ---- Uploads (dev: local disk; swap this block for S3/Cloudinary in production)
-const uploadDir = UPLOADS_DIR;
-fs.mkdirSync(uploadDir, { recursive: true });
-const UPLOAD_TYPES: Record<string, string> = {
-  "image/jpeg": ".jpg",
-  "image/png": ".png",
-  "image/webp": ".webp",
-};
+// ---- Uploads (Cloudinary in production; local /uploads when Cloudinary is unset in development)
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: uploadDir,
-    filename: (_req, file, cb) =>
-      cb(null, `${crypto.randomBytes(8).toString("hex")}${UPLOAD_TYPES[file.mimetype] ?? ".bin"}`),
-  }),
-  limits: { fileSize: 5 * 1024 * 1024 },
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_UPLOAD_BYTES },
   fileFilter: (_req, file, cb) => {
-    if (UPLOAD_TYPES[file.mimetype]) cb(null, true);
+    if (ALLOWED_UPLOAD_TYPES[file.mimetype]) cb(null, true);
     else cb(null, false);
   },
 });
-r.post("/upload", authenticate, hostOnly, rateLimit("upload", 30, 10 * 60000), upload.single("file"), (req, res) => {
-  if (!req.file) {
-    res.status(400).json({ success: false, message: "Upload a JPEG, PNG or WebP image up to 5 MB." });
-    return;
-  }
-  res.json({ success: true, data: { url: `/uploads/${req.file.filename}` } });
-});
+r.post("/upload", authenticate, hostOnly, rateLimit("upload", 30, 10 * 60000), upload.single("file"), a(uploads.uploadImage));
 
 export default r;

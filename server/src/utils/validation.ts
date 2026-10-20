@@ -108,7 +108,20 @@ export const listingSchema = z
     pricePerHour: z.number().int().min(1000, "Minimum ₹10/hour").max(100000, "Maximum ₹1,000/hour"), // paise
     minDurationMins: z.number().int().refine((v) => (ALLOWED_DURATIONS_MINS as readonly number[]).includes(v)),
     maxDurationMins: z.number().int().refine((v) => (ALLOWED_DURATIONS_MINS as readonly number[]).includes(v)),
-    images: z.array(z.object({ url: z.string().min(1), alt: z.string().default("") })).max(8),
+    images: z
+      .array(
+        z.object({
+          url: z.string().min(1),
+          alt: z.string().default(""),
+          publicId: z
+            .string()
+            .max(300)
+            .regex(/^[A-Za-z0-9_./-]*$/, "Invalid image id")
+            .optional()
+            .or(z.literal("")),
+        })
+      )
+      .max(8),
     availability: z
       .array(
         z.object({

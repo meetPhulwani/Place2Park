@@ -28,6 +28,10 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
     res.status(422).json({ success: false, message: "Invalid input." });
     return;
   }
+  if ((err as { code?: string } | undefined)?.code === "LIMIT_FILE_SIZE") {
+    res.status(400).json({ success: false, message: "Upload a JPEG, PNG or WebP image up to 5 MB." });
+    return;
+  }
   console.error("[error]", err);
   res.status(500).json({
     success: false,

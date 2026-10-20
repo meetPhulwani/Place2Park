@@ -51,6 +51,7 @@ export async function verify(req: AuthedRequest, res: Response) {
     throw new ApiError(400, "Order mismatch.");
 
   if (payment.status === "PAID") {
+    await confirmBookingPaid(bookingId, payment.paymentId || razorpayPaymentId, razorpaySignature);
     res.json({ success: true, data: { bookingId: String(booking._id), alreadyPaid: true } });
     return;
   }
@@ -103,7 +104,7 @@ export async function webhook(req: Request, res: Response) {
   if (entity?.order_id) {
     const payment = await Payment.findOne({ orderId: entity.order_id });
     if (payment) {
-      if ((event.event === "payment.captured" || event.event === "order.paid") && payment.status !== "PAID" && entity.id)
+      if ((event.event === "payment.captured" || event.event === "order.paid") && entity.id)
         await confirmBookingPaid(String(payment.bookingId), entity.id);
       else if (event.event === "payment.failed" && payment.status !== "PAID")
         await failBookingPayment(String(payment.bookingId));

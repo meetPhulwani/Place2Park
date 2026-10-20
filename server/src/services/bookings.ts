@@ -166,36 +166,114 @@ export async function createBooking(input: CreateBookingInput) {
   return { booking, order };
 }
 
-/** Marks a booking paid + confirmed (after signature/mock verification). */
-export async function confirmBookingPaid(bookingId: string, paymentId: string, signature?: string) {
-  const booking = await Booking.findById(bookingId).populate<{ spaceId: { title: string } }>("spaceId", "title");
-  if (!booking) throw new ApiError(404, "Booking not found.");
-  if (["CONFIRMED", "ACTIVE", "COMPLETED"].includes(booking.status)) {
+export interface ConfirmBookingPaidDeps {
+  notify?: typeof notify;
+}
+
+const PAID_BOOKING_STATUSES = ["CONFIRMED", "ACTIVE", "COMPLETED"] as const;
+
+function isPaidBookingStatus(status: string) {
+  return (PAID_BOOKING_STATUSES as readonly string[]).includes(status);
+}
+
+async function markPaymentPaid(bookingId: unknown, paymentId: string, signature: string) {
+  await Payment.updateOne(
+    { bookingId, status: { $ne: "PAID" } },
+    { $set: { status: "PAID", paymentId, signature } }
+  );
+}
+
+const pendingConfirmFilter = (bookingId: unknown) => ({
+  _id: bookingId,
+  status: "PENDING" as const,
+  $or: [{ expiresAt: { $exists: false } }, { expiresAt: null }, { expiresAt: { $gt: new Date() } }],
+});
+
+/** Claim PENDING → CONFIRMED and apply payment + bookingsCount in one unit of work. */
+async function claimPaidConfirmation(bookingId: unknown, paymentId: string, signature: string) {
+  const update = { $set: { status: "CONFIRMED" }, $unset: { expiresAt: 1 } };
+
+  async function write(session?: mongoose.ClientSession) {
+    const claimed = await Booking.findOneAndUpdate(pendingConfirmFilter(bookingId), update, {
+      new: true,
+      session,
+    });
+    if (!claimed) return null;
     await Payment.updateOne(
-      { bookingId: booking._id, status: { $ne: "PAID" } },
-      { $set: { status: "PAID", paymentId, signature: signature ?? "" } }
+      { bookingId: claimed._id },
+      { $set: { status: "PAID", paymentId, signature } },
+      { session }
     );
-    return booking;
+    await ParkingSpace.updateOne({ _id: claimed.spaceId }, { $inc: { bookingsCount: 1 } }, { session });
+    return claimed;
+  }
+
+  const session = await mongoose.startSession();
+  try {
+    const claimed = await session.withTransaction(async () => write(session));
+    return claimed ?? null;
+  } catch (err) {
+    if (!isTxnUnsupported(err)) throw err;
+  } finally {
+    await session.endSession();
+  }
+  return write();
+}
+
+/**
+ * Confirms a PENDING hold after the caller has verified the payment.
+ * Exactly one concurrent caller wins `PENDING → CONFIRMED` and increments
+ * `bookingsCount`. Notifications run only on that winning path (at most once
+ * per confirmation attempt in this process — not an outbox).
+ */
+export async function confirmBookingPaid(
+  bookingId: string,
+  paymentId: string,
+  signature?: string,
+  deps: ConfirmBookingPaidDeps = {}
+) {
+  const send = deps.notify ?? notify;
+  const sig = signature ?? "";
+  const booking = await Booking.findById(bookingId);
+  if (!booking) throw new ApiError(404, "Booking not found.");
+
+  if (isPaidBookingStatus(booking.status)) {
+    await markPaymentPaid(booking._id, paymentId, sig);
+    return booking.populate<{ spaceId: { title: string } }>("spaceId", "title");
   }
   if (booking.status !== "PENDING") throw new ApiError(409, "This booking can no longer be paid.");
   if (booking.expiresAt && booking.expiresAt.getTime() <= Date.now())
     throw new ApiError(409, "This reservation has expired.");
 
-  booking.status = "CONFIRMED";
-  booking.expiresAt = undefined;
-  await booking.save();
-  await Payment.updateOne(
-    { bookingId: booking._id },
-    { $set: { status: "PAID", paymentId, signature: signature ?? "" } }
-  );
-  await ParkingSpace.updateOne({ _id: booking.spaceId }, { $inc: { bookingsCount: 1 } });
+  const claimed = await claimPaidConfirmation(booking._id, paymentId, sig);
+  if (!claimed) {
+    const latest = await Booking.findById(booking._id);
+    if (latest && isPaidBookingStatus(latest.status)) {
+      await markPaymentPaid(latest._id, paymentId, sig);
+      return latest.populate<{ spaceId: { title: string } }>("spaceId", "title");
+    }
+    if (latest?.status === "PENDING" && latest.expiresAt && latest.expiresAt.getTime() <= Date.now())
+      throw new ApiError(409, "This reservation has expired.");
+    throw new ApiError(409, "This booking can no longer be paid.");
+  }
 
-  const title = (booking.spaceId as unknown as { title: string }).title;
-  await notify(String(booking.userId), "BOOKING_CONFIRMED", "Booking confirmed 🎉",
-    `Your parking at ${title} is confirmed for ${formatDateTime(booking.start)}.`, { bookingId });
-  await notify(String(booking.hostId), "HOST_NEW_BOOKING", "New booking received",
-    `${title}: ${formatDateTime(booking.start)} – ${formatDateTime(booking.end)}.`, { bookingId });
-  return booking;
+  await claimed.populate<{ spaceId: { title: string } }>("spaceId", "title");
+  const title = (claimed.spaceId as unknown as { title: string }).title;
+  await send(
+    String(claimed.userId),
+    "BOOKING_CONFIRMED",
+    "Booking confirmed 🎉",
+    `Your parking at ${title} is confirmed for ${formatDateTime(claimed.start)}.`,
+    { bookingId }
+  );
+  await send(
+    String(claimed.hostId),
+    "HOST_NEW_BOOKING",
+    "New booking received",
+    `${title}: ${formatDateTime(claimed.start)} – ${formatDateTime(claimed.end)}.`,
+    { bookingId }
+  );
+  return claimed;
 }
 
 /** Marks the payment failed. Booking stays PENDING so the driver can retry before the hold expires. */

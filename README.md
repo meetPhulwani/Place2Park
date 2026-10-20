@@ -110,12 +110,17 @@ ID token and issues a Parkly JWT.
 The secret never leaves the server. Checkout uses `POST /api/payments/orders` + `POST /api/payments/verify`.
 Webhook: `POST /api/payments/webhook` (`payment.captured` / `payment.failed`).
 
-**Uploads** — development writes to `server/uploads`. Swap the `/api/upload` handler for S3/Cloudinary in production. Images are never stored in MongoDB.
+**Uploads** — `POST /api/upload` accepts JPEG, PNG, or WebP up to 5 MB (not SVG/GIF).
+Production stores files on Cloudinary and returns a delivery URL plus `publicId`.
+Development without Cloudinary still writes to `server/uploads` and returns `/uploads/...`.
+Demo photos stay on `/demo`. Legacy `/uploads/...` URLs keep working via the API static server.
+See [docs/cloudinary.md](docs/cloudinary.md). Never put Cloudinary secrets in `client/.env`.
 
 ## Production
 
 1. Set `NODE_ENV=production`, a real `MONGODB_URI`, a strong `JWT_SECRET` (≥32 chars), and a public `CLIENT_URL` (the exact frontend origin).
 2. Set `RAZORPAY_WEBHOOK_SECRET` if you use Razorpay webhooks.
-3. Client: set `VITE_API_URL` to the public API base (for example `https://api.example.com/api`) when the SPA is on another host, then `cd client && npm run build`. Serve `client/dist` from a static host.
-4. Server: `cd server && npm run build && npm start` (`node dist/server.js`). `tsx` is only for local `dev` / `seed`.
-5. If the frontend and API are on different hosts, listing photos (`/uploads`, `/demo`) are resolved from `VITE_API_URL`. Alternatively reverse-proxy those paths.
+3. Set `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET` on the API host (Render). The API will not boot in production without them.
+4. Client: set `VITE_API_URL` to the public API base (for example `https://api.example.com/api`) when the SPA is on another host, then `cd client && npm run build`. Serve `client/dist` from a static host.
+5. Server: `cd server && npm run build && npm start` (`node dist/server.js`). `tsx` is only for local `dev` / `seed`.
+6. If the frontend and API are on different hosts, listing photos (`/uploads`, `/demo`) are resolved from `VITE_API_URL`. Cloudinary `https://` URLs are used as-is. Alternatively reverse-proxy `/uploads` and `/demo`.

@@ -30,6 +30,7 @@ export interface SpaceImage {
   url: string;
   alt: string;
   sortOrder: number;
+  publicId?: string;
 }
 
 export interface AvailabilityRule {
