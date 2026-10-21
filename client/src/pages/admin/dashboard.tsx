@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SpaceStatusBadge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatINR, formatDate } from "@/lib/utils";
+import { ListingModeration } from "@/components/listing-moderation";
 
 interface Metrics {
   users: number;
@@ -28,10 +29,14 @@ interface Metrics {
 export default function AdminDashboardPage() {
   const [data, setData] = React.useState<Metrics | null>(null);
 
-  React.useEffect(() => {
-    document.title = "Admin · Parkly";
+  const load = React.useCallback(() => {
     api.get("/admin/metrics").then(({ data: d }) => setData(d.data)).catch(() => undefined);
   }, []);
+
+  React.useEffect(() => {
+    document.title = "Admin · Parkly";
+    load();
+  }, [load]);
 
   if (!data) {
     return (
@@ -92,10 +97,10 @@ export default function AdminDashboardPage() {
           ) : (
             <ul className="divide-y divide-slate-100">
               {data.pendingReview.map((l) => (
-                <li key={l.id} className="flex items-center justify-between gap-4 py-3">
+                <li key={l.id} className="flex flex-wrap items-center justify-between gap-4 py-3">
                   <div className="min-w-0">
                     <Link
-                      href={`/parking/${l.id}`}
+                      href={`/admin/listings?status=PENDING_REVIEW`}
                       className="truncate text-sm font-semibold text-slate-900 hover:text-brand-800"
                     >
                       {l.title}
@@ -104,7 +109,10 @@ export default function AdminDashboardPage() {
                       by {l.hostId?.name ?? "—"} · {l.area} · submitted {formatDate(l.createdAt)}
                     </p>
                   </div>
-                  <SpaceStatusBadge status={l.status} />
+                  <div className="flex flex-wrap items-center gap-3">
+                    <SpaceStatusBadge status={l.status} />
+                    <ListingModeration spaceId={l.id} status={l.status} onChanged={load} />
+                  </div>
                 </li>
               ))}
             </ul>

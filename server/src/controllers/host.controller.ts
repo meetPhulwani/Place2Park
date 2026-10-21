@@ -5,14 +5,10 @@ import type { AuthedRequest } from "../middleware/auth.js";
 import { ApiError } from "../middleware/error.js";
 import { expireStalePendingBookings, hasConflict, progressBookingStatuses } from "../services/availability.js";
 import { redactBooking } from "../utils/privacy.js";
-import { isProd } from "../config/env.js";
+import { env } from "../config/env.js";
 import type { ListingInput } from "../utils/validation.js";
 import { persistListingImages } from "../services/media.js";
-
-function publishStatus() {
-  // Production always requires review. Development auto-verifies so the host→book flow can be tested.
-  return isProd ? "PENDING_REVIEW" : "VERIFIED";
-}
+import { listingCreateState, statusOnPublish } from "../services/listings.js";
 
 function fmtMin(m: number) {
   const h = Math.floor(m / 60) % 24;
@@ -152,13 +148,14 @@ export async function createListing(req: AuthedRequest, res: Response) {
   const input = req.body as ListingInput;
   const published = !!input.publish;
   const payload = listingDataFromInput(input);
+  const { status, verified } = listingCreateState(published, env.NODE_ENV);
   let space: InstanceType<typeof ParkingSpace> | undefined;
   await persistListingImages([], payload.images, async () => {
     space = await ParkingSpace.create({
       ...payload,
       hostId: req.userId,
-      status: published ? publishStatus() : "DRAFT",
-      verified: published && !isProd,
+      status,
+      verified,
     });
   });
   res.status(201).json({ success: true, data: { listing: space!.toJSON() } });
@@ -173,8 +170,7 @@ export async function updateListing(req: AuthedRequest, res: Response) {
   }));
   Object.assign(space, listingDataFromInput(input));
   if (input.publish && ["DRAFT", "REJECTED", "PENDING_REVIEW"].includes(space.status)) {
-    space.status = publishStatus();
-    if (!isProd) space.verified = true;
+    Object.assign(space, statusOnPublish(env.NODE_ENV));
   }
   await persistListingImages(previous, space.images as { url: string; publicId?: string }[], async () => {
     await space.save();
@@ -187,12 +183,11 @@ export async function setListingStatus(req: AuthedRequest, res: Response) {
   const action = (req.body as { action: string }).action;
   if (action === "pause" && ["ACTIVE", "VERIFIED"].includes(space.status)) space.status = "PAUSED";
   else if (action === "activate" && space.status === "PAUSED") {
-    space.status = space.verified || !isProd ? "VERIFIED" : "PENDING_REVIEW";
-    if (space.status === "VERIFIED") space.verified = true;
+    if (space.verified || env.NODE_ENV !== "production") Object.assign(space, statusOnPublish("development"));
+    else Object.assign(space, statusOnPublish("production"));
   }
   else if (action === "submit" && ["DRAFT", "REJECTED"].includes(space.status)) {
-    space.status = publishStatus();
-    if (!isProd) space.verified = true;
+    Object.assign(space, statusOnPublish(env.NODE_ENV));
   }
   else if (action === "delete") {
     const hasUpcoming = await Booking.exists({

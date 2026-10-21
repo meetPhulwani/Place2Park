@@ -3,6 +3,7 @@ import { Booking, ParkingSpace, Payment, Report, Review, User } from "../models/
 import type { AuthedRequest } from "../middleware/auth.js";
 import { ApiError } from "../middleware/error.js";
 import { notify } from "../services/notify.js";
+import { applyListingModeration } from "../services/listings.js";
 
 export async function metrics(_req: AuthedRequest, res: Response) {
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
@@ -90,17 +91,11 @@ export async function listListings(req: AuthedRequest, res: Response) {
 }
 
 export async function moderateListing(req: AuthedRequest, res: Response) {
+  if (req.userRole !== "ADMIN") throw new ApiError(403, "You don't have access to this.");
   const { action } = req.body as { action: "approve" | "reject" | "hide" | "unhide" };
   const space = await ParkingSpace.findById(req.params.id);
   if (!space) throw new ApiError(404, "Listing not found.");
-  const map = {
-    approve: { status: "VERIFIED", verified: true },
-    reject: { status: "REJECTED" },
-    hide: { status: "HIDDEN" },
-    unhide: { status: "VERIFIED", verified: true },
-  } as const;
-  if (!map[action]) throw new ApiError(400, "Invalid action.");
-  Object.assign(space, map[action]);
+  Object.assign(space, applyListingModeration(action));
   await space.save();
   if (action === "approve")
     await notify(String(space.hostId), "LISTING_APPROVED", "Listing approved 🎉",
@@ -108,7 +103,7 @@ export async function moderateListing(req: AuthedRequest, res: Response) {
   else if (action === "reject")
     await notify(String(space.hostId), "LISTING_REJECTED", "Listing needs changes",
       `"${space.title}" was not approved. Review the details and resubmit.`, { spaceId: String(space._id) });
-  res.json({ success: true, data: {} });
+  res.json({ success: true, data: { listing: space.toJSON() } });
 }
 
 export async function listBookings(_req: AuthedRequest, res: Response) {

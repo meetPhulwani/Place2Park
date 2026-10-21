@@ -152,6 +152,11 @@ function ListingCard({ listing, onChanged }: { listing: Listing; onChanged: () =
             </Badge>
           )}
         </div>
+        {listing.status === "PENDING_REVIEW" && (
+          <p className="mt-0.5 text-xs text-amber-800">
+            Waiting for admin approval. It stays hidden from search until then.
+          </p>
+        )}
         <p className="mt-0.5 text-sm text-slate-500">
           {getDisplayLocation(listing)} · {formatINR(listing.pricePerHour)}/hr
         </p>
