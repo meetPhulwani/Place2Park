@@ -41,7 +41,7 @@ Restart the API after changing `.env`.
 ## 4. Webhook (optional locally)
 
 1. In the dashboard, add webhook URL `https://<your-tunnel>/api/payments/webhook`.
-2. Enable `payment.captured`, `payment.failed`, `refund.processed`, and `refund.failed`.
+2. Enable `payment.captured`, `payment.failed`, `refund.processed`, and `refund.failed`. Optional: `transfer.processed` / `transfer.failed` (ignored unless a payout already stored that transfer id). Host payouts are manual — see [payouts.md](payouts.md). Razorpay Route is **not** implemented.
 3. Copy the webhook secret into `RAZORPAY_WEBHOOK_SECRET`. Production (`NODE_ENV=production`) will not start without it. Local development can omit it; webhook verification then fails closed.
 4. The handler verifies `x-razorpay-signature` against the **raw** JSON body and ignores duplicate `payment.captured` events.
 

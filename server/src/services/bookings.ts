@@ -11,6 +11,7 @@ import {
   validateWindow,
 } from "./availability.js";
 import { createPaymentOrder, refundRazorpayPayment, type RefundPaymentFn } from "./payments.js";
+import { reconcileRefundedBooking } from "./payouts.js";
 import { notify } from "./notify.js";
 import { formatDateTime } from "../utils/format.js";
 
@@ -316,6 +317,7 @@ async function settlePaidRefund(
   if (!payment) return settlement(null);
   if (payment.status === "REFUNDED" || payment.refundStatus === "PROCESSED") {
     await Booking.updateOne({ _id: booking._id }, { $set: { refunded: true } });
+    await reconcileRefundedBooking(booking._id);
     return settlement("PROCESSED");
   }
   if (payment.refundStatus === "PENDING" && payment.refundId) return settlement("PENDING");
@@ -367,6 +369,7 @@ async function settlePaidRefund(
         }
       );
       await Booking.updateOne({ _id: booking._id }, { $set: { refunded: true } });
+      await reconcileRefundedBooking(booking._id);
       return settlement("PROCESSED");
     }
     await Payment.updateOne(

@@ -16,6 +16,7 @@ interface Metrics {
   gmv: number;
   revenue: number;
   openReports: number;
+  pendingPayouts?: number;
   pendingReview: {
     id: string;
     title: string;
@@ -74,7 +75,7 @@ export default function AdminDashboardPage() {
           icon="ShieldCheck"
           label="Platform revenue"
           value={formatINR(data.revenue)}
-          hint="Service + platform fees"
+          hint="Driver 5% + host 10% stored on bookings"
         />
         <StatCard
           icon="Flag"
@@ -82,6 +83,14 @@ export default function AdminDashboardPage() {
           value={data.openReports}
           hint={data.openReports > 0 ? "Needs attention" : "All clear"}
         />
+        <Link href="/admin/payouts" className="block">
+          <StatCard
+            icon="Wallet"
+            label="Payouts awaiting action"
+            value={data.pendingPayouts ?? 0}
+            hint="Requested or approved — not paid automatically"
+          />
+        </Link>
       </div>
 
       <Card>

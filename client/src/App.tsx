@@ -42,6 +42,7 @@ import AdminBookingsPage from "@/pages/admin/bookings";
 import AdminPaymentsPage from "@/pages/admin/payments";
 import AdminReportsPage from "@/pages/admin/reports";
 import AdminReviewsPage from "@/pages/admin/reviews";
+import AdminPayoutsPage from "@/pages/admin/payouts";
 
 export default function App() {
   return (
@@ -89,6 +90,7 @@ export default function App() {
           <Route path="/admin/listings" element={<AdminListingsPage />} />
           <Route path="/admin/bookings" element={<AdminBookingsPage />} />
           <Route path="/admin/payments" element={<AdminPaymentsPage />} />
+          <Route path="/admin/payouts" element={<AdminPayoutsPage />} />
           <Route path="/admin/reports" element={<AdminReportsPage />} />
           <Route path="/admin/reviews" element={<AdminReviewsPage />} />
         </Route>

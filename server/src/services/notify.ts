@@ -9,7 +9,9 @@ export type NotificationType =
   | "HOST_NEW_BOOKING"
   | "REVIEW_REMINDER"
   | "LISTING_APPROVED"
-  | "LISTING_REJECTED";
+  | "LISTING_REJECTED"
+  | "HOST_PAYOUT_PAID"
+  | "HOST_PAYOUT_FAILED";
 
 /**
  * Notification abstraction: always persists in-app; sends email only when

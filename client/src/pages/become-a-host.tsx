@@ -59,7 +59,7 @@ export default function BecomeAHostPage() {
             {
               icon: IndianRupee,
               title: "You set the price",
-              body: "Hourly rates you control. Earnings after a transparent 15% platform fee.",
+              body: "Hourly rates you control. You keep 90% of the parking fee; drivers pay a separate 5% platform fee.",
             },
             {
               icon: CalendarCheck2,

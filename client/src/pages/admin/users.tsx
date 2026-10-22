@@ -20,6 +20,7 @@ interface AdminUser {
   createdAt: string;
   bookings: number;
   listings: number;
+  payoutProfile?: { accountLast4?: string; verified?: boolean };
 }
 
 export default function AdminUsersPage() {
@@ -91,6 +92,8 @@ export default function AdminUsersPage() {
                     status={u.status}
                     role={u.role}
                     hostVerified={u.hostVerified}
+                    payoutVerified={!!u.payoutProfile?.verified}
+                    payoutSubmitted={!!u.payoutProfile?.accountLast4}
                     isSelf={u.id === admin?.id}
                     onChanged={load}
                   />
@@ -109,6 +112,8 @@ function UserActions({
   status,
   role,
   hostVerified,
+  payoutVerified,
+  payoutSubmitted,
   isSelf,
   onChanged,
 }: {
@@ -116,6 +121,8 @@ function UserActions({
   status: string;
   role: string;
   hostVerified: boolean;
+  payoutVerified: boolean;
+  payoutSubmitted: boolean;
   isSelf: boolean;
   onChanged: () => void;
 }) {
@@ -167,6 +174,21 @@ function UserActions({
           }
         >
           {hostVerified ? "Unverify" : "Verify host"}
+        </Button>
+      )}
+      {payoutSubmitted && (
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={busy}
+          onClick={() =>
+            run(
+              () => api.post(`/admin/users/${userId}/verify-payout`, { verified: !payoutVerified }),
+              payoutVerified ? "Payout details unverified." : "Payout details verified."
+            )
+          }
+        >
+          {payoutVerified ? "Unverify payout" : "Verify payout"}
         </Button>
       )}
       <ConfirmDialog

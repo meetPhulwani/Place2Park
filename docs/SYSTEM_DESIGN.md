@@ -220,7 +220,7 @@ stateDiagram-v2
 ```
 
 - Create ignores client `total` / `status` / `hostId` (`bookings.controller.ts` picks trusted fields).
-- Prices from `computeQuote` (`utils/pricing.ts`): driver +5% service fee, host −15% platform fee, amounts in **paise**.
+- Prices from `computeQuote` (`utils/pricing.ts`): driver +5% platform fee, host −10% commission (host keeps 90%), amounts in **paise**. Stored booking money fields are historical and are not rewritten.
 - Hold: `PENDING_HOLD_MINS = 12`.
 - Concurrency: Mongo transaction + `$inc` `ParkingSpace.__bookLock`; post-insert race check; `assertSoleOccupant` keeps oldest `_id`. Fallback if transactions unsupported.
 - Status progression is **lazy** (`progressBookingStatuses` / `progressOneBooking` on list/detail), not a worker.
@@ -301,7 +301,7 @@ erDiagram
 | Review | one per booking | unique bookingId |
 | Favorite | userId | unique userId+spaceId |
 | Vehicle, Notification, Report | user | userId |
-| HostPayout | hostId | hostId — **model exists; not a live payout rail** (`host.controller.ts` earnings are booking sums) |
+| HostPayout | hostId | unique `idempotencyKey`; bookingIds; MANUAL method; statuses REQUESTED→APPROVED→PAID / FAILED / REJECTED / REVERSED. Completed bookings are not treated as paid. |
 
 **Privacy (verified):** exact `address`, `accessInstructions`, `placeId`, `accessCode` redacted until booking `CONFIRMED` / `ACTIVE` / `COMPLETED` (`utils/privacy.ts`, `parking.controller.ts` detail, `bookings.controller.ts`).
 
@@ -420,7 +420,7 @@ Never commit or paste real values. Names only.
 
 **P3 — optional**
 
-- HostPayout is a stub; earnings are aggregations
+- Host earnings distinguish calculated / eligible / pending transfer / paid. Manual admin payouts only. Razorpay Route not enabled in code.
 - Unused `"parkly": "file:.."` in both package.json files
 - Root `dev` script uses `&` (unreliable on Windows)
 - Hardcoded Mumbai area chips on landing
@@ -436,7 +436,7 @@ Never commit or paste real values. Names only.
 4. **P1** Search rate limit, Zod on reset, stop storing signatures, fetch error states.
 5. **P1-6** Same-process scheduled expiry (not a new platform).
 6. **P2** Search indexing and stats TTL after traffic grows.
-7. **P3** Payouts, bundle split, remove unused local package.
+7. **P3** Bundle split, remove unused local package. Manual host payouts are implemented; do not enable live Route transfers until Razorpay enables the product and reversal behavior is verified.
 
 Stay in this modular monolith. Do not split services unless a measured bottleneck appears.
 

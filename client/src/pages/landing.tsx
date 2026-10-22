@@ -321,7 +321,7 @@ export default function LandingPage() {
                   {[
                     ["₹60/hour × 6 booked hrs/day", "₹360/day"],
                     ["Busy weekdays (22 days/month)", "₹7,920/month"],
-                    ["Parkly platform fee (15%)", "− ₹1,188"],
+                    ["Host commission (10%)", "− ₹792"],
                   ].map(([label, value]) => (
                     <div
                       key={label}
@@ -334,7 +334,7 @@ export default function LandingPage() {
                   <div className="flex items-center justify-between pt-1">
                     <span className="text-sm font-semibold text-white">Your estimated earnings</span>
                     <span className="font-display text-2xl font-bold text-brand-300">
-                      ₹6,732<span className="text-sm font-medium text-slate-400">/month</span>
+                      ₹7,128<span className="text-sm font-medium text-slate-400">/month</span>
                     </span>
                   </div>
                 </div>

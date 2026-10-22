@@ -15,7 +15,7 @@ import { toast } from "@/components/ui/toaster";
 import { PriceBreakdown } from "@/components/price-breakdown";
 import {
   ALLOWED_DURATIONS_MINS, COMMON_RULES, LEVELS, LEVEL_LABELS,
-  PROPERTY_TYPES, PROPERTY_TYPE_LABELS, SERVICE_FEE_PCT,
+  PLATFORM_FEE_PCT, PROPERTY_TYPES, PROPERTY_TYPE_LABELS, SERVICE_FEE_PCT,
 } from "@/lib/constants";
 import { cn, formatDuration, formatINR } from "@/lib/utils";
 import type { SpaceSummary } from "@/types";
@@ -747,16 +747,16 @@ export function ListingWizard({
                 <p className="mt-1 text-slate-600">2 hours = {formatINR(Math.round(price * 2 * 100))}</p>
                 <dl className="mt-3 space-y-1 text-slate-600">
                   <div className="flex justify-between">
-                    <dt>Driver pays (incl. {SERVICE_FEE_PCT}% service fee)</dt>
-                    <dd>{formatINR(Math.round(price * 2 * 100 * 1.05))}</dd>
+                    <dt>Driver pays (incl. {SERVICE_FEE_PCT}% platform fee)</dt>
+                    <dd>{formatINR(Math.round(price * 2 * 100 * (1 + SERVICE_FEE_PCT / 100)))}</dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt>Parkly platform fee (15%)</dt>
-                    <dd>− {formatINR(Math.round(price * 2 * 100 * 0.15))}</dd>
+                    <dt>Host commission ({PLATFORM_FEE_PCT}%)</dt>
+                    <dd>− {formatINR(Math.round(price * 2 * 100 * (PLATFORM_FEE_PCT / 100)))}</dd>
                   </div>
                   <div className="flex justify-between border-t border-slate-200 pt-1 font-semibold text-slate-900">
                     <dt>Your earning</dt>
-                    <dd>{formatINR(Math.round(price * 2 * 100 * 0.85))}</dd>
+                    <dd>{formatINR(Math.round(price * 2 * 100 * (1 - PLATFORM_FEE_PCT / 100)))}</dd>
                   </div>
                 </dl>
               </div>
@@ -909,8 +909,8 @@ export function ListingWizard({
                   pricePerHour={Math.round(price * 100)}
                   durationMins={120}
                   baseAmount={Math.round(price * 2 * 100)}
-                  serviceFee={Math.round(price * 2 * 100 * 0.05)}
-                  totalAmount={Math.round(price * 2 * 100 * 1.05)}
+                  serviceFee={Math.round(price * 2 * 100 * (SERVICE_FEE_PCT / 100))}
+                  totalAmount={Math.round(price * 2 * 100 * (1 + SERVICE_FEE_PCT / 100))}
                 />
               </div>
             </div>

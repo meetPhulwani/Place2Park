@@ -4,6 +4,7 @@ import { env } from "../config/env.js";
 import { ApiError } from "../middleware/error.js";
 import { Booking, Payment } from "../models/index.js";
 import { expireStalePendingBookings } from "./availability.js";
+import { applyRouteTransferEvent, reconcileRefundedBooking } from "./payouts.js";
 
 /**
  * Payment provider boundary. Razorpay is used when credentials exist.
@@ -179,6 +180,7 @@ export async function applyRefundEvent(input: { event?: string; refundId?: strin
     if (input.refundId) payment.refundId = input.refundId;
     await payment.save();
     await Booking.updateOne({ _id: payment.bookingId }, { $set: { refunded: true } });
+    await reconcileRefundedBooking(payment.bookingId);
     return;
   }
   if (event === "refund.failed" && (input.refundId || input.paymentId)) {

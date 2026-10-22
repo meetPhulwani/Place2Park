@@ -18,6 +18,17 @@ const userSchema = new Schema(
     notifyReminders: { type: Boolean, default: true },
     resetToken: { type: String, select: false },
     resetTokenExpires: { type: Date, select: false },
+    payoutProfile: {
+      accountHolder: { type: String, default: "", maxlength: 80 },
+      ifsc: { type: String, default: "", uppercase: true, maxlength: 11 },
+      accountLast4: { type: String, default: "", maxlength: 4 },
+      accountFingerprint: { type: String, default: "" },
+      accountNumberEnc: { type: String, select: false, default: "" },
+      submittedAt: { type: Date },
+      verified: { type: Boolean, default: false },
+      verifiedAt: { type: Date },
+      verifiedById: { type: Schema.Types.ObjectId, ref: "User" },
+    },
   },
   {
     timestamps: true,
@@ -31,6 +42,8 @@ const userSchema = new Schema(
         delete ret.googleId;
         delete ret.resetToken;
         delete ret.resetTokenExpires;
+        const profile = ret.payoutProfile as { accountNumberEnc?: string } | undefined;
+        if (profile) delete profile.accountNumberEnc;
         return ret;
       },
     },

@@ -1,6 +1,7 @@
 import type { Response } from "express";
 import mongoose from "mongoose";
-import { BlockedSlot, Booking, HostPayout, ParkingSpace, Review } from "../models/index.js";
+import { BlockedSlot, Booking, ParkingSpace, Review } from "../models/index.js";
+import { summarizeHostEarnings } from "../services/payouts.js";
 import type { AuthedRequest } from "../middleware/auth.js";
 import { ApiError } from "../middleware/error.js";
 import { expireStalePendingBookings, hasConflict, progressBookingStatuses } from "../services/availability.js";
@@ -265,41 +266,15 @@ export async function listBookings(req: AuthedRequest, res: Response) {
 
 export async function earnings(req: AuthedRequest, res: Response) {
   await progressBookingStatuses(undefined, req.userId);
-  const hostOid = new mongoose.Types.ObjectId(req.userId);
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const payouts = await HostPayout.find({ hostId: req.userId }).sort({ periodEnd: -1 }).limit(12);
-  const [totals, monthly, pending] = await Promise.all([
-    Booking.aggregate([
-      { $match: { hostId: hostOid, status: "COMPLETED" } },
-      { $group: { _id: null, earning: { $sum: "$hostEarning" }, fees: { $sum: "$platformFee" }, gross: { $sum: "$baseAmount" }, count: { $sum: 1 } } },
-    ]),
-    Booking.aggregate([
-      { $match: { hostId: hostOid, status: "COMPLETED", start: { $gte: new Date(now.getFullYear(), now.getMonth() - 5, 1) } } },
-      { $group: { _id: { y: { $year: "$start" }, m: { $month: "$start" } }, earning: { $sum: "$hostEarning" } } },
-      { $sort: { "_id.y": 1, "_id.m": 1 } },
-    ]),
-    Booking.aggregate([
-      { $match: { hostId: hostOid, status: { $in: ["CONFIRMED", "ACTIVE"] } } },
-      { $group: { _id: null, earning: { $sum: "$hostEarning" }, count: { $sum: 1 } } },
-    ]),
-  ]);
-  const thisMonth = await Booking.aggregate([
-    { $match: { hostId: hostOid, status: { $in: ["CONFIRMED", "ACTIVE", "COMPLETED"] }, start: { $gte: monthStart } } },
-    { $group: { _id: null, earning: { $sum: "$hostEarning" } } },
-  ]);
+  const data = await summarizeHostEarnings(req.userId);
   res.json({
     success: true,
     data: {
-      total: totals[0]?.earning ?? 0,
-      platformFees: totals[0]?.fees ?? 0,
-      gross: totals[0]?.gross ?? 0,
-      completedCount: totals[0]?.count ?? 0,
-      thisMonth: thisMonth[0]?.earning ?? 0,
-      pending: pending[0]?.earning ?? 0,
-      pendingCount: pending[0]?.count ?? 0,
-      monthly: monthly.map((m) => ({ year: m._id.y, month: m._id.m, earning: m.earning })),
-      payouts: payouts.map((p) => p.toJSON()),
+      ...data,
+      total: data.calculatedCompleted,
+      pending: data.upcomingEarnings,
+      pendingCount: data.upcomingCount,
+      thisMonth: data.thisMonthCalculated,
     },
   });
 }

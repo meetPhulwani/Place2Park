@@ -1,5 +1,5 @@
 import type { Response } from "express";
-import { Booking, ParkingSpace, Payment, Report, Review, User } from "../models/index.js";
+import { Booking, HostPayout, ParkingSpace, Payment, Report, Review, User } from "../models/index.js";
 import type { AuthedRequest } from "../middleware/auth.js";
 import { ApiError } from "../middleware/error.js";
 import { notify } from "../services/notify.js";
@@ -7,7 +7,7 @@ import { applyListingModeration } from "../services/listings.js";
 
 export async function metrics(_req: AuthedRequest, res: Response) {
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-  const [users, activeListings, pendingListings, monthBookings, gmv, revenue, openReports, pendingReview] =
+  const [users, activeListings, pendingListings, monthBookings, gmv, revenue, openReports, pendingReview, pendingPayouts] =
     await Promise.all([
       User.countDocuments(),
       ParkingSpace.countDocuments({ status: { $in: ["VERIFIED", "ACTIVE"] } }),
@@ -23,6 +23,7 @@ export async function metrics(_req: AuthedRequest, res: Response) {
       ]),
       Report.countDocuments({ status: "OPEN" }),
       ParkingSpace.find({ status: "PENDING_REVIEW" }).sort({ updatedAt: -1 }).limit(10).populate("hostId", "name email"),
+      HostPayout.countDocuments({ status: { $in: ["REQUESTED", "APPROVED"] } }),
     ]);
   res.json({
     success: true,
@@ -31,6 +32,7 @@ export async function metrics(_req: AuthedRequest, res: Response) {
       gmv: gmv[0]?.total ?? 0,
       revenue: revenue[0]?.total ?? 0,
       openReports,
+      pendingPayouts,
       pendingReview: pendingReview.map((l) => l.toJSON()),
     },
   });

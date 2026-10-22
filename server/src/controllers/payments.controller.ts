@@ -9,6 +9,7 @@ import {
   verifyRazorpaySignature,
   verifyWebhookSignature,
 } from "../services/payments.js";
+import { applyRouteTransferEvent } from "../services/payouts.js";
 
 function publicOrder(order: {
   provider: string;
@@ -82,6 +83,7 @@ export async function webhook(req: Request, res: Response) {
     payload?: {
       payment?: { entity?: { id?: string; order_id?: string } };
       refund?: { entity?: { id?: string; payment_id?: string; status?: string } };
+      transfer?: { entity?: { id?: string; status?: string } };
     };
   };
   try {
@@ -89,6 +91,11 @@ export async function webhook(req: Request, res: Response) {
   } catch {
     res.status(400).json({ success: false, message: "Invalid payload." });
     return;
+  }
+
+  const transferEntity = event.payload?.transfer?.entity;
+  if (transferEntity?.id && (event.event === "transfer.processed" || event.event === "transfer.failed")) {
+    await applyRouteTransferEvent({ event: event.event, transferId: transferEntity.id });
   }
 
   const refundEntity = event.payload?.refund?.entity;

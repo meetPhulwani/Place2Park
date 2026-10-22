@@ -29,6 +29,7 @@ const bookingSchema = new Schema(
     cancelledAt: { type: Date },
     cancelReason: { type: String, default: "" },
     refunded: { type: Boolean, default: false },
+    payoutId: { type: Schema.Types.ObjectId, ref: "HostPayout", index: true, sparse: true },
   },
   {
     timestamps: true,

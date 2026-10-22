@@ -147,6 +147,21 @@ export const listingSchema = z
     path: ["selfParkingConfirmed"],
   });
 
+export const payoutProfileSchema = z.object({
+  accountHolder: z.string().trim().min(2).max(80),
+  ifsc: z.string().trim().toUpperCase().regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, "Enter a valid IFSC code."),
+  accountNumber: z.string().trim().regex(/^\d{9,18}$/, "Enter a valid bank account number."),
+});
+
+export const payoutReferenceSchema = z.object({
+  reference: z.string().trim().min(4).max(80),
+  note: z.string().trim().max(400).optional(),
+});
+
+export const payoutNoteSchema = z.object({
+  note: z.string().trim().max(400).optional(),
+});
+
 export type ListingInput = z.infer<typeof listingSchema>;
 
 export const blockSlotSchema = z

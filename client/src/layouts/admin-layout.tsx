@@ -10,6 +10,7 @@ const items: SidebarItem[] = [
   { href: "/admin/listings", label: "Listings", icon: "Building2" },
   { href: "/admin/bookings", label: "Bookings", icon: "CalendarClock" },
   { href: "/admin/payments", label: "Payments", icon: "CreditCard" },
+  { href: "/admin/payouts", label: "Payouts", icon: "Wallet" },
   { href: "/admin/reports", label: "Reports", icon: "Flag" },
   { href: "/admin/reviews", label: "Reviews", icon: "Star" },
 ];

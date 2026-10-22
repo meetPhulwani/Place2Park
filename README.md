@@ -125,6 +125,7 @@ See [docs/cloudinary.md](docs/cloudinary.md). Never put Cloudinary secrets in `c
 5. Server: `cd server && npm run build && npm start` (`node dist/server.js`). `tsx` is only for local `dev` / `seed`. On Render, use that build + start command (Root Directory `server` if the Git repo is the monorepo).
 6. If the frontend and API are on different hosts, listing photos (`/uploads`, `/demo`) are resolved from `VITE_API_URL`. Cloudinary `https://` URLs are used as-is. Alternatively reverse-proxy `/uploads` and `/demo`.
 7. Vercel: Root Directory `client` (or deploy from the repo root using the root `vercel.json`). `client/vercel.json` rewrites SPA paths to `index.html` and does **not** rewrite `/api` (the API stays on Render).
+8. Host payouts are **manual**. Completed bookings are not paid out automatically. An admin verifies bank details, then approves a payout request and records a bank/UPI reference. See [docs/payouts.md](docs/payouts.md). Do not enable Razorpay Route transfers until Razorpay enables that product for the merchant.
 
 ### Verify Vercel SPA routes after deploy
 

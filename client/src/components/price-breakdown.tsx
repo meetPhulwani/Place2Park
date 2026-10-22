@@ -25,7 +25,7 @@ export function PriceBreakdown({
         <dd className="font-medium text-slate-800">{formatINR(baseAmount)}</dd>
       </div>
       <div className="flex justify-between">
-        <dt className="text-slate-500">Service fee ({SERVICE_FEE_PCT}%)</dt>
+        <dt className="text-slate-500">Platform fee ({SERVICE_FEE_PCT}%)</dt>
         <dd className="font-medium text-slate-800">{formatINR(serviceFee)}</dd>
       </div>
       <div className="flex justify-between border-t border-slate-200 pt-2.5">

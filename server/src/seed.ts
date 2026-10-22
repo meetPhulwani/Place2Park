@@ -7,6 +7,7 @@ import bcrypt from "bcryptjs";
 import {
   BlockedSlot, Booking, Favorite, HostPayout, Notification, ParkingSpace, Payment, Report, Review, User, Vehicle,
 } from "./models/index.js";
+import { PLATFORM_FEE_PCT, SERVICE_FEE_PCT } from "./utils/constants.js";
 
 const PASSWORD = "password123";
 const paise = (rupees: number) => rupees * 100;
@@ -14,8 +15,8 @@ const code = (i: number) => `PK-DEMO${String(i).padStart(2, "0")}`;
 
 function quote(pricePerHour: number, mins: number) {
   const baseAmount = Math.round((pricePerHour * mins) / 60);
-  const serviceFee = Math.round(baseAmount * 0.05);
-  const platformFee = Math.round(baseAmount * 0.15);
+  const serviceFee = Math.round((baseAmount * SERVICE_FEE_PCT) / 100);
+  const platformFee = Math.round((baseAmount * PLATFORM_FEE_PCT) / 100);
   return { baseAmount, serviceFee, totalAmount: baseAmount + serviceFee, platformFee, hostEarning: baseAmount - platformFee };
 }
 function at(daysFromNow: number, hour: number, min = 0) {
@@ -228,11 +229,6 @@ export async function seed() {
     reason: "UNAVAILABLE",
     details: "Gate was locked when I arrived; no one answered the intercom.",
   });
-  await HostPayout.create([
-    { hostId: host1._id, amount: paise(4820), periodStart: at(-30, 0), periodEnd: at(-1, 0), status: "PAID" },
-    { hostId: host1._id, amount: paise(1260), periodStart: at(-60, 0), periodEnd: at(-31, 0), status: "PAID" },
-  ]);
-
   console.log(`Seeded ${spaces.length} demo parking spaces, 12 bookings, reviews, favorites.`);
   console.log("Demo accounts (password: password123): driver@parkly.dev · host@parkly.dev · admin@parkly.dev");
 }

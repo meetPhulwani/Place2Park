@@ -50,15 +50,19 @@ export const ALLOWED_DURATIONS_MINS = [60, 120, 180, 240, 360, 480, 720, 1440] a
 /** How far ahead a booking may start (days). */
 export const MAX_ADVANCE_DAYS = 30;
 
-/** Service fee charged to driver (percent of base). */
+/** Driver platform/service fee, charged on top of the base parking fee. */
 export const SERVICE_FEE_PCT = 5;
-/** Platform commission taken from host (percent of base). */
-export const PLATFORM_FEE_PCT = 15;
+/** Host commission taken from the base parking fee. Host net is 100 − this. */
+export const PLATFORM_FEE_PCT = 10;
 
 /** Minutes a PENDING booking holds the slot before expiring. */
 export const PENDING_HOLD_MINS = 12;
 
 /** Free-cancellation window: full refund if more than X mins before start. */
 export const FREE_CANCEL_BEFORE_MINS = 60;
+
+export const PAYOUT_STATUSES = ["REQUESTED", "APPROVED", "REJECTED", "PAID", "FAILED", "REVERSED"] as const;
+export type PayoutStatus = (typeof PAYOUT_STATUSES)[number];
+export const OPEN_PAYOUT_STATUSES = ["REQUESTED", "APPROVED"] as const;
 
 export const REPORT_REASONS = ["INCORRECT_INFO", "UNSAFE", "FRAUD", "UNAVAILABLE", "OTHER"] as const;

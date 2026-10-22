@@ -8,6 +8,7 @@ import * as payments from "../controllers/payments.controller.js";
 import * as engagement from "../controllers/engagement.controller.js";
 import * as host from "../controllers/host.controller.js";
 import * as admin from "../controllers/admin.controller.js";
+import * as payouts from "../controllers/payouts.controller.js";
 import * as uploads from "../controllers/uploads.controller.js";
 import { adminOnly, authenticate, hostOnly, maybeAuthenticate } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
@@ -15,7 +16,8 @@ import { asyncHandler } from "../middleware/error.js";
 import { BOOKING_RATE_LIMIT, BOOKING_RATE_WINDOW_MS, rateLimit } from "../utils/rate-limit.js";
 import {
   blockSlotSchema, bookingRequestSchema, createPaymentOrderSchema, googleLoginSchema,
-  listingSchema, loginSchema, profileSchema, reportSchema, reviewSchema, signupSchema,
+  listingSchema, loginSchema, payoutNoteSchema, payoutProfileSchema, payoutReferenceSchema,
+  profileSchema, reportSchema, reviewSchema, signupSchema,
   vehicleSchema, verifyPaymentSchema,
 } from "../utils/validation.js";
 import { ALLOWED_UPLOAD_TYPES, MAX_UPLOAD_BYTES } from "../services/media.js";
@@ -82,6 +84,9 @@ r.post("/host/calendar/block", authenticate, hostOnly, validate(blockSlotSchema)
 r.delete("/host/calendar/block/:id", authenticate, hostOnly, a(host.unblockSlot));
 r.get("/host/bookings", authenticate, hostOnly, a(host.listBookings));
 r.get("/host/earnings", authenticate, hostOnly, a(host.earnings));
+r.get("/host/payout-profile", authenticate, hostOnly, a(payouts.getPayoutProfile));
+r.put("/host/payout-profile", authenticate, hostOnly, validate(payoutProfileSchema), a(payouts.updatePayoutProfile));
+r.post("/host/payouts/request", authenticate, hostOnly, rateLimit("payout-request", 8, 10 * 60000), a(payouts.requestPayout));
 r.get("/host/reviews", authenticate, hostOnly, a(host.listReviews));
 
 // ---- Admin
@@ -93,6 +98,13 @@ r.get("/admin/listings", authenticate, adminOnly, a(admin.listListings));
 r.post("/admin/listings/:id/moderate", authenticate, adminOnly, a(admin.moderateListing));
 r.get("/admin/bookings", authenticate, adminOnly, a(admin.listBookings));
 r.get("/admin/payments", authenticate, adminOnly, a(admin.listPayments));
+r.get("/admin/payouts", authenticate, adminOnly, a(payouts.adminListPayouts));
+r.post("/admin/payouts/:id/approve", authenticate, adminOnly, a(payouts.adminApprovePayout));
+r.post("/admin/payouts/:id/reject", authenticate, adminOnly, validate(payoutNoteSchema), a(payouts.adminRejectPayout));
+r.post("/admin/payouts/:id/mark-paid", authenticate, adminOnly, validate(payoutReferenceSchema), a(payouts.adminMarkPayoutPaid));
+r.post("/admin/payouts/:id/fail", authenticate, adminOnly, validate(payoutNoteSchema), a(payouts.adminFailPayout));
+r.post("/admin/payouts/:id/reverse", authenticate, adminOnly, validate(payoutNoteSchema), a(payouts.adminReversePayout));
+r.post("/admin/users/:id/verify-payout", authenticate, adminOnly, a(payouts.adminVerifyPayoutProfile));
 r.get("/admin/reports", authenticate, adminOnly, a(admin.listReports));
 r.post("/admin/reports/:id/resolve", authenticate, adminOnly, a(admin.resolveReport));
 r.get("/admin/reviews", authenticate, adminOnly, a(admin.listReviews));
