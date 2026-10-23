@@ -395,6 +395,7 @@ Never commit or paste real values. Names only.
 | P0-2 | Listing photos on Render disk | `routes/index.ts` multer; `app.ts` static | **Implemented:** Cloudinary in production; local `/uploads` fallback in development |
 | P0-3 | No in-repo SPA rewrite / Render blueprint | repo root | **Implemented:** `vercel.json` + `client/vercel.json` SPA rewrite; `/api` excluded. Render start still documented as `npm run build && npm start`. |
 | P0-4 | Webhook secret optional at boot | `verifyWebhookSignature` returns false if unset | **Implemented:** `RAZORPAY_WEBHOOK_SECRET` required when `NODE_ENV=production`; verification still fails closed if the secret is empty |
+| P0-5 | Captured payment after expiry/cancel left the driver charged with no booking | `confirmBookingPaid` threw 409; webhook then 500 | **Implemented:** `settleCapturedPayment` confirms a late hold only if the slot is free; otherwise refunds the stored amount. Webhook ACKs 200 only after that state is recorded. Unpaid orders are cancelled on cancel/expiry when the official API supports it. Unique-index dry-run/apply script: `docs/indexes.md` — do not auto-run against production. |
 
 **P1 — production reliability and security**
 
@@ -433,10 +434,11 @@ Never commit or paste real values. Names only.
 1. **P0-1** Atomic payment confirm (verify + webhook). **Done.**
 2. **P0-2** Durable listing images (Cloudinary). **Done** — set Render Cloudinary env vars; re-upload listings whose `/uploads` files are already gone.
 3. **P0-3 / P0-4** Vercel SPA rewrite + require webhook secret in production. **Done** — set `RAZORPAY_WEBHOOK_SECRET` on Render before the next production deploy; confirm `/search` and `/dashboard` refresh on Vercel.
-4. **P1** Search rate limit, Zod on reset, stop storing signatures, fetch error states.
-5. **P1-6** Same-process scheduled expiry (not a new platform).
-6. **P2** Search indexing and stats TTL after traffic grows.
-7. **P3** Bundle split, remove unused local package. Manual host payouts are implemented; do not enable live Route transfers until Razorpay enables the product and reversal behavior is verified.
+4. **P0-5** Late captured payments refund or confirm safely; unique-index migration is opt-in. **Done in code** — still verify Razorpay webhook events and Atlas unique indexes on the dashboards before calling production safe.
+5. **P1** Search rate limit, Zod on reset, stop storing signatures, fetch error states.
+6. **P1-6** Same-process scheduled expiry (not a new platform).
+7. **P2** Search indexing and stats TTL after traffic grows.
+8. **P3** Bundle split, remove unused local package. Manual host payouts are implemented; do not enable live Route transfers until Razorpay enables the product and reversal behavior is verified.
 
 Stay in this modular monolith. Do not split services unless a measured bottleneck appears.
 

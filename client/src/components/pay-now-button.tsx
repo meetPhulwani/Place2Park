@@ -72,8 +72,18 @@ export function PayNowButton({ bookingId, bookingCode, onPaid }: Props) {
                 razorpayPaymentId: response.razorpay_payment_id,
                 razorpaySignature: response.razorpay_signature,
               })
-              .then(() => resolve())
-              .catch((e) => reject(new Error(errorMessage(e, "Payment could not be verified."))));
+              .then(({ data }) => {
+                if (data?.data?.refunded) {
+                  reject(
+                    new Error(
+                      "Payment was received but the reservation could not be confirmed. A refund has been requested."
+                    )
+                  );
+                  return;
+                }
+                resolve();
+              })
+              .catch((e) => reject(e instanceof Error ? e : new Error(errorMessage(e, "Payment could not be verified."))));
           },
           modal: {
             ondismiss: () => reject(Object.assign(new Error("Payment cancelled."), { cancelled: true })),

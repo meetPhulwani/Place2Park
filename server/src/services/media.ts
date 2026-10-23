@@ -42,6 +42,42 @@ export function isManagedPublicId(publicId?: string): boolean {
   return Boolean(publicId && publicId.startsWith(`${CLOUDINARY_FOLDER}/`));
 }
 
+export function listingImageFolder(hostId?: string) {
+  return hostId ? `${CLOUDINARY_FOLDER}/${hostId}` : CLOUDINARY_FOLDER;
+}
+
+export function isOwnedPublicId(hostId: string, publicId?: string): boolean {
+  if (!isManagedPublicId(publicId) || !hostId) return false;
+  if (publicId!.startsWith(`${listingImageFolder(hostId)}/`)) return true;
+  const rest = publicId!.slice(CLOUDINARY_FOLDER.length + 1);
+  return rest.length > 0 && !rest.includes("/");
+}
+
+export function sanitizeListingImages(
+  hostId: string,
+  previous: { url?: string; publicId?: string }[],
+  next: { url: string; publicId?: string }[]
+): { url: string; publicId?: string }[] {
+  const previousIds = new Set(
+    previous.map((img) => img.publicId).filter((id): id is string => isManagedPublicId(id))
+  );
+  return next.map((img) => {
+    if (!isManagedPublicId(img.publicId)) {
+      return { url: img.url, ...(img.publicId ? { publicId: img.publicId } : {}) };
+    }
+    if (previousIds.has(img.publicId!) || isOwnedPublicId(hostId, img.publicId)) {
+      return { url: img.url, publicId: img.publicId };
+    }
+    return { url: img.url, publicId: "" };
+  });
+}
+
+export function canDestroyPublicId(hostId: string | undefined, publicId: string): boolean {
+  if (!isManagedPublicId(publicId)) return false;
+  if (!hostId) return true;
+  return isOwnedPublicId(hostId, publicId);
+}
+
 export function validateUploadFile(file: { mimetype?: string; size?: number; buffer?: Buffer }) {
   const size = file.size ?? file.buffer?.length ?? 0;
   if (!isAllowedUploadMime(file.mimetype) || size <= 0 || size > MAX_UPLOAD_BYTES) {
@@ -49,7 +85,7 @@ export function validateUploadFile(file: { mimetype?: string; size?: number; buf
   }
 }
 
-async function defaultCloudinaryUpload(input: { buffer: Buffer; mimetype: string }) {
+async function defaultCloudinaryUpload(input: { buffer: Buffer; mimetype: string }, hostId?: string) {
   const { v2: cloudinary } = await import("cloudinary");
   cloudinary.config({
     cloud_name: env.CLOUDINARY_CLOUD_NAME,
@@ -60,7 +96,7 @@ async function defaultCloudinaryUpload(input: { buffer: Buffer; mimetype: string
   return new Promise<{ url: string; publicId: string }>((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
       {
-        folder: CLOUDINARY_FOLDER,
+        folder: listingImageFolder(hostId),
         resource_type: "image",
         allowed_formats: ["jpg", "jpeg", "png", "webp"],
       },
@@ -89,10 +125,10 @@ async function defaultCloudinaryDestroy(publicId: string) {
 
 export async function uploadListingImage(
   file: { buffer: Buffer; mimetype: string; size?: number },
-  deps: { upload?: UploadListingImageFn } = {}
+  deps: { upload?: UploadListingImageFn; hostId?: string } = {}
 ): Promise<{ url: string; publicId: string }> {
   validateUploadFile(file);
-  const upload = deps.upload ?? defaultCloudinaryUpload;
+  const upload = deps.upload ?? ((input) => defaultCloudinaryUpload(input, deps.hostId));
   try {
     const stored = await upload({ buffer: file.buffer, mimetype: file.mimetype });
     if (!stored.url || !stored.publicId) throw new Error("Cloudinary upload returned no asset");
@@ -120,7 +156,7 @@ export async function saveLocalListingImage(file: { buffer: Buffer; mimetype: st
 
 export async function storeListingImage(
   file: { buffer?: Buffer; mimetype: string; size?: number },
-  deps: { upload?: UploadListingImageFn; configured?: boolean } = {}
+  deps: { upload?: UploadListingImageFn; configured?: boolean; hostId?: string } = {}
 ): Promise<StoredListingImage> {
   validateUploadFile(file);
   const useCloud = Boolean(deps.upload) || (deps.configured ?? cloudinaryConfigured());
@@ -147,10 +183,16 @@ export async function persistListingImages(
   previous: { url: string; publicId?: string }[],
   next: { url: string; publicId?: string }[],
   save: () => Promise<void>,
-  deps: { destroy?: DestroyListingImageFn } = {}
+  deps: { destroy?: DestroyListingImageFn; hostId?: string } = {}
 ) {
+  const images = deps.hostId ? sanitizeListingImages(deps.hostId, previous, next) : next;
+  if (deps.hostId) {
+    for (let i = 0; i < next.length; i++) {
+      next[i]!.publicId = images[i]?.publicId ?? "";
+    }
+  }
   await save();
-  const ids = removedCloudinaryPublicIds(previous, next);
+  const ids = removedCloudinaryPublicIds(previous, images).filter((id) => canDestroyPublicId(deps.hostId, id));
   for (const publicId of ids) {
     try {
       await destroyListingImage(publicId, deps);

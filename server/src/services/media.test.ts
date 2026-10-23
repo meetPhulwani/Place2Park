@@ -5,6 +5,7 @@ import {
   cloudinaryConfigured,
   persistListingImages,
   removedCloudinaryPublicIds,
+  sanitizeListingImages,
   uploadListingImage,
 } from "./media.js";
 
@@ -105,6 +106,39 @@ describe("listing image persistence vs cloud destroy", () => {
       { destroy: async (id) => { destroyed.push(id); } }
     );
     assert.deepEqual(destroyed, ["place2park/listings/old"]);
+  });
+
+  it("does not keep or destroy another host's Cloudinary publicId", async () => {
+    const hostA = "aaaaaaaaaaaaaaaaaaaaaaaa";
+    const hostB = "bbbbbbbbbbbbbbbbbbbbbbbb";
+    const stolen = `place2park/listings/${hostA}/secret`;
+    const destroyed: string[] = [];
+    const incoming = [
+      { url: "https://res.cloudinary.com/demo/image/upload/stolen.jpg", publicId: stolen },
+    ];
+    const sanitized = sanitizeListingImages(hostB, [], incoming);
+    assert.equal(sanitized[0]?.publicId, "");
+    await persistListingImages([], incoming, async () => undefined, {
+      hostId: hostB,
+      destroy: async (id) => {
+        destroyed.push(id);
+      },
+    });
+    assert.equal(incoming[0]?.publicId, "");
+    assert.deepEqual(destroyed, []);
+  });
+
+  it("lets a host remove an image that already belongs to their listing", async () => {
+    const hostA = "aaaaaaaaaaaaaaaaaaaaaaaa";
+    const own = `place2park/listings/${hostA}/mine`;
+    const destroyed: string[] = [];
+    await persistListingImages(
+      [{ url: "https://res.cloudinary.com/demo/image/upload/mine.jpg", publicId: own }],
+      [],
+      async () => undefined,
+      { hostId: hostA, destroy: async (id) => { destroyed.push(id); } }
+    );
+    assert.deepEqual(destroyed, [own]);
   });
 
   it("identifies removed Cloudinary ids and ignores local/demo paths", () => {

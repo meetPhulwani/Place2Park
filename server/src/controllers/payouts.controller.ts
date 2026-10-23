@@ -7,6 +7,7 @@ import {
   failHostPayout,
   listAdminPayouts,
   markHostPayoutPaid,
+  revealAdminPayoutAccount,
   publicPayoutProfile,
   rejectHostPayout,
   requestHostPayout,
@@ -50,6 +51,12 @@ export async function adminListPayouts(req: AuthedRequest, res: Response) {
   const status = typeof req.query.status === "string" ? req.query.status : undefined;
   const payouts = await listAdminPayouts(status);
   res.json({ success: true, data: { payouts } });
+}
+
+export async function adminRevealPayoutDestination(req: AuthedRequest, res: Response) {
+  if (req.userRole !== "ADMIN") throw new ApiError(403, "You don't have access to this.");
+  const destination = await revealAdminPayoutAccount(req.userId, req.params.id);
+  res.json({ success: true, data: { destination } });
 }
 
 export async function adminVerifyPayoutProfile(req: AuthedRequest, res: Response) {

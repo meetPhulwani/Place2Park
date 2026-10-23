@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  EXPECTED_RAZORPAY_WEBHOOK_EVENTS,
   checkoutSignature,
   razorpayConfigured,
   verifyRazorpaySignature,
@@ -8,6 +9,18 @@ import {
   webhookSignature,
 } from "./payments.js";
 import { env } from "../config/env.js";
+
+describe("Razorpay production webhook events", () => {
+  it("lists the capture, failure, and refund events that production must enable", () => {
+    assert.deepEqual([...EXPECTED_RAZORPAY_WEBHOOK_EVENTS], [
+      "payment.captured",
+      "order.paid",
+      "payment.failed",
+      "refund.processed",
+      "refund.failed",
+    ]);
+  });
+});
 
 describe("Razorpay signature helpers", () => {
   it("accepts a matching checkout HMAC", () => {

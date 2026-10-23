@@ -9,8 +9,10 @@ import { env } from "../config/env.js";
 import { computeQuote } from "../utils/pricing.js";
 import {
   applyRouteTransferEvent,
+  listAdminPayouts,
   listEligibleBookings,
   markHostPayoutPaid,
+  revealAdminPayoutAccount,
   approveHostPayout,
   failHostPayout,
   publicPayoutProfile,
@@ -281,6 +283,42 @@ describe("refunds and reconciliation", () => {
     assert.equal((await listEligibleBookings(hostId)).length, 0);
   });
 
+  it("does not treat a refunded completed booking as payout-eligible", async () => {
+    await readyHost();
+    await seedBooking({ status: "COMPLETED", paymentStatus: "REFUNDED", refunded: true, refundStatus: "PROCESSED" });
+    assert.equal((await listEligibleBookings(hostId)).length, 0);
+  });
+});
+
+describe("admin payout destination privacy", () => {
+  it("lists payouts with last4 only and never the full account number", async () => {
+    await readyHost();
+    await seedBooking({ status: "COMPLETED" });
+    await requestHostPayout(hostId);
+    const logs: string[] = [];
+    const payouts = await listAdminPayouts(undefined, { log: (line) => logs.push(line) });
+    assert.equal(payouts[0]?.destination.accountLast4, "9012");
+    assert.equal("accountNumber" in (payouts[0]?.destination ?? {}), false);
+    assert.equal(logs.some((line) => line.includes("123456789012")), false);
+  });
+
+  it("reveals the full account number only to an admin and audits without the number", async () => {
+    await readyHost();
+    await seedBooking({ status: "COMPLETED" });
+    const requested = await requestHostPayout(hostId);
+    const logs: string[] = [];
+    const revealed = await revealAdminPayoutAccount(adminId, requested.id, { log: (line) => logs.push(line) });
+    assert.equal(revealed.accountNumber, "123456789012");
+    assert.ok(logs.some((line) => line.includes(requested.id) && line.includes(adminId)));
+    assert.equal(logs.some((line) => line.includes("123456789012")), false);
+    await assert.rejects(
+      () => revealAdminPayoutAccount(hostId, requested.id),
+      (err: unknown) => err instanceof ApiError && err.status === 403
+    );
+  });
+});
+
+describe("route transfer ignore leftover", () => {
   it("ignores Route transfer webhooks that do not match a stored transferId", async () => {
     await readyHost();
     await seedBooking({ status: "COMPLETED" });

@@ -172,7 +172,7 @@ export async function summarizeHostEarnings(hostId: string) {
       { $group: { _id: null, earning: { $sum: "$hostEarning" }, fees: { $sum: "$platformFee" }, gross: { $sum: "$baseAmount" }, count: { $sum: 1 } } },
     ]),
     Booking.aggregate([
-      { $match: { hostId: hostOid, status: { $in: ["CONFIRMED", "ACTIVE"] } } },
+      { $match: { hostId: hostOid, status: { $in: ["CONFIRMED", "ACTIVE"] }, refunded: { $ne: true } } },
       { $group: { _id: null, earning: { $sum: "$hostEarning" }, count: { $sum: 1 } } },
     ]),
     Booking.aggregate([
@@ -422,6 +422,20 @@ export async function reverseHostPayout(adminId: string, payoutId: string, note 
   return toPublicPayout(payout);
 }
 
+/** Mark refunded and drop future holds from occupancy. In-progress stays ACTIVE. */
+export async function markBookingRefunded(bookingId: unknown) {
+  await Booking.updateOne({ _id: bookingId }, { $set: { refunded: true } });
+  await Booking.updateOne(
+    {
+      _id: bookingId,
+      status: { $in: ["PENDING", "CONFIRMED", "EXPIRED"] },
+      start: { $gt: new Date() },
+    },
+    { $set: { status: "CANCELLED" } }
+  );
+  await reconcileRefundedBooking(bookingId);
+}
+
 export async function reconcileRefundedBooking(bookingId: unknown) {
   const booking = await Booking.findById(bookingId);
   if (!booking?.payoutId) return;
@@ -471,24 +485,14 @@ export async function applyRouteTransferEvent(input: { event?: string; transferI
   }
 }
 
-export async function listAdminPayouts(status?: string) {
+export type PayoutAuditLog = (line: string) => void;
+
+export async function listAdminPayouts(status?: string, _deps?: { log?: PayoutAuditLog }) {
   const filter = status && status !== "ALL" ? { status } : {};
   const payouts = await HostPayout.find(filter).sort({ createdAt: -1 }).limit(100).populate("hostId", "name email payoutProfile");
-  const hostIds = [...new Set(payouts.map((p) => String(p.hostId && typeof p.hostId === "object" && "_id" in p.hostId ? p.hostId._id : p.hostId)))];
-  const secrets = await User.find({ _id: { $in: hostIds } }).select("+payoutProfile.accountNumberEnc");
-  const encByHost = new Map(secrets.map((u) => [String(u._id), u.payoutProfile?.accountNumberEnc ?? ""]));
   return payouts.map((p) => {
     const host = p.hostId as unknown as { _id?: unknown; name?: string; email?: string; payoutProfile?: { accountHolder?: string; ifsc?: string; accountLast4?: string; verified?: boolean } };
     const hostId = String(host?._id ?? p.hostId);
-    let accountNumber = "";
-    const enc = encByHost.get(hostId);
-    if (enc) {
-      try {
-        accountNumber = decryptAccountNumber(enc);
-      } catch {
-        accountNumber = "";
-      }
-    }
     return {
       ...p.toJSON(),
       hostId: { id: hostId, name: host?.name, email: host?.email },
@@ -496,9 +500,38 @@ export async function listAdminPayouts(status?: string) {
         accountHolder: p.accountHolder || host?.payoutProfile?.accountHolder || "",
         ifsc: p.accountIfsc || host?.payoutProfile?.ifsc || "",
         accountLast4: p.accountLast4 || host?.payoutProfile?.accountLast4 || "",
-        accountNumber,
         verified: !!host?.payoutProfile?.verified,
       },
     };
   });
+}
+
+export async function revealAdminPayoutAccount(
+  actorId: string,
+  payoutId: string,
+  deps: { log?: PayoutAuditLog } = {}
+) {
+  const actor = await User.findById(actorId).select("role");
+  if (!actor || actor.role !== "ADMIN") throw new ApiError(403, "You don't have access to this.");
+  const payout = await HostPayout.findById(payoutId);
+  if (!payout) throw new ApiError(404, "Payout not found.");
+  const hostId = String(payout.hostId);
+  const host = await User.findById(hostId).select("+payoutProfile.accountNumberEnc payoutProfile.accountLast4 payoutProfile.accountHolder payoutProfile.ifsc");
+  const enc = host?.payoutProfile?.accountNumberEnc;
+  if (!enc) throw new ApiError(404, "Payout account could not be read.");
+  let accountNumber = "";
+  try {
+    accountNumber = decryptAccountNumber(enc);
+  } catch {
+    throw new ApiError(500, "Payout account could not be read.");
+  }
+  const accountLast4 = payout.accountLast4 || host?.payoutProfile?.accountLast4 || accountNumber.slice(-4);
+  const log = deps.log ?? ((line: string) => console.info(line));
+  log(`[payout] account revealed payoutId=${String(payout._id)} adminId=${actorId} hostId=${hostId} last4=${accountLast4}`);
+  return {
+    accountNumber,
+    accountLast4,
+    accountHolder: payout.accountHolder || host?.payoutProfile?.accountHolder || "",
+    ifsc: payout.accountIfsc || host?.payoutProfile?.ifsc || "",
+  };
 }

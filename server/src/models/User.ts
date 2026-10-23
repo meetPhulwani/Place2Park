@@ -18,6 +18,7 @@ const userSchema = new Schema(
     notifyReminders: { type: Boolean, default: true },
     resetToken: { type: String, select: false },
     resetTokenExpires: { type: Date, select: false },
+    tokenVersion: { type: Number, default: 0 },
     payoutProfile: {
       accountHolder: { type: String, default: "", maxlength: 80 },
       ifsc: { type: String, default: "", uppercase: true, maxlength: 11 },

@@ -126,8 +126,18 @@ export async function hasConflict(
     status: { $in: BLOCKING_STATUSES },
     start: { $lt: end },
     end: { $gt: start },
-    // A PENDING booking only blocks while its payment hold is alive.
-    $or: [{ status: { $ne: "PENDING" } }, { expiresAt: { $gt: now } }],
+    $and: [
+      // A PENDING booking only blocks while its payment hold is alive.
+      { $or: [{ status: { $ne: "PENDING" } }, { expiresAt: { $gt: now } }] },
+      // Refunded future holds must not occupy; an in-progress stay still does.
+      {
+        $or: [
+          { refunded: { $ne: true } },
+          { status: "ACTIVE" },
+          { status: "CONFIRMED", start: { $lte: now } },
+        ],
+      },
+    ],
   }).session(session ?? null);
   if (conflict) return true;
   const blocked = await BlockedSlot.exists({ spaceId, start: { $lt: end }, end: { $gt: start } }).session(
@@ -149,11 +159,11 @@ export async function checkAvailability(spaceId: string, start: Date, end: Date)
 }
 
 /** Expire stale PENDING bookings (called lazily before availability-sensitive reads). */
-export async function expireStalePendingBookings(spaceId?: string) {
-  await Booking.updateMany(
-    { status: "PENDING", expiresAt: { $lt: new Date() }, ...(spaceId ? { spaceId } : {}) },
-    { $set: { status: "EXPIRED" } }
-  );
+export async function expireStalePendingBookings(spaceId?: string): Promise<string[]> {
+  const filter = { status: "PENDING", expiresAt: { $lt: new Date() }, ...(spaceId ? { spaceId } : {}) };
+  const doomed = spaceId ? await Booking.find(filter).select("_id") : [];
+  await Booking.updateMany(filter, { $set: { status: "EXPIRED" } });
+  return doomed.map((row) => String(row._id));
 }
 
 /** Apply expiry + time progression for one booking (any viewer). */

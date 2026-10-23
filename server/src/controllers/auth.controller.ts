@@ -7,6 +7,11 @@ import { ApiError } from "../middleware/error.js";
 import { signToken, type AuthedRequest } from "../middleware/auth.js";
 import { env, isProd } from "../config/env.js";
 import { deliverPasswordResetLink, isSmtpConfigured } from "../services/email.js";
+import { resolveGoogleAccountLink } from "../services/auth-accounts.js";
+
+function issueToken(user: { _id: unknown; tokenVersion?: number | null }) {
+  return signToken(String(user._id), user.tokenVersion ?? 0);
+}
 
 function hashResetToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -24,7 +29,7 @@ export async function signup(req: Request, res: Response) {
   if (existing) throw new ApiError(409, "An account with this email already exists.");
   const passwordHash = await bcrypt.hash(password, 10);
   const user = await User.create({ name, email, passwordHash, role });
-  res.status(201).json({ success: true, data: { token: signToken(String(user._id)), user: publicUser(user) } });
+  res.status(201).json({ success: true, data: { token: issueToken(user), user: publicUser(user) } });
 }
 
 export async function login(req: Request, res: Response) {
@@ -34,7 +39,7 @@ export async function login(req: Request, res: Response) {
     throw new ApiError(401, "Incorrect email or password.");
   if (user.status === "SUSPENDED")
     throw new ApiError(403, "This account has been suspended. Contact support for help.");
-  res.json({ success: true, data: { token: signToken(String(user._id)), user: publicUser(user) } });
+  res.json({ success: true, data: { token: issueToken(user), user: publicUser(user) } });
 }
 
 /**
@@ -52,26 +57,36 @@ export async function googleLogin(req: Request, res: Response) {
   } catch {
     throw new ApiError(401, "Google sign-in failed. Try again.");
   }
-  if (!payload?.email || payload.email_verified === false)
+  if (!payload?.email || payload.email_verified !== true)
     throw new ApiError(401, "Google account email is not verified.");
 
-  let user = await User.findOne({ $or: [{ googleId: payload.sub }, { email: payload.email }] });
+  let user = await User.findOne({ googleId: payload.sub });
   if (!user) {
-    user = await User.create({
-      name: payload.name ?? payload.email.split("@")[0],
-      email: payload.email,
-      googleId: payload.sub,
-      image: payload.picture,
-      role: "DRIVER",
-    });
-  } else if (!user.googleId) {
-    user.googleId = payload.sub;
-    if (!user.image && payload.picture) user.image = payload.picture;
-    await user.save();
+    const byEmail = await User.findOne({ email: payload.email }).select("+googleId +passwordHash");
+    const decision = resolveGoogleAccountLink(
+      byEmail
+        ? { email: byEmail.email, googleId: byEmail.googleId, passwordHash: byEmail.passwordHash }
+        : null,
+      { sub: payload.sub, email: payload.email }
+    );
+    if (decision.action === "conflict" || decision.action === "mismatch") {
+      throw new ApiError(409, "An account with this email already exists. Sign in with your password.");
+    }
+    if (decision.action === "login" && byEmail) {
+      user = byEmail;
+    } else {
+      user = await User.create({
+        name: payload.name ?? payload.email.split("@")[0],
+        email: payload.email,
+        googleId: payload.sub,
+        image: payload.picture,
+        role: "DRIVER",
+      });
+    }
   }
   if (user.status === "SUSPENDED")
     throw new ApiError(403, "This account has been suspended. Contact support for help.");
-  res.json({ success: true, data: { token: signToken(String(user._id)), user: publicUser(user) } });
+  res.json({ success: true, data: { token: issueToken(user), user: publicUser(user) } });
 }
 
 /** Always responds success when no send is attempted; never reveals whether the email exists. */
@@ -108,10 +123,15 @@ export async function resetPassword(req: Request, res: Response) {
     resetTokenExpires: { $gt: new Date() },
   }).select("+resetToken +resetTokenExpires");
   if (!user) throw new ApiError(400, "This reset link is invalid or has expired.");
-  user.passwordHash = await bcrypt.hash(password, 10);
-  user.resetToken = undefined;
-  user.resetTokenExpires = undefined;
-  await user.save();
+  const passwordHash = await bcrypt.hash(password, 10);
+  const updated = await User.updateOne(
+    { _id: user._id, resetToken: hashResetToken(token), resetTokenExpires: { $gt: new Date() } },
+    {
+      $set: { passwordHash, resetToken: null, resetTokenExpires: null },
+      $inc: { tokenVersion: 1 },
+    }
+  );
+  if (!updated.modifiedCount) throw new ApiError(400, "This reset link is invalid or has expired.");
   res.json({ success: true, data: {} });
 }
 

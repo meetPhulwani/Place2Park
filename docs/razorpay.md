@@ -38,12 +38,33 @@ Restart the API after changing `.env`.
 5. After Checkout, the client posts to `/api/payments/verify`. The booking becomes `CONFIRMED` and payment `PAID` only if the signature matches.
 6. Closing Checkout leaves the booking `PENDING` / payment pending. You can click **Pay now** again; the same Razorpay order is reused while it is still `CREATED`.
 
-## 4. Webhook (optional locally)
+## 4. Webhook (optional locally, required in production)
 
 1. In the dashboard, add webhook URL `https://<your-tunnel>/api/payments/webhook`.
-2. Enable `payment.captured`, `payment.failed`, `refund.processed`, and `refund.failed`. Optional: `transfer.processed` / `transfer.failed` (ignored unless a payout already stored that transfer id). Host payouts are manual — see [payouts.md](payouts.md). Razorpay Route is **not** implemented.
+2. Enable `payment.captured`, `order.paid`, `payment.failed`, `refund.processed`, and `refund.failed`. Optional: `transfer.processed` / `transfer.failed` (ignored unless a payout already stored that transfer id). Host payouts are manual — see [payouts.md](payouts.md). Razorpay Route is **not** implemented.
 3. Copy the webhook secret into `RAZORPAY_WEBHOOK_SECRET`. Production (`NODE_ENV=production`) will not start without it. Local development can omit it; webhook verification then fails closed.
-4. The handler verifies `x-razorpay-signature` against the **raw** JSON body and ignores duplicate `payment.captured` events.
+4. The handler verifies `x-razorpay-signature` against the **raw** JSON body. Duplicate `payment.captured` events confirm or refund once. A captured payment that cannot be confirmed is refunded using the stored Mongo amount; the webhook returns HTTP 200 only after that state is recorded.
+
+## 4b. Production dashboard checklist (manual)
+
+Do not paste secrets into tickets or logs. Confirm in Razorpay + Render + Atlas:
+
+| Check | Expected |
+|---|---|
+| Render `NODE_ENV` | `production` |
+| Render `CLIENT_URL` | Exact Vercel origin, not localhost |
+| Render `JWT_SECRET` | Unique, ≥ 32 characters |
+| Render `MONGODB_URI` / `MONGODB_DB` | Atlas URI + `parkly` (or the dedicated app DB) |
+| Render Cloudinary trio | Set (boot fails without them) |
+| Render `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | Live or test keys that match the dashboard mode |
+| Render `RAZORPAY_WEBHOOK_SECRET` | **Same value** as the Razorpay webhook secret (required to boot) |
+| Razorpay webhook URL | `https://<render-api-host>/api/payments/webhook` |
+| Razorpay webhook events | `payment.captured`, `order.paid`, `payment.failed`, `refund.processed`, `refund.failed` |
+| Razorpay webhook active | Yes; recent deliveries 2xx after deploy |
+| Alert emails | Enabled for failed webhook deliveries |
+| Route / linked accounts | Off — payouts are manual |
+
+Active events are listed in code as `EXPECTED_RAZORPAY_WEBHOOK_EVENTS` in `server/src/services/payments.ts`.
 
 ## 5. Automated checks
 

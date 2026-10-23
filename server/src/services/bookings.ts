@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { Booking, Payment, ParkingSpace } from "../models/index.js";
+import { isProd } from "../config/env.js";
 import { ApiError } from "../middleware/error.js";
 import { computeQuote } from "../utils/pricing.js";
 import { bookingCode, accessCode } from "../utils/codes.js";
@@ -10,8 +11,16 @@ import {
   hasConflict,
   validateWindow,
 } from "./availability.js";
-import { createPaymentOrder, refundRazorpayPayment, type RefundPaymentFn } from "./payments.js";
-import { reconcileRefundedBooking } from "./payouts.js";
+import {
+  cancelUnpaidRazorpayOrder,
+  createPaymentOrder,
+  listRazorpayRefunds,
+  refundRazorpayPayment,
+  type CancelOrderFn,
+  type ListRefundsFn,
+  type RefundPaymentFn,
+} from "./payments.js";
+import { markBookingRefunded } from "./payouts.js";
 import { notify } from "./notify.js";
 import { formatDateTime } from "../utils/format.js";
 
@@ -114,7 +123,8 @@ export async function createBooking(input: CreateBookingInput) {
 
   const end = new Date(input.start.getTime() + input.durationMins * 60000);
 
-  await expireStalePendingBookings(input.spaceId);
+  const expiredIds = await expireStalePendingBookings(input.spaceId);
+  for (const id of expiredIds) await releaseExpiredPaymentHold(id);
   const windowCheck = validateWindow(space, input.start, end);
   if (!windowCheck.ok) throw new ApiError(409, AVAILABILITY_ERROR_MESSAGES[windowCheck.error!]);
   if (await hasConflict(input.spaceId, input.start, end))
@@ -171,6 +181,30 @@ export interface ConfirmBookingPaidDeps {
   notify?: typeof notify;
 }
 
+export interface CaptureSettlementDeps extends ConfirmBookingPaidDeps {
+  refundPayment?: RefundPaymentFn;
+  listRefunds?: ListRefundsFn;
+  cancelOrder?: CancelOrderFn;
+}
+
+export type RefundStatus = "PENDING" | "PROCESSED" | "FAILED";
+
+export type CaptureOutcome = "confirmed" | "already_paid" | "refunded" | "refund_pending";
+
+export type CaptureSettlement = {
+  outcome: CaptureOutcome;
+  bookingId: string;
+  refunded: boolean;
+  refundStatus: RefundStatus | null;
+};
+
+function isHoldExpired(booking: { status: string; expiresAt?: Date | null }) {
+  return (
+    booking.status === "EXPIRED" ||
+    (booking.status === "PENDING" && !!booking.expiresAt && booking.expiresAt.getTime() <= Date.now())
+  );
+}
+
 const PAID_BOOKING_STATUSES = ["CONFIRMED", "ACTIVE", "COMPLETED"] as const;
 
 function isPaidBookingStatus(status: string) {
@@ -179,7 +213,7 @@ function isPaidBookingStatus(status: string) {
 
 async function markPaymentPaid(bookingId: unknown, paymentId: string, signature: string) {
   await Payment.updateOne(
-    { bookingId, status: { $ne: "PAID" } },
+    { bookingId, status: { $in: ["CREATED", "FAILED"] } },
     { $set: { status: "PAID", paymentId, signature } }
   );
 }
@@ -201,7 +235,7 @@ async function claimPaidConfirmation(bookingId: unknown, paymentId: string, sign
     });
     if (!claimed) return null;
     await Payment.updateOne(
-      { bookingId: claimed._id },
+      { bookingId: claimed._id, status: { $in: ["CREATED", "FAILED"] } },
       { $set: { status: "PAID", paymentId, signature } },
       { session }
     );
@@ -277,6 +311,138 @@ export async function confirmBookingPaid(
   return claimed;
 }
 
+/** Revive an expired hold only when the slot is still free. Never confirm over a later booking. */
+async function claimLateConfirmation(bookingId: unknown, paymentId: string, signature: string) {
+  const update = { $set: { status: "CONFIRMED" as const }, $unset: { expiresAt: 1 } };
+  const filter = { _id: bookingId, status: { $in: ["PENDING", "EXPIRED"] } };
+
+  async function write(session?: mongoose.ClientSession) {
+    const claimed = await Booking.findOneAndUpdate(filter, update, { new: true, session });
+    if (!claimed) return null;
+    if (await hasConflict(String(claimed.spaceId), claimed.start, claimed.end, String(claimed._id), session)) {
+      throw new ApiError(409, AVAILABILITY_ERROR_MESSAGES.CONFLICT);
+    }
+    await Payment.updateOne(
+      { bookingId: claimed._id, status: { $in: ["CREATED", "FAILED"] } },
+      { $set: { status: "PAID", paymentId, signature } },
+      { session }
+    );
+    await ParkingSpace.updateOne({ _id: claimed.spaceId }, { $inc: { bookingsCount: 1 } }, { session });
+    return claimed;
+  }
+
+  const session = await mongoose.startSession();
+  try {
+    const claimed = await session.withTransaction(async () => write(session));
+    return claimed ?? null;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 409) return null;
+    if (!isTxnUnsupported(err)) throw err;
+  } finally {
+    await session.endSession();
+  }
+
+  try {
+    return await write();
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 409) {
+      await Booking.updateOne({ _id: bookingId, status: "CONFIRMED" }, { $set: { status: "EXPIRED" } });
+      return null;
+    }
+    throw err;
+  }
+}
+
+async function notifyConfirmed(booking: BookingDoc, bookingId: string, send: typeof notify) {
+  await booking.populate<{ spaceId: { title: string } }>("spaceId", "title");
+  const title = (booking.spaceId as unknown as { title: string }).title;
+  await send(
+    String(booking.userId),
+    "BOOKING_CONFIRMED",
+    "Booking confirmed 🎉",
+    `Your parking at ${title} is confirmed for ${formatDateTime(booking.start)}.`,
+    { bookingId }
+  );
+  await send(
+    String(booking.hostId),
+    "HOST_NEW_BOOKING",
+    "New booking received",
+    `${title}: ${formatDateTime(booking.start)} – ${formatDateTime(booking.end)}.`,
+    { bookingId }
+  );
+}
+
+/**
+ * After a verified capture: confirm when possible, otherwise refund the stored amount.
+ * A paid driver always ends with a confirmed booking or a tracked refund state.
+ */
+export async function settleCapturedPayment(
+  bookingId: string,
+  paymentId: string,
+  signature?: string,
+  deps: CaptureSettlementDeps = {}
+): Promise<CaptureSettlement> {
+  const sig = signature ?? "";
+  const booking = await Booking.findById(bookingId);
+  if (!booking) throw new ApiError(404, "Booking not found.");
+
+  if (isPaidBookingStatus(booking.status)) {
+    await markPaymentPaid(booking._id, paymentId, sig);
+    return { outcome: "already_paid", bookingId, refunded: false, refundStatus: null };
+  }
+
+  const livePending = booking.status === "PENDING" && !isHoldExpired(booking);
+  if (livePending) {
+    try {
+      await confirmBookingPaid(bookingId, paymentId, sig, { notify: deps.notify });
+      return { outcome: "confirmed", bookingId, refunded: false, refundStatus: null };
+    } catch (err) {
+      if (!(err instanceof ApiError) || err.status !== 409) throw err;
+    }
+  }
+
+  if (isHoldExpired(booking)) {
+    const conflict = await hasConflict(String(booking.spaceId), booking.start, booking.end, String(booking._id));
+    if (!conflict) {
+      const claimed = await claimLateConfirmation(booking._id, paymentId, sig);
+      if (claimed) {
+        await notifyConfirmed(claimed, bookingId, deps.notify ?? notify);
+        return { outcome: "confirmed", bookingId, refunded: false, refundStatus: null };
+      }
+      const latest = await Booking.findById(booking._id);
+      if (latest && isPaidBookingStatus(latest.status)) {
+        await markPaymentPaid(latest._id, paymentId, sig);
+        return { outcome: "already_paid", bookingId, refunded: false, refundStatus: null };
+      }
+    }
+    if (booking.status === "PENDING") {
+      await Booking.updateOne({ _id: booking._id, status: "PENDING" }, { $set: { status: "EXPIRED" } });
+    }
+  }
+
+  const settled = await settlePaidRefund(booking, deps, { force: true, paymentId });
+  if (settled.refundStatus === "PROCESSED") {
+    return { outcome: "refunded", bookingId, refunded: true, refundStatus: "PROCESSED" };
+  }
+  if (settled.refundStatus === "PENDING") {
+    return { outcome: "refund_pending", bookingId, refunded: true, refundStatus: "PENDING" };
+  }
+  throw new ApiError(503, "We couldn't process the refund. Try again shortly.");
+}
+
+/** Expire a stale hold and cancel its unpaid Razorpay order when the official API supports it. */
+export async function releaseExpiredPaymentHold(bookingId: string, deps: CaptureSettlementDeps = {}) {
+  if (!mongoose.isValidObjectId(bookingId)) return;
+  const booking = await Booking.findById(bookingId);
+  if (!booking) return;
+  if (!isHoldExpired(booking) && booking.status !== "EXPIRED") return;
+  if (booking.status === "PENDING") {
+    await Booking.updateOne({ _id: booking._id, status: "PENDING" }, { $set: { status: "EXPIRED" } });
+  }
+  const payment = await Payment.findOne({ bookingId: booking._id, status: "CREATED" });
+  if (payment?.orderId) await cancelUnpaidRazorpayOrder(payment.orderId, deps.cancelOrder);
+}
+
 /** Marks the payment failed. Booking stays PENDING so the driver can retry before the hold expires. */
 export async function failBookingPayment(bookingId: string) {
   const booking = await Booking.findById(bookingId);
@@ -288,16 +454,23 @@ export async function failBookingPayment(bookingId: string) {
   return booking;
 }
 
-export interface CancelBookingDeps {
-  notify?: typeof notify;
-  refundPayment?: RefundPaymentFn;
+export interface CancelBookingDeps extends CaptureSettlementDeps {}
+
+function isUncertainRefundError(err: unknown) {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /timeout|ETIMEDOUT|ECONNRESET|ECONNREFUSED|network|unavailable/i.test(msg);
+}
+
+async function listRefundsSafe(paymentId: string, deps: CancelBookingDeps) {
+  if (!paymentId) return [];
+  if (deps.listRefunds) return deps.listRefunds(paymentId).catch(() => []);
+  if (!isProd) return [];
+  return listRazorpayRefunds(paymentId).catch(() => []);
 }
 
 function isRefundWindow(start: Date) {
   return start.getTime() - Date.now() > FREE_CANCEL_BEFORE_MINS * 60000;
 }
-
-export type RefundStatus = "PENDING" | "PROCESSED" | "FAILED";
 
 export type RefundSettlement = {
   refunded: boolean;
@@ -308,30 +481,116 @@ function settlement(refundStatus: RefundStatus | null): RefundSettlement {
   return { refunded: refundStatus === "PENDING" || refundStatus === "PROCESSED", refundStatus };
 }
 
+async function persistRefundResult(
+  bookingId: unknown,
+  paymentId: unknown,
+  amount: number,
+  result: { refundId: string; processed: boolean }
+) {
+  if (result.processed) {
+    await Payment.updateOne(
+      { _id: paymentId },
+      {
+        $set: {
+          status: "REFUNDED",
+          refundStatus: "PROCESSED",
+          refundId: result.refundId,
+          refundAmount: amount,
+          refundProcessedAt: new Date(),
+          refundInFlight: false,
+        },
+      }
+    );
+    await markBookingRefunded(bookingId);
+    return settlement("PROCESSED");
+  }
+  await Payment.updateOne(
+    { _id: paymentId, status: { $ne: "REFUNDED" } },
+    { $set: { refundStatus: "PENDING", refundId: result.refundId, refundAmount: amount, refundInFlight: false } }
+  );
+  return settlement("PENDING");
+}
+
+async function completeRefundAfterClaim(
+  booking: { _id: unknown },
+  claimed: { _id: unknown; paymentId?: string | null; amount: number },
+  deps: CancelBookingDeps
+): Promise<RefundSettlement> {
+  const paymentId = claimed.paymentId ?? "";
+  if (!paymentId) {
+    await Payment.updateOne(
+      { _id: claimed._id, status: { $ne: "REFUNDED" } },
+      { $set: { refundStatus: "FAILED", refundFailedAt: new Date(), refundInFlight: false } }
+    );
+    throw new ApiError(503, "We couldn't process the refund. Try again shortly.");
+  }
+
+  const listed = await listRefundsSafe(paymentId, deps);
+  const existing = listed.find((row) => row.refundId);
+  if (existing) return persistRefundResult(booking._id, claimed._id, claimed.amount, existing);
+
+  try {
+    const result = await refundRazorpayPayment(paymentId, claimed.amount, deps.refundPayment);
+    return persistRefundResult(booking._id, claimed._id, claimed.amount, result);
+  } catch (err) {
+    const afterError = await listRefundsSafe(paymentId, deps);
+    const found = afterError.find((row) => row.refundId);
+    if (found) return persistRefundResult(booking._id, claimed._id, claimed.amount, found);
+    if (isUncertainRefundError(err)) {
+      await Payment.updateOne(
+        { _id: claimed._id, status: { $ne: "REFUNDED" } },
+        { $set: { refundStatus: "PENDING", refundAmount: claimed.amount, refundInFlight: false } }
+      );
+      throw new ApiError(503, "We couldn't process the refund. Try again shortly.");
+    }
+    await Payment.updateOne(
+      { _id: claimed._id, status: { $ne: "REFUNDED" } },
+      { $set: { refundStatus: "FAILED", refundFailedAt: new Date(), refundInFlight: false } }
+    );
+    throw new ApiError(503, "We couldn't process the refund. Try again shortly.");
+  }
+}
+
 /** Claim PAID → refund in-flight, call Razorpay, persist id/state. Never mark REFUNDED on request alone. */
 async function settlePaidRefund(
   booking: { _id: unknown; start: Date },
-  deps: CancelBookingDeps
+  deps: CancelBookingDeps,
+  opts: { force?: boolean; paymentId?: string } = {}
 ): Promise<RefundSettlement> {
   const payment = await Payment.findOne({ bookingId: booking._id });
   if (!payment) return settlement(null);
+  if (opts.paymentId && !payment.paymentId) {
+    payment.paymentId = opts.paymentId;
+    await Payment.updateOne({ _id: payment._id, paymentId: { $in: [null, "", undefined] } }, { $set: { paymentId: opts.paymentId } });
+  }
   if (payment.status === "REFUNDED" || payment.refundStatus === "PROCESSED") {
-    await Booking.updateOne({ _id: booking._id }, { $set: { refunded: true } });
-    await reconcileRefundedBooking(booking._id);
+    await markBookingRefunded(booking._id);
     return settlement("PROCESSED");
   }
   if (payment.refundStatus === "PENDING" && payment.refundId) return settlement("PENDING");
-  if (payment.status !== "PAID" || !isRefundWindow(booking.start)) return settlement(null);
+  const payable = payment.status === "PAID" || (opts.force && payment.status === "CREATED");
+  if (!payable || (!opts.force && !isRefundWindow(booking.start))) return settlement(null);
 
   const claimed = await Payment.findOneAndUpdate(
     {
       _id: payment._id,
-      status: "PAID",
-      $or: [{ refundStatus: { $exists: false } }, { refundStatus: null }, { refundStatus: "FAILED" }],
+      status: opts.force ? { $in: ["CREATED", "PAID"] } : "PAID",
+      $or: [
+        { refundStatus: { $exists: false } },
+        { refundStatus: null },
+        { refundStatus: "FAILED" },
+        {
+          refundStatus: "PENDING",
+          refundInFlight: { $ne: true },
+          $or: [{ refundId: { $exists: false } }, { refundId: null }, { refundId: "" }],
+        },
+      ],
     },
     {
       $set: {
+        ...(opts.force ? { status: "PAID", paymentId: opts.paymentId || payment.paymentId } : {}),
         refundStatus: "PENDING",
+        refundInFlight: true,
         refundAmount: payment.amount,
         refundRequestedAt: new Date(),
       },
@@ -342,48 +601,20 @@ async function settlePaidRefund(
   if (!claimed) {
     const latest = await Payment.findById(payment._id);
     if (latest?.status === "REFUNDED" || latest?.refundStatus === "PROCESSED") return settlement("PROCESSED");
-    if (latest?.refundStatus === "PENDING") return settlement("PENDING");
+    if (latest?.refundStatus === "PENDING") {
+      if (latest.refundId) return settlement("PENDING");
+      const listed = await listRefundsSafe(latest.paymentId || opts.paymentId || "", deps);
+      const found = listed.find((row) => row.refundId);
+      if (found) return persistRefundResult(booking._id, latest._id, latest.amount, found);
+      return settlement("PENDING");
+    }
     return settlement(null);
   }
-  if (!claimed.paymentId) {
-    await Payment.updateOne(
-      { _id: claimed._id, status: { $ne: "REFUNDED" } },
-      { $set: { refundStatus: "FAILED", refundFailedAt: new Date() } }
-    );
-    throw new ApiError(503, "We couldn't process the refund. Try again shortly.");
-  }
-
-  try {
-    const result = await refundRazorpayPayment(claimed.paymentId, claimed.amount, deps.refundPayment);
-    if (result.processed) {
-      await Payment.updateOne(
-        { _id: claimed._id },
-        {
-          $set: {
-            status: "REFUNDED",
-            refundStatus: "PROCESSED",
-            refundId: result.refundId,
-            refundAmount: claimed.amount,
-            refundProcessedAt: new Date(),
-          },
-        }
-      );
-      await Booking.updateOne({ _id: booking._id }, { $set: { refunded: true } });
-      await reconcileRefundedBooking(booking._id);
-      return settlement("PROCESSED");
-    }
-    await Payment.updateOne(
-      { _id: claimed._id, status: { $ne: "REFUNDED" } },
-      { $set: { refundStatus: "PENDING", refundId: result.refundId, refundAmount: claimed.amount } }
-    );
-    return settlement("PENDING");
-  } catch {
-    await Payment.updateOne(
-      { _id: claimed._id, status: { $ne: "REFUNDED" } },
-      { $set: { refundStatus: "FAILED", refundFailedAt: new Date() } }
-    );
-    throw new ApiError(503, "We couldn't process the refund. Try again shortly.");
-  }
+  return completeRefundAfterClaim(
+    booking,
+    { _id: claimed._id, paymentId: claimed.paymentId || opts.paymentId, amount: claimed.amount },
+    deps
+  );
 }
 
 /** Cancel by the driver (or admin). Refund eligible paid bookings through Razorpay. */
@@ -428,6 +659,10 @@ export async function cancelBooking(
   }
 
   const settled = await settlePaidRefund(claimed, deps);
+  if (!settled.refunded) {
+    const unpaid = await Payment.findOne({ bookingId: claimed._id, status: "CREATED" });
+    if (unpaid?.orderId) await cancelUnpaidRazorpayOrder(unpaid.orderId, deps.cancelOrder);
+  }
 
   const title = (booking.spaceId as unknown as { title: string }).title;
   await send(

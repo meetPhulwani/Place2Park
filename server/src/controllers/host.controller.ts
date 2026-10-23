@@ -158,7 +158,7 @@ export async function createListing(req: AuthedRequest, res: Response) {
       status,
       verified,
     });
-  });
+  }, { hostId: req.userId });
   res.status(201).json({ success: true, data: { listing: space!.toJSON() } });
 }
 
@@ -175,7 +175,7 @@ export async function updateListing(req: AuthedRequest, res: Response) {
   }
   await persistListingImages(previous, space.images as { url: string; publicId?: string }[], async () => {
     await space.save();
-  });
+  }, { hostId: String(space.hostId) });
   res.json({ success: true, data: { listing: space.toJSON() } });
 }
 

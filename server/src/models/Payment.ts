@@ -17,6 +17,7 @@ const paymentSchema = new Schema(
     refundRequestedAt: { type: Date },
     refundProcessedAt: { type: Date },
     refundFailedAt: { type: Date },
+    refundInFlight: { type: Boolean, default: false },
   },
   {
     timestamps: true,
@@ -29,6 +30,7 @@ const paymentSchema = new Schema(
         const s = String(ret.status ?? "");
         ret.paymentState = s === "PAID" ? "PAYMENT_PAID" : s === "CREATED" ? "PAYMENT_PENDING" : s;
         delete ret.signature;
+        delete ret.refundInFlight;
         return ret;
       },
     },

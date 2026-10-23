@@ -24,7 +24,7 @@ interface AdminPayout {
     accountHolder: string;
     ifsc: string;
     accountLast4: string;
-    accountNumber: string;
+    accountNumber?: string;
     verified: boolean;
   };
 }
@@ -94,6 +94,7 @@ export default function AdminPayoutsPage() {
 function PayoutRow({ payout, onChanged }: { payout: AdminPayout; onChanged: () => void }) {
   const [busy, setBusy] = React.useState(false);
   const [reference, setReference] = React.useState(payout.reference ?? "");
+  const [revealed, setRevealed] = React.useState<string | null>(null);
 
   async function act(path: string, body: Record<string, string>, msg: string) {
     setBusy(true);
@@ -120,9 +121,7 @@ function PayoutRow({ payout, onChanged }: { payout: AdminPayout; onChanged: () =
           </p>
           <p className="text-xs text-slate-400">
             {payout.destination.accountHolder} · {payout.destination.ifsc} ·
-            {payout.destination.accountNumber
-              ? ` ${payout.destination.accountNumber}`
-              : ` ****${payout.destination.accountLast4}`}
+            {revealed ? ` ${revealed}` : ` ****${payout.destination.accountLast4}`}
             {payout.destination.verified ? " · verified" : " · unverified"}
           </p>
         </div>
@@ -131,6 +130,26 @@ function PayoutRow({ payout, onChanged }: { payout: AdminPayout; onChanged: () =
         </Badge>
       </div>
       <div className="flex flex-wrap items-center gap-2">
+        {!revealed && (
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                const { data } = await api.post(`/admin/payouts/${payout.id}/reveal-destination`, {});
+                setRevealed(data.data.destination.accountNumber);
+              } catch (e) {
+                toast.error(errorMessage(e, "Could not reveal the account number."));
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            Reveal account
+          </Button>
+        )}
         {payout.status === "REQUESTED" && (
           <>
             <Button size="sm" disabled={busy} onClick={() => act("approve", {}, "Payout approved.")}>

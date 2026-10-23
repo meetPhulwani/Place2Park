@@ -9,8 +9,14 @@ export interface AuthedRequest extends Request {
   userRole: string;
 }
 
-export function signToken(userId: string) {
-  return jwt.sign({ sub: userId }, env.JWT_SECRET, { expiresIn: "7d", algorithm: "HS256" });
+export function signToken(userId: string, tokenVersion = 0) {
+  return jwt.sign({ sub: userId, ver: tokenVersion }, env.JWT_SECRET, { expiresIn: "7d", algorithm: "HS256" });
+}
+
+function tokenVersionOf(user: { tokenVersion?: number | null }, payload: jwt.JwtPayload) {
+  const expected = user.tokenVersion ?? 0;
+  const provided = typeof payload.ver === "number" ? payload.ver : 0;
+  return expected === provided;
 }
 
 function extractToken(req: Request): string | null {
@@ -33,8 +39,9 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
     } catch {
       throw new ApiError(401, "Your session has expired. Please log in again.");
     }
-    const user = await User.findById(payload.sub).select("role status");
+    const user = await User.findById(payload.sub).select("role status tokenVersion");
     if (!user) throw new ApiError(401, "Account not found.");
+    if (!tokenVersionOf(user, payload)) throw new ApiError(401, "Your session has expired. Please log in again.");
     if (user.status === "SUSPENDED") throw new ApiError(403, "This account has been suspended.");
     (req as AuthedRequest).userId = String(user._id);
     (req as AuthedRequest).userRole = user.role;
@@ -50,8 +57,8 @@ export async function maybeAuthenticate(req: Request, _res: Response, next: Next
   if (!token) return next();
   try {
     const payload = jwt.verify(token, env.JWT_SECRET, { algorithms: ["HS256"] }) as jwt.JwtPayload;
-    const user = await User.findById(payload.sub).select("role status");
-    if (user && user.status !== "SUSPENDED") {
+    const user = await User.findById(payload.sub).select("role status tokenVersion");
+    if (user && user.status !== "SUSPENDED" && tokenVersionOf(user, payload)) {
       (req as AuthedRequest).userId = String(user._id);
       (req as AuthedRequest).userRole = user.role;
     }

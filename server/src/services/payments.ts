@@ -4,7 +4,7 @@ import { env } from "../config/env.js";
 import { ApiError } from "../middleware/error.js";
 import { Booking, Payment } from "../models/index.js";
 import { expireStalePendingBookings } from "./availability.js";
-import { applyRouteTransferEvent, reconcileRefundedBooking } from "./payouts.js";
+import { applyRouteTransferEvent, markBookingRefunded } from "./payouts.js";
 
 /**
  * Payment provider boundary. Razorpay is used when credentials exist.
@@ -55,13 +55,16 @@ export async function createOrReusePaymentOrder(userId: string, bookingId: strin
   const booking = await Booking.findById(bookingId);
   if (!booking || String(booking.userId) !== userId) throw new ApiError(404, "Booking not found.");
   if (booking.status !== "PENDING") throw new ApiError(409, "This booking isn't awaiting payment.");
+  let payment = await Payment.findOne({ bookingId: booking._id });
   if (booking.expiresAt && booking.expiresAt.getTime() <= Date.now()) {
     booking.status = "EXPIRED";
     await booking.save();
+    if (payment?.orderId && payment.status === "CREATED") {
+      await cancelUnpaidRazorpayOrder(payment.orderId);
+    }
     throw new ApiError(409, "This reservation has expired.");
   }
 
-  let payment = await Payment.findOne({ bookingId: booking._id });
   if (payment?.status === "PAID") throw new ApiError(409, "This booking is already paid.");
 
   const amount = booking.totalAmount;
@@ -139,6 +142,37 @@ export interface RazorpayRefundResult {
 }
 
 export type RefundPaymentFn = (paymentId: string, amountPaise: number) => Promise<RazorpayRefundResult>;
+export type ListRefundsFn = (paymentId: string) => Promise<RazorpayRefundResult[]>;
+export type CancelOrderResult = "cancelled" | "unsupported" | "skipped";
+export type CancelOrderFn = (orderId: string) => Promise<CancelOrderResult>;
+
+/** Events the production Razorpay webhook must send. Transfer events are optional. */
+export const EXPECTED_RAZORPAY_WEBHOOK_EVENTS = [
+  "payment.captured",
+  "order.paid",
+  "payment.failed",
+  "refund.processed",
+  "refund.failed",
+] as const;
+
+export const OPTIONAL_RAZORPAY_WEBHOOK_EVENTS = ["transfer.processed", "transfer.failed"] as const;
+
+function asRefundResult(row: { id?: string; refundId?: string; status?: string }): RazorpayRefundResult {
+  const refundId = String(row.refundId ?? row.id ?? "");
+  const status = String(row.status ?? "").toLowerCase();
+  return { refundId, processed: status === "processed" };
+}
+
+export async function listRazorpayRefunds(paymentId: string, listFn?: ListRefundsFn): Promise<RazorpayRefundResult[]> {
+  if (listFn) return listFn(paymentId);
+  if (!razorpayConfigured() || !paymentId) return [];
+  const Razorpay = (await import("razorpay")).default;
+  const rzp = new Razorpay({ key_id: env.RAZORPAY_KEY_ID, key_secret: env.RAZORPAY_KEY_SECRET });
+  const payload = (await rzp.payments.fetchMultipleRefund(paymentId)) as {
+    items?: { id?: string; status?: string }[];
+  };
+  return (payload.items ?? []).map((item) => asRefundResult(item)).filter((row) => row.refundId);
+}
 
 /** Refund a captured payment. Amount always comes from the caller (Mongo), never the client. */
 export async function refundRazorpayPayment(
@@ -162,6 +196,38 @@ export async function refundRazorpayPayment(
   return { refundId, processed: status === "processed" };
 }
 
+/**
+ * Cancel an unpaid Razorpay order when the official API supports it.
+ * Never throws — booking cancel/expiry must succeed even if order cancel is unsupported.
+ */
+export async function cancelUnpaidRazorpayOrder(
+  orderId: string,
+  cancelFn?: CancelOrderFn
+): Promise<CancelOrderResult> {
+  if (!orderId) return "skipped";
+  if (cancelFn) return cancelFn(orderId);
+  if (!razorpayConfigured()) return "skipped";
+  try {
+    const Razorpay = (await import("razorpay")).default;
+    const rzp = new Razorpay({ key_id: env.RAZORPAY_KEY_ID, key_secret: env.RAZORPAY_KEY_SECRET });
+    const orders = rzp.orders as { cancel?: (id: string) => Promise<unknown> };
+    if (typeof orders.cancel === "function") {
+      await orders.cancel(orderId);
+      return "cancelled";
+    }
+    const auth = Buffer.from(`${env.RAZORPAY_KEY_ID}:${env.RAZORPAY_KEY_SECRET}`).toString("base64");
+    const res = await fetch(`https://api.razorpay.com/v1/orders/${encodeURIComponent(orderId)}/cancel`, {
+      method: "POST",
+      headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/json" },
+    });
+    if (res.ok) return "cancelled";
+    if (res.status === 400 || res.status === 404) return "unsupported";
+    return "skipped";
+  } catch {
+    return "skipped";
+  }
+}
+
 export async function applyRefundEvent(input: { event?: string; refundId?: string; paymentId?: string }) {
   const event = input.event ?? "";
   if (!input.refundId && !input.paymentId) return;
@@ -172,15 +238,16 @@ export async function applyRefundEvent(input: { event?: string; refundId?: strin
         ...(input.paymentId ? [{ paymentId: input.paymentId }] : []),
       ],
     });
-    if (!payment || payment.status === "REFUNDED") return;
-    payment.status = "REFUNDED";
-    payment.refundStatus = "PROCESSED";
-    payment.refundProcessedAt = new Date();
-    if (!payment.refundAmount) payment.refundAmount = payment.amount;
-    if (input.refundId) payment.refundId = input.refundId;
-    await payment.save();
-    await Booking.updateOne({ _id: payment.bookingId }, { $set: { refunded: true } });
-    await reconcileRefundedBooking(payment.bookingId);
+    if (!payment) return;
+    if (payment.status !== "REFUNDED") {
+      payment.status = "REFUNDED";
+      payment.refundStatus = "PROCESSED";
+      payment.refundProcessedAt = new Date();
+      if (!payment.refundAmount) payment.refundAmount = payment.amount;
+      if (input.refundId) payment.refundId = input.refundId;
+      await payment.save();
+    }
+    await markBookingRefunded(payment.bookingId);
     return;
   }
   if (event === "refund.failed" && (input.refundId || input.paymentId)) {
