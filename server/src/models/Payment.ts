@@ -18,6 +18,8 @@ const paymentSchema = new Schema(
     refundProcessedAt: { type: Date },
     refundFailedAt: { type: Date },
     refundInFlight: { type: Boolean, default: false },
+    orderCancelStatus: { type: String, enum: ["cancelled", "unsupported", "skipped"] },
+    orderCancelAttemptedAt: { type: Date },
   },
   {
     timestamps: true,

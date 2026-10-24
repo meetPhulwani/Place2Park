@@ -10,7 +10,9 @@ import {
   AVAILABILITY_ERROR_MESSAGES,
   checkAvailability,
   expireStalePendingBookings,
+  progressSpaceBookings,
 } from "../services/availability.js";
+import { reconcileExpiredPaymentHolds } from "../services/payments.js";
 import { computeQuote } from "../utils/pricing.js";
 import { ALLOWED_DURATIONS_MINS } from "../utils/constants.js";
 
@@ -187,7 +189,9 @@ export async function detail(req: Request, res: Response) {
   if (!["VERIFIED", "ACTIVE", "PAUSED"].includes(space.status) && !isOwner && !isAdmin)
     throw new ApiError(404, "Listing not found.");
 
-  await expireStalePendingBookings(String(space._id));
+  const spaceId = String(space._id);
+  await reconcileExpiredPaymentHolds({}, await expireStalePendingBookings(spaceId));
+  await progressSpaceBookings(spaceId);
 
   const [host, reviews, favorite, hasConfirmedBooking] = await Promise.all([
     User.findById(space.hostId).select("name image hostVerified createdAt"),
@@ -246,8 +250,10 @@ export async function quote(req: Request, res: Response) {
   if (!space) throw new ApiError(404, "Listing not found.");
 
   const end = new Date(start.getTime() + durationMins * 60000);
-  await expireStalePendingBookings(String(space._id));
-  const check = await checkAvailability(String(space._id), start, end);
+  const spaceId = String(space._id);
+  await reconcileExpiredPaymentHolds({}, await expireStalePendingBookings(spaceId));
+  await progressSpaceBookings(spaceId);
+  const check = await checkAvailability(spaceId, start, end);
   const q = computeQuote(space.pricePerHour, durationMins);
   res.json({
     success: true,

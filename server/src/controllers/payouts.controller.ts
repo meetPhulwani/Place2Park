@@ -5,6 +5,7 @@ import { User } from "../models/index.js";
 import {
   approveHostPayout,
   failHostPayout,
+  listAdminPayoutAudits,
   listAdminPayouts,
   markHostPayoutPaid,
   revealAdminPayoutAccount,
@@ -57,6 +58,12 @@ export async function adminRevealPayoutDestination(req: AuthedRequest, res: Resp
   if (req.userRole !== "ADMIN") throw new ApiError(403, "You don't have access to this.");
   const destination = await revealAdminPayoutAccount(req.userId, req.params.id);
   res.json({ success: true, data: { destination } });
+}
+
+export async function adminListPayoutDestinationAudits(req: AuthedRequest, res: Response) {
+  if (req.userRole !== "ADMIN") throw new ApiError(403, "You don't have access to this.");
+  const audits = await listAdminPayoutAudits(req.userId, req.params.id);
+  res.json({ success: true, data: { audits } });
 }
 
 export async function adminVerifyPayoutProfile(req: AuthedRequest, res: Response) {

@@ -9,6 +9,7 @@ import {
   AVAILABILITY_ERROR_MESSAGES,
   expireStalePendingBookings,
   hasConflict,
+  progressSpaceBookings,
   validateWindow,
 } from "./availability.js";
 import {
@@ -16,6 +17,7 @@ import {
   createPaymentOrder,
   listRazorpayRefunds,
   refundRazorpayPayment,
+  reconcileExpiredPaymentHolds,
   type CancelOrderFn,
   type ListRefundsFn,
   type RefundPaymentFn,
@@ -124,7 +126,8 @@ export async function createBooking(input: CreateBookingInput) {
   const end = new Date(input.start.getTime() + input.durationMins * 60000);
 
   const expiredIds = await expireStalePendingBookings(input.spaceId);
-  for (const id of expiredIds) await releaseExpiredPaymentHold(id);
+  await reconcileExpiredPaymentHolds({}, expiredIds);
+  await progressSpaceBookings(input.spaceId);
   const windowCheck = validateWindow(space, input.start, end);
   if (!windowCheck.ok) throw new ApiError(409, AVAILABILITY_ERROR_MESSAGES[windowCheck.error!]);
   if (await hasConflict(input.spaceId, input.start, end))
@@ -440,7 +443,13 @@ export async function releaseExpiredPaymentHold(bookingId: string, deps: Capture
     await Booking.updateOne({ _id: booking._id, status: "PENDING" }, { $set: { status: "EXPIRED" } });
   }
   const payment = await Payment.findOne({ bookingId: booking._id, status: "CREATED" });
-  if (payment?.orderId) await cancelUnpaidRazorpayOrder(payment.orderId, deps.cancelOrder);
+  if (!payment?.orderId) return;
+  if (payment.orderCancelStatus === "cancelled" || payment.orderCancelStatus === "unsupported") return;
+  const result = await cancelUnpaidRazorpayOrder(payment.orderId, deps.cancelOrder);
+  await Payment.updateOne(
+    { _id: payment._id, status: "CREATED" },
+    { $set: { orderCancelStatus: result, orderCancelAttemptedAt: new Date() } }
+  );
 }
 
 /** Marks the payment failed. Booking stays PENDING so the driver can retry before the hold expires. */
@@ -625,7 +634,8 @@ export async function cancelBooking(
   deps: CancelBookingDeps = {}
 ) {
   if (!mongoose.isValidObjectId(bookingId)) throw new ApiError(404, "Booking not found.");
-  await expireStalePendingBookings();
+  const expiredIds = await expireStalePendingBookings();
+  await reconcileExpiredPaymentHolds(deps, expiredIds);
   const booking = await Booking.findById(bookingId).populate<{ spaceId: { title: string } }>("spaceId", "title");
   if (!booking) throw new ApiError(404, "Booking not found.");
   if (!isAdmin && String(booking.userId) !== byUserId) throw new ApiError(403, "Not your booking.");

@@ -129,14 +129,8 @@ export async function hasConflict(
     $and: [
       // A PENDING booking only blocks while its payment hold is alive.
       { $or: [{ status: { $ne: "PENDING" } }, { expiresAt: { $gt: now } }] },
-      // Refunded future holds must not occupy; an in-progress stay still does.
-      {
-        $or: [
-          { refunded: { $ne: true } },
-          { status: "ACTIVE" },
-          { status: "CONFIRMED", start: { $lte: now } },
-        ],
-      },
+      // Refunded holds occupy only while the stay is actually in progress.
+      { $or: [{ refunded: { $ne: true } }, { status: "ACTIVE" }] },
     ],
   }).session(session ?? null);
   if (conflict) return true;
@@ -161,9 +155,25 @@ export async function checkAvailability(spaceId: string, start: Date, end: Date)
 /** Expire stale PENDING bookings (called lazily before availability-sensitive reads). */
 export async function expireStalePendingBookings(spaceId?: string): Promise<string[]> {
   const filter = { status: "PENDING", expiresAt: { $lt: new Date() }, ...(spaceId ? { spaceId } : {}) };
-  const doomed = spaceId ? await Booking.find(filter).select("_id") : [];
-  await Booking.updateMany(filter, { $set: { status: "EXPIRED" } });
+  const doomed = await Booking.find(filter).select("_id");
+  if (doomed.length) await Booking.updateMany({ _id: { $in: doomed.map((row) => row._id) } }, { $set: { status: "EXPIRED" } });
   return doomed.map((row) => String(row._id));
+}
+
+async function applyProgress(filter: Record<string, unknown>) {
+  const now = new Date();
+  await Booking.updateMany(
+    { ...filter, status: "CONFIRMED", refunded: true, start: { $lte: now } },
+    { $set: { status: "CANCELLED" } }
+  );
+  await Booking.updateMany(
+    { ...filter, status: "CONFIRMED", refunded: { $ne: true }, start: { $lte: now }, end: { $gt: now } },
+    { $set: { status: "ACTIVE" } }
+  );
+  await Booking.updateMany(
+    { ...filter, status: { $in: ["CONFIRMED", "ACTIVE"] }, end: { $lte: now } },
+    { $set: { status: "COMPLETED" } }
+  );
 }
 
 /** Apply expiry + time progression for one booking (any viewer). */
@@ -173,26 +183,15 @@ export async function progressOneBooking(bookingId: string) {
     { _id: bookingId, status: "PENDING", expiresAt: { $lt: now } },
     { $set: { status: "EXPIRED" } }
   );
-  await Booking.updateOne(
-    { _id: bookingId, status: "CONFIRMED", start: { $lte: now }, end: { $gt: now } },
-    { $set: { status: "ACTIVE" } }
-  );
-  await Booking.updateOne(
-    { _id: bookingId, status: { $in: ["CONFIRMED", "ACTIVE"] }, end: { $lte: now } },
-    { $set: { status: "COMPLETED" } }
-  );
+  await applyProgress({ _id: bookingId });
 }
 
 /** Lazily progress booking statuses: CONFIRMED→ACTIVE→COMPLETED by time. */
-export async function progressBookingStatuses(userId?: string, hostId?: string) {
-  const now = new Date();
-  const scope = userId ? { userId } : hostId ? { hostId } : {};
-  await Booking.updateMany(
-    { ...scope, status: "CONFIRMED", start: { $lte: now }, end: { $gt: now } },
-    { $set: { status: "ACTIVE" } }
-  );
-  await Booking.updateMany(
-    { ...scope, status: { $in: ["CONFIRMED", "ACTIVE"] }, end: { $lte: now } },
-    { $set: { status: "COMPLETED" } }
-  );
+export async function progressBookingStatuses(userId?: string, hostId?: string, spaceId?: string) {
+  const scope = userId ? { userId } : hostId ? { hostId } : spaceId ? { spaceId } : {};
+  await applyProgress(scope);
+}
+
+export async function progressSpaceBookings(spaceId: string) {
+  await progressBookingStatuses(undefined, undefined, spaceId);
 }

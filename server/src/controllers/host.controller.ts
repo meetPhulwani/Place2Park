@@ -5,6 +5,7 @@ import { summarizeHostEarnings } from "../services/payouts.js";
 import type { AuthedRequest } from "../middleware/auth.js";
 import { ApiError } from "../middleware/error.js";
 import { expireStalePendingBookings, hasConflict, progressBookingStatuses } from "../services/availability.js";
+import { reconcileExpiredPaymentHolds } from "../services/payments.js";
 import { redactBooking } from "../utils/privacy.js";
 import { env } from "../config/env.js";
 import type { ListingInput } from "../utils/validation.js";
@@ -252,7 +253,7 @@ export async function unblockSlot(req: AuthedRequest, res: Response) {
 }
 
 export async function listBookings(req: AuthedRequest, res: Response) {
-  await expireStalePendingBookings();
+  await reconcileExpiredPaymentHolds({}, await expireStalePendingBookings());
   await progressBookingStatuses(undefined, req.userId);
   const status = typeof req.query.status === "string" && req.query.status !== "ALL" ? req.query.status : undefined;
   const bookings = await Booking.find({ hostId: req.userId, ...(status ? { status } : {}) })

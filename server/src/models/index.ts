@@ -9,3 +9,4 @@ export { Favorite } from "./Favorite.js";
 export { Notification } from "./Notification.js";
 export { Report } from "./Report.js";
 export { HostPayout } from "./HostPayout.js";
+export { AdminAudit } from "./AdminAudit.js";

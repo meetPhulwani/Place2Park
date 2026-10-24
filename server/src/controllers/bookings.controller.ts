@@ -5,7 +5,7 @@ import type { AuthedRequest } from "../middleware/auth.js";
 import { ApiError } from "../middleware/error.js";
 import { cancelBooking, createBooking } from "../services/bookings.js";
 import { expireStalePendingBookings, progressBookingStatuses, progressOneBooking } from "../services/availability.js";
-import { razorpayConfigured } from "../services/payments.js";
+import { razorpayConfigured, reconcileExpiredPaymentHolds } from "../services/payments.js";
 import { redactBooking, revealBookingSecrets } from "../utils/privacy.js";
 
 const withSpace = {
@@ -70,7 +70,7 @@ export async function create(req: AuthedRequest, res: Response) {
 }
 
 export async function listMine(req: AuthedRequest, res: Response) {
-  await expireStalePendingBookings();
+  await reconcileExpiredPaymentHolds({}, await expireStalePendingBookings());
   await progressBookingStatuses(req.userId);
   const scope =
     req.query.scope === "history" || req.query.scope === "past" || req.query.scope === "cancelled"
@@ -143,7 +143,7 @@ export async function listMine(req: AuthedRequest, res: Response) {
 
 export async function detail(req: AuthedRequest, res: Response) {
   if (!mongoose.isValidObjectId(req.params.id)) throw new ApiError(404, "Booking not found.");
-  await expireStalePendingBookings();
+  await reconcileExpiredPaymentHolds({}, await expireStalePendingBookings());
   await progressOneBooking(req.params.id);
   await progressBookingStatuses(req.userId);
   const booking = await Booking.findById(req.params.id).populate(withSpaceDetail).populate("hostId", "name image hostVerified");

@@ -2,10 +2,12 @@ import crypto from "node:crypto";
 import mongoose from "mongoose";
 import { env } from "../config/env.js";
 import { ApiError } from "../middleware/error.js";
-import { Booking, HostPayout, Payment, User } from "../models/index.js";
+import { AdminAudit, Booking, HostPayout, Payment, User } from "../models/index.js";
 import { computeQuote } from "../utils/pricing.js";
 import { OPEN_PAYOUT_STATUSES } from "../utils/constants.js";
 import { notify } from "./notify.js";
+import { notifyAdmin } from "./email.js";
+import { progressOneBooking } from "./availability.js";
 
 export const PAYOUT_METHOD = "MANUAL" as const;
 
@@ -304,6 +306,10 @@ export async function requestHostPayout(hostId: string) {
   payout.periodStart = eligible.find((b) => claimedIds.some((id) => String(id) === String(b._id)))?.end;
   payout.periodEnd = eligible.filter((b) => claimedIds.some((id) => String(id) === String(b._id))).at(-1)?.end;
   await payout.save();
+  await notifyAdmin({
+    subject: "Host payout requested",
+    text: `A host requested a manual payout of ₹${(payout.amount / 100).toFixed(2)} (${String(payout._id)}). Review Admin → Payouts.`,
+  });
   return toPublicPayout(payout);
 }
 
@@ -422,14 +428,14 @@ export async function reverseHostPayout(adminId: string, payoutId: string, note 
   return toPublicPayout(payout);
 }
 
-/** Mark refunded and drop future holds from occupancy. In-progress stays ACTIVE. */
+/** Mark refunded and drop unused holds from occupancy. In-progress ACTIVE stays occupy. */
 export async function markBookingRefunded(bookingId: unknown) {
+  if (bookingId) await progressOneBooking(String(bookingId));
   await Booking.updateOne({ _id: bookingId }, { $set: { refunded: true } });
   await Booking.updateOne(
     {
       _id: bookingId,
       status: { $in: ["PENDING", "CONFIRMED", "EXPIRED"] },
-      start: { $gt: new Date() },
     },
     { $set: { status: "CANCELLED" } }
   );
@@ -526,12 +532,39 @@ export async function revealAdminPayoutAccount(
     throw new ApiError(500, "Payout account could not be read.");
   }
   const accountLast4 = payout.accountLast4 || host?.payoutProfile?.accountLast4 || accountNumber.slice(-4);
-  const log = deps.log ?? ((line: string) => console.info(line));
-  log(`[payout] account revealed payoutId=${String(payout._id)} adminId=${actorId} hostId=${hostId} last4=${accountLast4}`);
+  await AdminAudit.create({
+    action: "PAYOUT_ACCOUNT_REVEALED",
+    actorId,
+    payoutId: payout._id,
+    hostId,
+    accountLast4,
+  });
+  deps.log?.(`[payout] account revealed payoutId=${String(payout._id)} adminId=${actorId} hostId=${hostId} last4=${accountLast4}`);
   return {
     accountNumber,
     accountLast4,
     accountHolder: payout.accountHolder || host?.payoutProfile?.accountHolder || "",
     ifsc: payout.accountIfsc || host?.payoutProfile?.ifsc || "",
   };
+}
+
+export async function listAdminPayoutAudits(actorId: string, payoutId?: string) {
+  const actor = await User.findById(actorId).select("role");
+  if (!actor || actor.role !== "ADMIN") throw new ApiError(403, "You don't have access to this.");
+  const filter: Record<string, unknown> = { action: "PAYOUT_ACCOUNT_REVEALED" };
+  if (payoutId) filter.payoutId = payoutId;
+  const rows = await AdminAudit.find(filter).sort({ createdAt: -1 }).limit(100);
+  return rows.map((row) => {
+    const json = row.toJSON() as Record<string, unknown>;
+    delete json.accountNumber;
+    return {
+      id: String(json.id),
+      action: String(json.action ?? ""),
+      actorId: String(json.actorId ?? ""),
+      payoutId: String(json.payoutId ?? ""),
+      hostId: String(json.hostId ?? ""),
+      accountLast4: String(json.accountLast4 ?? ""),
+      createdAt: json.createdAt,
+    };
+  });
 }

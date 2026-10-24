@@ -28,6 +28,8 @@ Do not set any “enable Route” switch to start live transfers. Auto-transfer 
 
 **Admin → Payouts**
 
+Set `ADMIN_NOTIFICATION_EMAIL` on the API to a real ops inbox. A new host payout request emails that address only — never a `.test` or seed fixture. Host paid/failed mail still uses the host's stored address, and is skipped if that address is a placeholder domain.
+
 1. Approve or reject a `REQUESTED` payout.
 2. After you send money outside Razorpay (NEFT/IMPS/UPI), **Mark paid** with the bank/UPI reference.
 3. Mark failed to release the bookings back to eligible balance.

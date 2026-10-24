@@ -51,7 +51,8 @@ export async function createOrReusePaymentOrder(userId: string, bookingId: strin
   }
   if (!mongoose.isValidObjectId(bookingId)) throw new ApiError(404, "Booking not found.");
 
-  await expireStalePendingBookings();
+  const expiredIds = await expireStalePendingBookings();
+  await reconcileExpiredPaymentHolds({}, expiredIds);
   const booking = await Booking.findById(bookingId);
   if (!booking || String(booking.userId) !== userId) throw new ApiError(404, "Booking not found.");
   if (booking.status !== "PENDING") throw new ApiError(409, "This booking isn't awaiting payment.");
@@ -225,6 +226,39 @@ export async function cancelUnpaidRazorpayOrder(
     return "skipped";
   } catch {
     return "skipped";
+  }
+}
+
+/**
+ * Best-effort unpaid-order cleanup after local expiry/cancel.
+ * Occupancy is already released; cancel is retried while the provider result is `skipped`.
+ */
+export async function reconcileExpiredPaymentHolds(
+  deps: { cancelOrder?: CancelOrderFn } = {},
+  bookingIds?: string[]
+) {
+  const payments = await Payment.find({
+    status: "CREATED",
+    orderId: { $nin: [null, ""] },
+    orderCancelStatus: { $nin: ["cancelled", "unsupported"] },
+    ...(bookingIds?.length ? { bookingId: { $in: bookingIds } } : {}),
+  }).limit(50);
+  for (const payment of payments) {
+    const booking = await Booking.findById(payment.bookingId);
+    if (!booking) continue;
+    const expiredHold =
+      booking.status === "EXPIRED" ||
+      booking.status === "CANCELLED" ||
+      (booking.status === "PENDING" && !!booking.expiresAt && booking.expiresAt.getTime() <= Date.now());
+    if (!expiredHold) continue;
+    if (booking.status === "PENDING") {
+      await Booking.updateOne({ _id: booking._id, status: "PENDING" }, { $set: { status: "EXPIRED" } });
+    }
+    const result = await cancelUnpaidRazorpayOrder(payment.orderId ?? "", deps.cancelOrder);
+    await Payment.updateOne(
+      { _id: payment._id, status: "CREATED" },
+      { $set: { orderCancelStatus: result, orderCancelAttemptedAt: new Date() } }
+    );
   }
 }
 

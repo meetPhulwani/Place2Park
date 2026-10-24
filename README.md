@@ -67,7 +67,7 @@ Seed listings are fictional Mumbai-inspired demo data.
 | `GOOGLE_CLIENT_SECRET` | optional | Google OAuth (not exposed to the client) |
 | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | for checkout | Test or live Razorpay keys (secret stays on the server) |
 | `RAZORPAY_WEBHOOK_SECRET` | production | Dashboard webhook secret; required when `NODE_ENV=production`. Optional in local development. |
-| `SMTP_*` / `EMAIL_FROM` | optional | Email notifications (in-app always works) |
+| `SMTP_*` / `EMAIL_FROM` / `ADMIN_NOTIFICATION_EMAIL` | optional locally; required for production mail | Password reset + notifications. Production rejects `.test` / `.example` placeholders. |
 
 **Client** (`client/.env`)
 

@@ -2,13 +2,14 @@ import assert from "node:assert/strict";
 import { after, before, beforeEach, describe, it } from "node:test";
 import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
-import { Booking, HostPayout, ParkingSpace, Payment, User } from "../models/index.js";
+import { AdminAudit, Booking, HostPayout, ParkingSpace, Payment, User } from "../models/index.js";
 import { ApiError } from "../middleware/error.js";
 import { authorize, type AuthedRequest } from "../middleware/auth.js";
 import { env } from "../config/env.js";
 import { computeQuote } from "../utils/pricing.js";
 import {
   applyRouteTransferEvent,
+  listAdminPayoutAudits,
   listAdminPayouts,
   listEligibleBookings,
   markHostPayoutPaid,
@@ -118,6 +119,7 @@ beforeEach(async () => {
   await Booking.deleteMany({});
   await Payment.deleteMany({});
   await HostPayout.deleteMany({});
+  await AdminAudit.deleteMany({});
   await User.updateOne(
     { _id: hostId },
     { $unset: { payoutProfile: 1 } }
@@ -302,17 +304,27 @@ describe("admin payout destination privacy", () => {
     assert.equal(logs.some((line) => line.includes("123456789012")), false);
   });
 
-  it("reveals the full account number only to an admin and audits without the number", async () => {
+  it("reveals the full account number only to an admin and stores a durable audit without the number", async () => {
     await readyHost();
     await seedBooking({ status: "COMPLETED" });
     const requested = await requestHostPayout(hostId);
-    const logs: string[] = [];
-    const revealed = await revealAdminPayoutAccount(adminId, requested.id, { log: (line) => logs.push(line) });
+    const revealed = await revealAdminPayoutAccount(adminId, requested.id);
     assert.equal(revealed.accountNumber, "123456789012");
-    assert.ok(logs.some((line) => line.includes(requested.id) && line.includes(adminId)));
-    assert.equal(logs.some((line) => line.includes("123456789012")), false);
+    const audits = await listAdminPayoutAudits(adminId, requested.id);
+    assert.equal(audits.length, 1);
+    assert.equal(audits[0]?.action, "PAYOUT_ACCOUNT_REVEALED");
+    assert.equal(audits[0]?.payoutId, requested.id);
+    assert.equal(audits[0]?.actorId, adminId);
+    assert.equal(audits[0]?.hostId, hostId);
+    assert.equal(audits[0]?.accountLast4, "9012");
+    assert.equal("accountNumber" in (audits[0] ?? {}), false);
+    assert.equal(JSON.stringify(audits).includes("123456789012"), false);
     await assert.rejects(
       () => revealAdminPayoutAccount(hostId, requested.id),
+      (err: unknown) => err instanceof ApiError && err.status === 403
+    );
+    await assert.rejects(
+      () => listAdminPayoutAudits(hostId, requested.id),
       (err: unknown) => err instanceof ApiError && err.status === 403
     );
   });

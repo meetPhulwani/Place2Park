@@ -3,6 +3,7 @@ import { BLOCKING_STATUSES } from "../utils/constants.js";
 import { haversineKm } from "../utils/geo.js";
 import { getDisplayLocation, locationTextClauses } from "../utils/location.js";
 import { coversWindow, expireStalePendingBookings } from "./availability.js";
+import { reconcileExpiredPaymentHolds } from "./payments.js";
 import { isProd } from "../config/env.js";
 
 export interface SpaceSummary {
@@ -89,7 +90,7 @@ function geoWithin(lng: number, lat: number, radiusKm: number) {
 }
 
 export async function searchSpaces(q: SearchQuery): Promise<SpaceSummary[]> {
-  await expireStalePendingBookings();
+  await reconcileExpiredPaymentHolds({}, await expireStalePendingBookings());
 
   const lat = q.lat != null && Number.isFinite(q.lat) ? q.lat : undefined;
   const lng = q.lng != null && Number.isFinite(q.lng) ? q.lng : undefined;

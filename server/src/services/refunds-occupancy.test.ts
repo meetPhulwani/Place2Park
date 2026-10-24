@@ -3,7 +3,7 @@ import { after, before, beforeEach, describe, it } from "node:test";
 import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import { Booking, HostPayout, ParkingSpace, Payment } from "../models/index.js";
-import { hasConflict } from "./availability.js";
+import { hasConflict, progressBookingStatuses, progressOneBooking } from "./availability.js";
 import { applyRefundEvent } from "./payments.js";
 import { listEligibleBookings } from "./payouts.js";
 
@@ -117,5 +117,39 @@ describe("dashboard refund occupancy", () => {
     assert.equal(fresh?.refunded, true);
     assert.equal(await Payment.countDocuments({ bookingId: booking._id, status: "REFUNDED" }), 1);
     assert.equal(await hasConflict(String(spaceId), booking.start, booking.end), false);
+  });
+
+  it("does not leave a refunded CONFIRMED booking occupying after its window has ended", async () => {
+    const start = new Date(Date.now() - 5 * 3600000);
+    const booking = await seedPaid({ status: "CONFIRMED", start });
+    await applyRefundEvent({
+      event: "refund.processed",
+      refundId: "rfnd_past",
+      paymentId: `pay_${booking._id.toString().slice(-8)}`,
+    });
+    assert.equal(await hasConflict(String(spaceId), booking.start, booking.end), false);
+    const fresh = await Booking.findById(booking._id);
+    assert.notEqual(fresh?.status, "ACTIVE");
+    assert.equal(fresh?.refunded, true);
+  });
+
+  it("does not promote an already-refunded CONFIRMED booking into an occupying ACTIVE stay", async () => {
+    const start = new Date(Date.now() - 30 * 60000);
+    const booking = await seedPaid({ status: "CONFIRMED", start });
+    await Booking.updateOne({ _id: booking._id }, { $set: { refunded: true } });
+    await progressBookingStatuses();
+    await progressOneBooking(String(booking._id));
+    const fresh = await Booking.findById(booking._id);
+    assert.notEqual(fresh?.status, "ACTIVE");
+    assert.equal(await hasConflict(String(spaceId), booking.start, booking.end), false);
+  });
+
+  it("still occupies a legitimate non-refunded stay after start time", async () => {
+    const start = new Date(Date.now() - 30 * 60000);
+    const booking = await seedPaid({ status: "CONFIRMED", start });
+    await progressOneBooking(String(booking._id));
+    const fresh = await Booking.findById(booking._id);
+    assert.equal(fresh?.status, "ACTIVE");
+    assert.equal(await hasConflict(String(spaceId), booking.start, booking.end), true);
   });
 });

@@ -100,6 +100,7 @@ r.get("/admin/bookings", authenticate, adminOnly, a(admin.listBookings));
 r.get("/admin/payments", authenticate, adminOnly, a(admin.listPayments));
 r.get("/admin/payouts", authenticate, adminOnly, a(payouts.adminListPayouts));
 r.post("/admin/payouts/:id/reveal-destination", authenticate, adminOnly, a(payouts.adminRevealPayoutDestination));
+r.get("/admin/payouts/:id/destination-audits", authenticate, adminOnly, a(payouts.adminListPayoutDestinationAudits));
 r.post("/admin/payouts/:id/approve", authenticate, adminOnly, a(payouts.adminApprovePayout));
 r.post("/admin/payouts/:id/reject", authenticate, adminOnly, validate(payoutNoteSchema), a(payouts.adminRejectPayout));
 r.post("/admin/payouts/:id/mark-paid", authenticate, adminOnly, validate(payoutReferenceSchema), a(payouts.adminMarkPayoutPaid));

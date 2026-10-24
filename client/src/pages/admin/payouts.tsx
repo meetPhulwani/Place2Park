@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/toaster";
 import { formatDate, formatINR } from "@/lib/utils";
+import { accountDigitsLabel, nextRevealedAccount, REVEAL_TTL_MS } from "@/lib/payout-reveal";
 
 const STATUSES = ["ALL", "REQUESTED", "APPROVED", "PAID", "FAILED", "REJECTED", "REVERSED"];
 
@@ -24,7 +25,6 @@ interface AdminPayout {
     accountHolder: string;
     ifsc: string;
     accountLast4: string;
-    accountNumber?: string;
     verified: boolean;
   };
 }
@@ -32,14 +32,27 @@ interface AdminPayout {
 export default function AdminPayoutsPage() {
   const [params, setParams] = useSearchParams();
   const [payouts, setPayouts] = React.useState<AdminPayout[] | null>(null);
+  const [listGeneration, setListGeneration] = React.useState(0);
   const status = STATUSES.includes(params.get("status") ?? "") && params.get("status") !== "ALL"
     ? params.get("status")!
     : undefined;
 
   const load = React.useCallback(() => {
+    setListGeneration((n) => n + 1);
     api
       .get(`/admin/payouts${status ? `?status=${status}` : ""}`)
-      .then(({ data }) => setPayouts(data.data.payouts))
+      .then(({ data }) => {
+        const rows = (data.data.payouts as AdminPayout[]).map((row) => ({
+          ...row,
+          destination: {
+            accountHolder: row.destination.accountHolder,
+            ifsc: row.destination.ifsc,
+            accountLast4: row.destination.accountLast4,
+            verified: row.destination.verified,
+          },
+        }));
+        setPayouts(rows);
+      })
       .catch(() => setPayouts([]));
   }, [status]);
 
@@ -84,17 +97,53 @@ export default function AdminPayoutsPage() {
           </p>
         )}
         {payouts?.map((p) => (
-          <PayoutRow key={p.id} payout={p} onChanged={load} />
+          <PayoutRow key={p.id} payout={p} listGeneration={listGeneration} onChanged={load} />
         ))}
       </div>
     </div>
   );
 }
 
-function PayoutRow({ payout, onChanged }: { payout: AdminPayout; onChanged: () => void }) {
+function PayoutRow({
+  payout,
+  listGeneration,
+  onChanged,
+}: {
+  payout: AdminPayout;
+  listGeneration: number;
+  onChanged: () => void;
+}) {
   const [busy, setBusy] = React.useState(false);
   const [reference, setReference] = React.useState(payout.reference ?? "");
   const [revealed, setRevealed] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    setRevealed((current) => nextRevealedAccount(current, "refresh"));
+  }, [listGeneration]);
+
+  React.useEffect(() => {
+    return () => {
+      setRevealed((current) => nextRevealedAccount(current, "unmount"));
+    };
+  }, []);
+
+  React.useEffect(() => {
+    function onVisibility() {
+      if (document.visibilityState === "hidden") {
+        setRevealed((current) => nextRevealedAccount(current, "hidden"));
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+
+  React.useEffect(() => {
+    if (!revealed) return;
+    const timer = window.setTimeout(() => {
+      setRevealed((current) => nextRevealedAccount(current, "ttl"));
+    }, REVEAL_TTL_MS);
+    return () => window.clearTimeout(timer);
+  }, [revealed]);
 
   async function act(path: string, body: Record<string, string>, msg: string) {
     setBusy(true);
@@ -104,6 +153,23 @@ function PayoutRow({ payout, onChanged }: { payout: AdminPayout; onChanged: () =
       onChanged();
     } catch (e) {
       toast.error(errorMessage(e, "Action failed."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function revealAccount() {
+    setBusy(true);
+    try {
+      const { data } = await api.post(`/admin/payouts/${payout.id}/reveal-destination`, {});
+      setRevealed(nextRevealedAccount(null, "reveal", data.data.destination.accountNumber));
+    } catch (e) {
+      const status = (e as { response?: { status?: number } }).response?.status;
+      toast.error(
+        status === 403
+          ? "You don't have access to reveal this account."
+          : errorMessage(e, "Could not reveal the account number.")
+      );
     } finally {
       setBusy(false);
     }
@@ -120,8 +186,8 @@ function PayoutRow({ payout, onChanged }: { payout: AdminPayout; onChanged: () =
             {payout.hostId.name} ({payout.hostId.email}) · requested {payout.requestedAt ? formatDate(payout.requestedAt) : "—"}
           </p>
           <p className="text-xs text-slate-400">
-            {payout.destination.accountHolder} · {payout.destination.ifsc} ·
-            {revealed ? ` ${revealed}` : ` ****${payout.destination.accountLast4}`}
+            {payout.destination.accountHolder} · {payout.destination.ifsc} ·{" "}
+            {accountDigitsLabel(payout.destination.accountLast4, revealed)}
             {payout.destination.verified ? " · verified" : " · unverified"}
           </p>
         </div>
@@ -130,23 +196,17 @@ function PayoutRow({ payout, onChanged }: { payout: AdminPayout; onChanged: () =
         </Badge>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        {!revealed && (
+        {revealed ? (
           <Button
             variant="secondary"
             size="sm"
             disabled={busy}
-            onClick={async () => {
-              setBusy(true);
-              try {
-                const { data } = await api.post(`/admin/payouts/${payout.id}/reveal-destination`, {});
-                setRevealed(data.data.destination.accountNumber);
-              } catch (e) {
-                toast.error(errorMessage(e, "Could not reveal the account number."));
-              } finally {
-                setBusy(false);
-              }
-            }}
+            onClick={() => setRevealed((current) => nextRevealedAccount(current, "hide"))}
           >
+            Hide account
+          </Button>
+        ) : (
+          <Button variant="secondary" size="sm" disabled={busy} onClick={revealAccount}>
             Reveal account
           </Button>
         )}

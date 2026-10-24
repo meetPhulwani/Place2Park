@@ -7,7 +7,8 @@ import { ApiError } from "../middleware/error.js";
 import { cancelBooking, settleCapturedPayment } from "./bookings.js";
 import { verify, webhook } from "../controllers/payments.controller.js";
 import { env } from "../config/env.js";
-import { checkoutSignature, webhookSignature } from "./payments.js";
+import { checkoutSignature, reconcileExpiredPaymentHolds, webhookSignature } from "./payments.js";
+import { expireStalePendingBookings } from "./availability.js";
 import type { AuthedRequest } from "../middleware/auth.js";
 import type { Request, Response } from "express";
 
@@ -406,5 +407,54 @@ describe("cancel unpaid Razorpay orders", () => {
     });
     assert.deepEqual(cancelled, [orderId]);
     assert.equal((await Booking.findById(booking._id))?.status, "EXPIRED");
+  });
+
+  it("returns globally expired hold ids so unpaid orders can be reconciled", async () => {
+    const { booking } = await seedHold({ expired: true });
+    const ids = await expireStalePendingBookings();
+    assert.ok(ids.includes(String(booking._id)));
+    assert.equal((await Booking.findById(booking._id))?.status, "EXPIRED");
+  });
+
+  it("reconciles unpaid expired orders and does not retry unsupported cancels", async () => {
+    const { booking, orderId } = await seedHold({ expired: true });
+    await expireStalePendingBookings();
+    const attempts: string[] = [];
+    await reconcileExpiredPaymentHolds({
+      cancelOrder: async (id) => {
+        attempts.push(id);
+        return "unsupported";
+      },
+    });
+    const payment = await Payment.findOne({ bookingId: booking._id });
+    assert.equal(payment?.status, "CREATED");
+    assert.equal(payment?.orderCancelStatus, "unsupported");
+    await reconcileExpiredPaymentHolds({
+      cancelOrder: async (id) => {
+        attempts.push(id);
+        return "cancelled";
+      },
+    });
+    assert.deepEqual(attempts, [orderId]);
+  });
+
+  it("retries a skipped order-cancel on the next reconcile pass", async () => {
+    const { booking, orderId } = await seedHold({ expired: true });
+    await expireStalePendingBookings();
+    const attempts: string[] = [];
+    await reconcileExpiredPaymentHolds({
+      cancelOrder: async (id) => {
+        attempts.push(id);
+        return "skipped";
+      },
+    });
+    await reconcileExpiredPaymentHolds({
+      cancelOrder: async (id) => {
+        attempts.push(id);
+        return "cancelled";
+      },
+    });
+    assert.deepEqual(attempts, [orderId, orderId]);
+    assert.equal((await Payment.findOne({ bookingId: booking._id }))?.orderCancelStatus, "cancelled");
   });
 });
