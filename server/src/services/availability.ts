@@ -109,6 +109,20 @@ export function validateWindow(space: SpaceForCheck, start: Date, end: Date, now
 }
 
 /**
+ * Occupying overlap: PENDING/CONFIRMED/ACTIVE, live pending holds only,
+ * and refunded rows occupy only while ACTIVE.
+ */
+export function occupyingOverlapFilter(now = new Date()) {
+  return {
+    status: { $in: BLOCKING_STATUSES },
+    $and: [
+      { $or: [{ status: { $ne: "PENDING" } }, { expiresAt: { $gt: now } }] },
+      { $or: [{ refunded: { $ne: true } }, { status: "ACTIVE" }] },
+    ],
+  };
+}
+
+/**
  * DB conflict check: overlapping blocking bookings or host-blocked slots.
  * Overlap rule: existing.start < requested.end AND existing.end > requested.start
  */
@@ -123,15 +137,9 @@ export async function hasConflict(
   const conflict = await Booking.exists({
     spaceId,
     ...(excludeBookingId ? { _id: { $ne: excludeBookingId } } : {}),
-    status: { $in: BLOCKING_STATUSES },
     start: { $lt: end },
     end: { $gt: start },
-    $and: [
-      // A PENDING booking only blocks while its payment hold is alive.
-      { $or: [{ status: { $ne: "PENDING" } }, { expiresAt: { $gt: now } }] },
-      // Refunded holds occupy only while the stay is actually in progress.
-      { $or: [{ refunded: { $ne: true } }, { status: "ACTIVE" }] },
-    ],
+    ...occupyingOverlapFilter(now),
   }).session(session ?? null);
   if (conflict) return true;
   const blocked = await BlockedSlot.exists({ spaceId, start: { $lt: end }, end: { $gt: start } }).session(

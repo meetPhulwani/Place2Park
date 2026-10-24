@@ -20,15 +20,19 @@ export type IndexInspection = {
   collection: string;
   fields: string[];
   existingUnique: boolean;
+  existingNonUnique: boolean;
+  existingIndexName?: string;
   duplicateCount: number;
   duplicateKeys: string[];
+  missingOrNullCount: number;
+  missingOrNullIds: string[];
   reconcile: string;
 };
 
 export type IndexApplyResult = IndexInspection & {
   created: boolean;
   alreadyExisted: boolean;
-  skippedReason?: "duplicates" | "dry-run";
+  skippedReason?: "duplicates" | "missing_values" | "non_unique_exists" | "dry-run";
   dropped: false;
 };
 
@@ -59,24 +63,79 @@ async function findDuplicates(connection: Connection, spec: UniqueIndexSpec) {
   }));
 }
 
-function reconcileMessage(spec: UniqueIndexSpec, duplicateCount: number) {
-  if (duplicateCount === 0) return "No duplicates. Unique index can be created.";
-  return `Reconcile ${duplicateCount} duplicate ${spec.fields.join("+")} value(s) on ${spec.collection} before creating the unique index. Do not delete live money rows without an operator review.`;
+/** Missing, null, and empty-string values all collide on a unique index as one key. */
+function missingOrNullFilter(fields: string[]) {
+  return {
+    $or: fields.flatMap((field) => [{ [field]: { $exists: false } }, { [field]: null }, { [field]: "" }]),
+  };
+}
+
+async function findMissingOrNull(connection: Connection, spec: UniqueIndexSpec) {
+  const coll = connection.db!.collection(spec.collection);
+  const filter = missingOrNullFilter(spec.fields);
+  const missingOrNullCount = await coll.countDocuments(filter);
+  const samples = await coll.find(filter).project({ _id: 1 }).limit(20).toArray();
+  return {
+    missingOrNullCount,
+    missingOrNullIds: samples.map((row) => String(row._id)),
+  };
+}
+
+function classifyExistingIndex(indexes: { key: Record<string, unknown>; unique?: boolean; name?: string }[], fields: string[]) {
+  const match = indexes.find((idx) => sameKey(idx.key as Record<string, unknown>, fields));
+  if (!match) return { existingUnique: false, existingNonUnique: false, existingIndexName: undefined };
+  return {
+    existingUnique: !!match.unique,
+    existingNonUnique: !match.unique,
+    existingIndexName: match.name,
+  };
+}
+
+function reconcileMessage(
+  spec: UniqueIndexSpec,
+  duplicateCount: number,
+  missingOrNullCount: number,
+  existingNonUnique = false
+) {
+  if (existingNonUnique) {
+    return `A non-unique index already exists on ${spec.collection}.${spec.fields.join("+")}. Do not drop or replace it from this script. After reconciling duplicate/missing values, create a uniquely named unique index in Atlas, then remove the non-unique index manually.`;
+  }
+  if (duplicateCount === 0 && missingOrNullCount === 0) return "No duplicates. Unique index can be created.";
+  const parts: string[] = [];
+  if (duplicateCount > 0) {
+    parts.push(
+      `Reconcile ${duplicateCount} duplicate ${spec.fields.join("+")} value(s) on ${spec.collection}`
+    );
+  }
+  if (missingOrNullCount > 0) {
+    parts.push(
+      `Assign distinct ${spec.fields.join("+")} values to ${missingOrNullCount} ${spec.collection} document(s) with missing/null/empty keys`
+    );
+  }
+  return `${parts.join(". ")} before creating the unique index. Do not delete live money rows without an operator review.`;
 }
 
 export async function inspectUniqueIndexes(connection: Connection): Promise<IndexInspection[]> {
   const out: IndexInspection[] = [];
   for (const spec of REQUIRED_UNIQUE_INDEXES) {
     const indexes = await connection.db!.collection(spec.collection).indexes();
-    const existingUnique = indexes.some((idx) => idx.unique && sameKey(idx.key as Record<string, unknown>, spec.fields));
+    const existing = classifyExistingIndex(
+      indexes as { key: Record<string, unknown>; unique?: boolean; name?: string }[],
+      spec.fields
+    );
     const dups = await findDuplicates(connection, spec);
+    const missing = await findMissingOrNull(connection, spec);
     out.push({
       collection: spec.collection,
       fields: spec.fields,
-      existingUnique,
+      existingUnique: existing.existingUnique,
+      existingNonUnique: existing.existingNonUnique,
+      existingIndexName: existing.existingIndexName,
       duplicateCount: dups.length,
       duplicateKeys: dups.map((d) => d.key).slice(0, 20),
-      reconcile: reconcileMessage(spec, dups.length),
+      missingOrNullCount: missing.missingOrNullCount,
+      missingOrNullIds: missing.missingOrNullIds,
+      reconcile: reconcileMessage(spec, dups.length, missing.missingOrNullCount, existing.existingNonUnique),
     });
   }
   return out;
@@ -96,12 +155,32 @@ export async function applyUniqueIndexes(
       results.push({ ...inspection, created: false, alreadyExisted: true, dropped: false });
       continue;
     }
+    if (inspection.existingNonUnique) {
+      results.push({
+        ...inspection,
+        created: false,
+        alreadyExisted: false,
+        skippedReason: "non_unique_exists",
+        dropped: false,
+      });
+      continue;
+    }
     if (inspection.duplicateCount > 0) {
       results.push({
         ...inspection,
         created: false,
         alreadyExisted: false,
         skippedReason: "duplicates",
+        dropped: false,
+      });
+      continue;
+    }
+    if (inspection.missingOrNullCount > 0) {
+      results.push({
+        ...inspection,
+        created: false,
+        alreadyExisted: false,
+        skippedReason: "missing_values",
         dropped: false,
       });
       continue;

@@ -3,7 +3,8 @@ import { after, before, beforeEach, describe, it } from "node:test";
 import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import { Booking, HostPayout, ParkingSpace, Payment } from "../models/index.js";
-import { hasConflict, progressBookingStatuses, progressOneBooking } from "./availability.js";
+import { hasConflict, occupyingOverlapFilter, progressBookingStatuses, progressOneBooking } from "./availability.js";
+import { assertSoleOccupant, createBooking } from "./bookings.js";
 import { applyRefundEvent } from "./payments.js";
 import { listEligibleBookings } from "./payouts.js";
 
@@ -151,5 +152,84 @@ describe("dashboard refund occupancy", () => {
     const fresh = await Booking.findById(booking._id);
     assert.equal(fresh?.status, "ACTIVE");
     assert.equal(await hasConflict(String(spaceId), booking.start, booking.end), true);
+  });
+
+  it("does not let a refunded CONFIRMED booking win assertSoleOccupant or block createBooking", async () => {
+    const start = hoursFromNow(8);
+    const existing = await seedPaid({ status: "CONFIRMED", start });
+    await Booking.updateOne({ _id: existing._id }, { $set: { refunded: true } });
+    assert.equal(await hasConflict(String(spaceId), existing.start, existing.end), false);
+    assert.equal(
+      await Booking.exists({
+        spaceId,
+        start: { $lt: existing.end },
+        end: { $gt: existing.start },
+        ...occupyingOverlapFilter(),
+      }),
+      null
+    );
+
+    const created = await createBooking({
+      userId: String(driverId),
+      spaceId: String(spaceId),
+      start,
+      durationMins: 120,
+      vehicleType: "CAR",
+    });
+    await assertSoleOccupant(String(spaceId), created.booking.start, created.booking.end, created.booking._id);
+    assert.ok(await Booking.findById(created.booking._id));
+    assert.equal(created.booking.status, "PENDING");
+  });
+
+  it("still blocks createBooking for ordinary CONFIRMED, ACTIVE, and refunded ACTIVE stays", async () => {
+    const start = hoursFromNow(10);
+    const confirmed = await seedPaid({ status: "CONFIRMED", start });
+    await assert.rejects(
+      () =>
+        createBooking({
+          userId: String(driverId),
+          spaceId: String(spaceId),
+          start,
+          durationMins: 120,
+          vehicleType: "CAR",
+        }),
+      /already booked/i
+    );
+    await Booking.updateOne({ _id: confirmed._id }, { $set: { status: "CANCELLED" } });
+    const afterCancel = await createBooking({
+      userId: String(driverId),
+      spaceId: String(spaceId),
+      start,
+      durationMins: 120,
+      vehicleType: "CAR",
+    });
+    assert.equal(afterCancel.booking.status, "PENDING");
+    await Booking.deleteOne({ _id: afterCancel.booking._id });
+    await Payment.deleteOne({ bookingId: afterCancel.booking._id });
+
+    const active = await seedPaid({ status: "ACTIVE", start });
+    await assert.rejects(
+      () =>
+        createBooking({
+          userId: String(driverId),
+          spaceId: String(spaceId),
+          start,
+          durationMins: 120,
+          vehicleType: "CAR",
+        }),
+      /already booked/i
+    );
+    await Booking.updateOne({ _id: active._id }, { $set: { refunded: true } });
+    await assert.rejects(
+      () =>
+        createBooking({
+          userId: String(driverId),
+          spaceId: String(spaceId),
+          start,
+          durationMins: 120,
+          vehicleType: "CAR",
+        }),
+      /already booked/i
+    );
   });
 });

@@ -69,7 +69,14 @@ describe("required unique indexes", () => {
     assert.equal(email?.skippedReason, "duplicates");
     assert.equal(result.every((row) => row.dropped === false), true);
     const after = await mongoose.connection.db!.collection("users").indexes();
-    assert.equal(after.length, before.length);
+    assert.equal(
+      after.some((idx) => idx.unique && JSON.stringify(idx.key) === JSON.stringify({ email: 1 })),
+      false
+    );
+    assert.equal(
+      after.filter((idx) => JSON.stringify(idx.key) === JSON.stringify({ email: 1 })).length,
+      before.filter((idx) => JSON.stringify(idx.key) === JSON.stringify({ email: 1 })).length
+    );
   });
 
   it("creates a missing unique index when the collection is clean", async () => {
@@ -81,5 +88,78 @@ describe("required unique indexes", () => {
     assert.notEqual(email?.skippedReason, "duplicates");
     const indexes = await mongoose.connection.db!.collection("users").indexes();
     assert.ok(indexes.some((idx) => idx.unique && JSON.stringify(idx.key) === JSON.stringify({ email: 1 })));
+  });
+
+  it("counts missing and null unique fields as a blocker, not as a clean collection", async () => {
+    const payouts = mongoose.connection.db!.collection("hostpayouts");
+    await payouts.dropIndexes().catch(() => undefined);
+    await payouts.insertMany([
+      { hostId: new mongoose.Types.ObjectId(), status: "PAID", amount: 0 },
+      { hostId: new mongoose.Types.ObjectId(), status: "PAID", amount: 0, idempotencyKey: null },
+    ]);
+    const report = await inspectUniqueIndexes(mongoose.connection);
+    const key = report.find((row) => row.collection === "hostpayouts" && row.fields.join(",") === "idempotencyKey");
+    assert.ok(key);
+    assert.equal(key?.duplicateCount, 0);
+    assert.ok((key?.missingOrNullCount ?? 0) >= 2);
+    assert.match(key?.reconcile ?? "", /missing|null/i);
+  });
+
+  it("counts empty-string unique fields as missing values and skips apply", async () => {
+    const payouts = mongoose.connection.db!.collection("hostpayouts");
+    await payouts.dropIndexes().catch(() => undefined);
+    await payouts.insertMany([
+      { hostId: new mongoose.Types.ObjectId(), status: "PAID", amount: 0, idempotencyKey: "" },
+      { hostId: new mongoose.Types.ObjectId(), status: "PAID", amount: 1, idempotencyKey: "manual:ok" },
+    ]);
+    const report = await inspectUniqueIndexes(mongoose.connection);
+    const key = report.find((row) => row.collection === "hostpayouts" && row.fields.join(",") === "idempotencyKey");
+    assert.ok((key?.missingOrNullCount ?? 0) >= 1);
+    const result = await applyUniqueIndexes(mongoose.connection, { apply: true });
+    const applied = result.find((row) => row.collection === "hostpayouts" && row.fields.join(",") === "idempotencyKey");
+    assert.equal(applied?.created, false);
+    assert.equal(applied?.skippedReason, "missing_values");
+  });
+
+  it("skips a same-key non-unique index and never drops or replaces it", async () => {
+    const users = mongoose.connection.db!.collection("users");
+    await users.dropIndexes().catch(() => undefined);
+    await users.createIndex({ email: 1 }, { name: "email_1" });
+    await users.insertOne({ name: "Only", email: "safe@parkly.test", role: "DRIVER" });
+    const before = await users.indexes();
+    const nonUnique = before.find((idx) => JSON.stringify(idx.key) === JSON.stringify({ email: 1 }));
+    assert.equal(nonUnique?.unique, undefined);
+    const result = await applyUniqueIndexes(mongoose.connection, { apply: true });
+    const email = result.find((row) => row.collection === "users" && row.fields.join(",") === "email");
+    assert.equal(email?.created, false);
+    assert.equal(email?.existingNonUnique, true);
+    assert.equal(email?.skippedReason, "non_unique_exists");
+    assert.match(email?.reconcile ?? "", /non-unique|manually/i);
+    const after = await users.indexes();
+    assert.equal(after.length, before.length);
+    assert.equal(
+      after.some((idx) => idx.unique && JSON.stringify(idx.key) === JSON.stringify({ email: 1 })),
+      false
+    );
+  });
+
+  it("refuses to create a unique index while required fields are missing or null", async () => {
+    const payouts = mongoose.connection.db!.collection("hostpayouts");
+    await payouts.dropIndexes().catch(() => undefined);
+    await payouts.insertMany([
+      { hostId: new mongoose.Types.ObjectId(), status: "PAID", amount: 0 },
+      { hostId: new mongoose.Types.ObjectId(), status: "PAID", amount: 0 },
+    ]);
+    const before = await payouts.indexes();
+    const result = await applyUniqueIndexes(mongoose.connection, { apply: true });
+    const key = result.find((row) => row.collection === "hostpayouts" && row.fields.join(",") === "idempotencyKey");
+    assert.equal(key?.created, false);
+    assert.equal(key?.skippedReason, "missing_values");
+    const after = await payouts.indexes();
+    assert.equal(
+      after.some((idx) => idx.unique && JSON.stringify(idx.key) === JSON.stringify({ idempotencyKey: 1 })),
+      false
+    );
+    assert.equal(after.length, before.length);
   });
 });

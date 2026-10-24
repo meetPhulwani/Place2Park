@@ -8,6 +8,7 @@ export type SmtpAuthConfig = {
   SMTP_PASS: string;
   EMAIL_FROM?: string;
   ADMIN_NOTIFICATION_EMAIL?: string;
+  SMTP_TEST_RECIPIENT?: string;
 };
 
 export type MailMessage = {
@@ -158,6 +159,54 @@ export async function sendMail(
   }
   const transporter = nodemailer.createTransport(smtpTransportOptions(cfg));
   await transporter.sendMail(payload);
+}
+
+export function configuredSmtpTestRecipient(cfg: SmtpAuthConfig = env): string {
+  const explicit = extractEmailAddress(cfg.SMTP_TEST_RECIPIENT || "");
+  if (explicit && !isPlaceholderEmail(explicit)) return explicit;
+  const admin = extractEmailAddress(cfg.ADMIN_NOTIFICATION_EMAIL || "");
+  if (admin && !isPlaceholderEmail(admin)) return admin;
+  return "";
+}
+
+/**
+ * Sends one SMTP probe to the configured test inbox. Never looks up users.
+ * Requires confirm: true and an exact match to SMTP_TEST_RECIPIENT or ADMIN_NOTIFICATION_EMAIL.
+ */
+export async function sendSmtpTestMessage(
+  input: { to?: string; confirm?: boolean },
+  deps: {
+    send?: (msg: MailMessage & { from: string }) => Promise<unknown>;
+    cfg?: SmtpAuthConfig;
+    isProd?: boolean;
+    log?: (msg: string) => void;
+  } = {}
+): Promise<{ sent: true; to: string; from: string }> {
+  if (input.confirm !== true) {
+    throw new Error("SMTP test messages require confirm: true.");
+  }
+  const cfg = deps.cfg ?? env;
+  const allowed = configuredSmtpTestRecipient(cfg);
+  if (!allowed) {
+    throw new Error("Set SMTP_TEST_RECIPIENT or ADMIN_NOTIFICATION_EMAIL to a deliverable test inbox.");
+  }
+  const to = extractEmailAddress(input.to || allowed);
+  if (to !== allowed) {
+    throw new Error("Recipient must match the configured test recipient.");
+  }
+  if (isPlaceholderEmail(to)) {
+    throw new Error("Recipient is not a deliverable production address.");
+  }
+  const from = cfg.EMAIL_FROM || cfg.SMTP_USER || "";
+  await sendMail(
+    {
+      to,
+      subject: "Place2Park SMTP test",
+      text: "This is an explicit Place2Park SMTP configuration test. No booking, payment, or payout was created.",
+    },
+    deps
+  );
+  return { sent: true, to, from: extractEmailAddress(from) };
 }
 
 export async function notifyAdmin(

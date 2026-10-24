@@ -162,6 +162,11 @@ export const payoutNoteSchema = z.object({
   note: z.string().trim().max(400).optional(),
 });
 
+export const smtpTestSchema = z.object({
+  confirm: z.literal(true),
+  to: z.string().trim().email().optional(),
+});
+
 export type ListingInput = z.infer<typeof listingSchema>;
 
 export const blockSlotSchema = z

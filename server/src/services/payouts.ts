@@ -183,11 +183,11 @@ export async function summarizeHostEarnings(hostId: string) {
       { $sort: { "_id.y": 1, "_id.m": 1 } },
     ]),
     HostPayout.aggregate([
-      { $match: { hostId: hostOid } },
+      { $match: { hostId: hostOid, "bookingIds.0": { $exists: true } } },
       { $group: { _id: "$status", amount: { $sum: "$amount" }, count: { $sum: 1 } } },
     ]),
     User.findById(hostId).select("payoutProfile"),
-    HostPayout.find({ hostId }).sort({ createdAt: -1 }).limit(20),
+    HostPayout.find({ hostId, "bookingIds.0": { $exists: true } }).sort({ createdAt: -1 }).limit(20),
     listEligibleBookings(hostId),
   ]);
   const byStatus = Object.fromEntries(payoutAgg.map((row) => [row._id, row]));

@@ -17,7 +17,7 @@ import { BOOKING_RATE_LIMIT, BOOKING_RATE_WINDOW_MS, rateLimit } from "../utils/
 import {
   blockSlotSchema, bookingRequestSchema, createPaymentOrderSchema, googleLoginSchema,
   listingSchema, loginSchema, payoutNoteSchema, payoutProfileSchema, payoutReferenceSchema,
-  profileSchema, reportSchema, reviewSchema, signupSchema,
+  profileSchema, reportSchema, reviewSchema, signupSchema, smtpTestSchema,
   vehicleSchema, verifyPaymentSchema,
 } from "../utils/validation.js";
 import { ALLOWED_UPLOAD_TYPES, MAX_UPLOAD_BYTES } from "../services/media.js";
@@ -110,6 +110,7 @@ r.post("/admin/users/:id/verify-payout", authenticate, adminOnly, a(payouts.admi
 r.get("/admin/reports", authenticate, adminOnly, a(admin.listReports));
 r.post("/admin/reports/:id/resolve", authenticate, adminOnly, a(admin.resolveReport));
 r.get("/admin/reviews", authenticate, adminOnly, a(admin.listReviews));
+r.post("/admin/email/test", authenticate, adminOnly, rateLimit("smtp-test", 3, 10 * 60000), validate(smtpTestSchema), a(admin.sendEmailTest));
 
 // ---- Uploads (Cloudinary in production; local /uploads when Cloudinary is unset in development)
 const upload = multer({

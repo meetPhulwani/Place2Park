@@ -3,6 +3,7 @@ import { Booking, HostPayout, ParkingSpace, Payment, Report, Review, User } from
 import type { AuthedRequest } from "../middleware/auth.js";
 import { ApiError } from "../middleware/error.js";
 import { notify } from "../services/notify.js";
+import { sendSmtpTestMessage } from "../services/email.js";
 import { applyListingModeration } from "../services/listings.js";
 
 export async function metrics(_req: AuthedRequest, res: Response) {
@@ -172,4 +173,19 @@ export async function listReviews(_req: AuthedRequest, res: Response) {
   const reviews = await Review.find().sort({ createdAt: -1 }).limit(100)
     .populate("userId", "name email").populate("spaceId", "title");
   res.json({ success: true, data: { reviews } });
+}
+
+export async function sendEmailTest(req: AuthedRequest, res: Response) {
+  if (req.userRole !== "ADMIN") throw new ApiError(403, "You don't have access to this.");
+  const { to, confirm } = req.body as { to?: string; confirm?: boolean };
+  try {
+    const result = await sendSmtpTestMessage({ to, confirm });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "SMTP test failed.";
+    if (/confirm|configured|deliverable|placeholder|disabled|test recipient/i.test(message)) {
+      throw new ApiError(400, message);
+    }
+    throw new ApiError(503, "We couldn't send the test email. Try again shortly.");
+  }
 }

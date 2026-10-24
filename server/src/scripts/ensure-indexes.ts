@@ -32,9 +32,14 @@ async function main() {
         ? ` created=${applied.created} existed=${applied.alreadyExisted} skipped=${applied.skippedReason ?? "—"} dropped=${applied.dropped}`
         : "";
     console.info(
-      `[indexes] ${row.collection}.${row.fields.join("+")} unique=${row.existingUnique} duplicates=${row.duplicateCount}${extra}`
+      `[indexes] ${row.collection}.${row.fields.join("+")} unique=${row.existingUnique} nonUnique=${row.existingNonUnique} duplicates=${row.duplicateCount} missingOrNull=${row.missingOrNullCount}${extra}`
     );
-    if (row.duplicateCount > 0) console.info(`[indexes] ${row.reconcile}`);
+    if (row.duplicateCount > 0 || row.missingOrNullCount > 0 || row.existingNonUnique) {
+      console.info(`[indexes] ${row.reconcile}`);
+      if (row.missingOrNullIds.length) {
+        console.info(`[indexes] missing/null ids: ${row.missingOrNullIds.join(", ")}`);
+      }
+    }
   }
   await mongoose.disconnect();
 }

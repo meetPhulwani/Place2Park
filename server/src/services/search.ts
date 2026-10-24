@@ -1,8 +1,7 @@
 import { Booking, BlockedSlot, ParkingSpace } from "../models/index.js";
-import { BLOCKING_STATUSES } from "../utils/constants.js";
 import { haversineKm } from "../utils/geo.js";
 import { getDisplayLocation, locationTextClauses } from "../utils/location.js";
-import { coversWindow, expireStalePendingBookings } from "./availability.js";
+import { coversWindow, expireStalePendingBookings, occupyingOverlapFilter } from "./availability.js";
 import { reconcileExpiredPaymentHolds } from "./payments.js";
 import { isProd } from "../config/env.js";
 
@@ -153,10 +152,9 @@ export async function searchSpaces(q: SearchQuery): Promise<SpaceSummary[]> {
     const [conflicts, blocked] = await Promise.all([
       Booking.find({
         spaceId: { $in: ids },
-        status: { $in: BLOCKING_STATUSES },
         start: { $lt: end },
         end: { $gt: q.start },
-        $or: [{ status: { $ne: "PENDING" } }, { expiresAt: { $gt: now } }],
+        ...occupyingOverlapFilter(now),
       }).select("spaceId"),
       BlockedSlot.find({ spaceId: { $in: ids }, start: { $lt: end }, end: { $gt: q.start } }).select("spaceId"),
     ]);

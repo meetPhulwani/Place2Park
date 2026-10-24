@@ -9,6 +9,7 @@ import {
   AVAILABILITY_ERROR_MESSAGES,
   expireStalePendingBookings,
   hasConflict,
+  occupyingOverlapFilter,
   progressSpaceBookings,
   validateWindow,
 } from "./availability.js";
@@ -44,23 +45,21 @@ function raceFilter(spaceId: string, bookingId: unknown, start: Date, end: Date)
   return {
     _id: { $lt: bookingId },
     spaceId,
-    status: { $in: ["PENDING", "CONFIRMED", "ACTIVE"] },
     start: { $lt: end },
     end: { $gt: start },
-    $or: [{ status: { $ne: "PENDING" } }, { expiresAt: { $gt: new Date() } }],
+    ...occupyingOverlapFilter(),
   };
 }
 
 type BookingDoc = InstanceType<typeof Booking>;
 
 /** After commit, keep the oldest overlapping hold and delete the rest. */
-async function assertSoleOccupant(spaceId: string, start: Date, end: Date, bookingId: unknown) {
+export async function assertSoleOccupant(spaceId: string, start: Date, end: Date, bookingId: unknown) {
   const oldest = await Booking.findOne({
     spaceId,
-    status: { $in: ["PENDING", "CONFIRMED", "ACTIVE"] },
     start: { $lt: end },
     end: { $gt: start },
-    $or: [{ status: { $ne: "PENDING" } }, { expiresAt: { $gt: new Date() } }],
+    ...occupyingOverlapFilter(),
   })
     .sort({ _id: 1 })
     .select("_id");

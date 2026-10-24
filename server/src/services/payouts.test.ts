@@ -330,6 +330,39 @@ describe("admin payout destination privacy", () => {
   });
 });
 
+describe("legacy empty-bookingIds payouts", () => {
+  it("excludes PAID rows with empty bookingIds from host paid totals and history", async () => {
+    const booking = await seedBooking({ status: "COMPLETED" });
+    await HostPayout.create({
+      hostId,
+      bookingIds: [booking._id],
+      amount: 5000,
+      currency: "INR",
+      status: "PAID",
+      idempotencyKey: "manual:tracked",
+    });
+    await HostPayout.create({
+      hostId,
+      bookingIds: [],
+      amount: 9999,
+      currency: "INR",
+      status: "PAID",
+      idempotencyKey: "legacy:untracked:ghost",
+    });
+    const summary = await summarizeHostEarnings(hostId);
+    assert.equal(summary.paidAmount, 5000);
+    assert.equal(summary.paidCount, 1);
+    assert.equal(summary.payouts.length, 1);
+    assert.equal(summary.payouts[0]?.amount, 5000);
+    const ghost = await HostPayout.findOne({ idempotencyKey: "legacy:untracked:ghost" });
+    assert.equal(ghost?.status, "PAID");
+    assert.equal(ghost?.amount, 9999);
+    assert.equal((ghost?.bookingIds ?? []).length, 0);
+    const admin = await listAdminPayouts();
+    assert.equal(admin.some((row) => row.amount === 9999 && row.status === "PAID"), true);
+  });
+});
+
 describe("route transfer ignore leftover", () => {
   it("ignores Route transfer webhooks that do not match a stored transferId", async () => {
     await readyHost();

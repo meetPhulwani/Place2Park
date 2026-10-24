@@ -20,6 +20,7 @@ const hostPayoutSchema = new Schema(
     currency: { type: String, default: "INR" },
     status: { type: String, enum: PAYOUT_STATUSES, default: "REQUESTED", index: true },
     method: { type: String, enum: ["MANUAL"], default: "MANUAL" },
+    // Unique in Atlas via ensure-indexes.ts — production autoIndex is off.
     idempotencyKey: { type: String, required: true, unique: true },
     reference: { type: String, default: "", maxlength: 80 },
     notes: { type: String, default: "", maxlength: 400 },

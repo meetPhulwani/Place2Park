@@ -9,6 +9,7 @@ import {
   isPlaceholderEmail,
   isSmtpConfigured,
   sendMail,
+  sendSmtpTestMessage,
   smtpTransportOptions,
 } from "./email.js";
 
@@ -20,6 +21,7 @@ describe("SMTP env wiring", () => {
     assert.equal(typeof env.SMTP_PASS, "string");
     assert.equal(typeof env.EMAIL_FROM, "string");
     assert.equal(typeof env.ADMIN_NOTIFICATION_EMAIL, "string");
+    assert.equal(typeof env.SMTP_TEST_RECIPIENT, "string");
   });
 
   it("treats SMTP as configured only when host, port, user, and pass are present", () => {
@@ -241,5 +243,59 @@ describe("production email address policy", () => {
     assert.equal(report.sendEnabled, true);
     assert.equal(report.adminNotifyEnabled, false);
     assert.ok(report.warnings.some((line) => line.includes("ADMIN_NOTIFICATION_EMAIL")));
+  });
+});
+
+describe("explicit SMTP test message", () => {
+  const deliverable = {
+    ...smtpReady,
+    EMAIL_FROM: "Parkly <hello@place2park.app>",
+    ADMIN_NOTIFICATION_EMAIL: "ops@place2park.app",
+    SMTP_TEST_RECIPIENT: "me@place2park.app",
+  };
+
+  it("sends only when confirm is true and the recipient is the configured test inbox", async () => {
+    const sent: { to?: string; from?: string; subject?: string; text?: string }[] = [];
+    const result = await sendSmtpTestMessage(
+      { to: "me@place2park.app", confirm: true },
+      {
+        cfg: deliverable,
+        isProd: true,
+        send: async (msg) => {
+          sent.push(msg);
+        },
+      }
+    );
+    assert.equal(result.sent, true);
+    assert.equal(result.to, "me@place2park.app");
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0]?.to, "me@place2park.app");
+    assert.match(String(sent[0]?.from), /hello@place2park.app/);
+    assert.match(String(sent[0]?.subject), /Place2Park SMTP test/i);
+    assert.doesNotMatch(JSON.stringify(result), /smtp-secret-should-never-appear/);
+  });
+
+  it("does not send without explicit confirm, to fixtures, or to an unlisted address", async () => {
+    const sent: unknown[] = [];
+    const send = async (msg: unknown) => {
+      sent.push(msg);
+    };
+    await assert.rejects(
+      () => sendSmtpTestMessage({ to: "me@place2park.app", confirm: false }, { cfg: deliverable, isProd: true, send }),
+      /confirm/i
+    );
+    await assert.rejects(
+      () => sendSmtpTestMessage({ to: "host-payout@parkly.test", confirm: true }, { cfg: deliverable, isProd: true, send }),
+      /deliverable|placeholder|configured/i
+    );
+    await assert.rejects(
+      () => sendSmtpTestMessage({ to: "driver@parkly.dev", confirm: true }, { cfg: deliverable, isProd: true, send }),
+      /configured|placeholder|deliverable/i
+    );
+    await assert.rejects(
+      () => sendSmtpTestMessage({ to: "someone-else@gmail.com", confirm: true }, { cfg: deliverable, isProd: true, send }),
+      /configured test recipient/i
+    );
+    assert.equal(sent.length, 0);
   });
 });
