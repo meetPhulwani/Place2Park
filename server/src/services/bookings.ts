@@ -19,6 +19,7 @@ import {
   listRazorpayRefunds,
   refundRazorpayPayment,
   reconcileExpiredPaymentHolds,
+  RAZORPAY_REFUND_TIMEOUT_MS,
   type CancelOrderFn,
   type ListRefundsFn,
   type RefundPaymentFn,
@@ -26,6 +27,7 @@ import {
 import { markBookingRefunded } from "./payouts.js";
 import { notify } from "./notify.js";
 import { formatDateTime } from "../utils/format.js";
+import { withTimeout } from "../utils/async.js";
 
 interface CreateBookingInput {
   userId: string;
@@ -462,7 +464,9 @@ export async function failBookingPayment(bookingId: string) {
   return booking;
 }
 
-export interface CancelBookingDeps extends CaptureSettlementDeps {}
+export interface CancelBookingDeps extends CaptureSettlementDeps {
+  refundTimeoutMs?: number;
+}
 
 function isUncertainRefundError(err: unknown) {
   const msg = err instanceof Error ? err.message : String(err);
@@ -538,9 +542,15 @@ async function completeRefundAfterClaim(
   if (existing) return persistRefundResult(booking._id, claimed._id, claimed.amount, existing);
 
   try {
-    const result = await refundRazorpayPayment(paymentId, claimed.amount, deps.refundPayment, {
-      orderId: claimed.orderId ?? undefined,
-    });
+    console.info("[refund] start", { bookingId: String(booking._id), paymentId: paymentId || undefined });
+    const result = await withTimeout(
+      refundRazorpayPayment(paymentId, claimed.amount, deps.refundPayment, {
+        orderId: claimed.orderId ?? undefined,
+      }),
+      deps.refundTimeoutMs ?? RAZORPAY_REFUND_TIMEOUT_MS,
+      "timeout contacting Razorpay"
+    );
+    console.info("[refund] end", { bookingId: String(booking._id), refundId: result.refundId, processed: result.processed });
     if (result.paymentId && result.paymentId !== paymentId) {
       await Payment.updateOne({ _id: claimed._id }, { $set: { paymentId: result.paymentId } });
     }
@@ -643,8 +653,11 @@ export async function cancelBooking(
   deps: CancelBookingDeps = {}
 ) {
   if (!mongoose.isValidObjectId(bookingId)) throw new ApiError(404, "Booking not found.");
+  console.info("[cancel] start", { bookingId, byUserId });
   const expiredIds = await expireStalePendingBookings();
-  await reconcileExpiredPaymentHolds(deps, expiredIds);
+  void reconcileExpiredPaymentHolds(deps, expiredIds).catch((err) => {
+    console.error("[cancel] expire-reconcile failed", err instanceof Error ? err.message : err);
+  });
   const booking = await Booking.findById(bookingId).populate<{ spaceId: { title: string } }>("spaceId", "title");
   if (!booking) throw new ApiError(404, "Booking not found.");
   if (!isAdmin && String(booking.userId) !== byUserId) throw new ApiError(403, "Not your booking.");
@@ -684,21 +697,26 @@ export async function cancelBooking(
   }
 
   const title = (booking.spaceId as unknown as { title: string }).title;
-  await send(
-    String(booking.userId),
-    "BOOKING_CANCELLED",
-    "Booking cancelled",
-    settled.refunded
-      ? "Your booking was cancelled. A refund has been requested; it can take a few days to appear."
-      : "Your booking was cancelled.",
-    { bookingId }
-  );
-  await send(
-    String(booking.hostId),
-    "BOOKING_CANCELLED",
-    "Booking cancelled",
-    `${title}: the ${formatDateTime(booking.start)} booking was cancelled.`,
-    { bookingId }
-  );
+  void Promise.all([
+    send(
+      String(booking.userId),
+      "BOOKING_CANCELLED",
+      "Booking cancelled",
+      settled.refunded
+        ? "Your booking was cancelled. A refund has been requested; it can take a few days to appear."
+        : "Your booking was cancelled.",
+      { bookingId }
+    ),
+    send(
+      String(booking.hostId),
+      "BOOKING_CANCELLED",
+      "Booking cancelled",
+      `${title}: the ${formatDateTime(booking.start)} booking was cancelled.`,
+      { bookingId }
+    ),
+  ]).catch((err) => {
+    console.error("[cancel] notify failed", err instanceof Error ? err.message : err);
+  });
+  console.info("[cancel] done", { bookingId, refunded: settled.refunded, refundStatus: settled.refundStatus });
   return { booking: claimed, ...settled };
 }

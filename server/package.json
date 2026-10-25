@@ -8,7 +8,7 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/server.js",
     "seed": "tsx src/seed.ts",
-    "test:unit": "tsx --test src/services/availability.test.ts src/utils/pricing.test.ts src/services/payments.test.ts src/utils/rate-limit.test.ts src/services/email.test.ts src/services/bookings-cancel.test.ts src/services/bookings-confirm.test.ts src/services/bookings-late-payment.test.ts src/utils/indexes.test.ts src/utils/legacy-payout-keys.test.ts src/services/media.test.ts src/config/env.test.ts src/config/vercel-rewrite.test.ts src/services/listings-moderation.test.ts src/services/payouts.test.ts src/services/refunds-occupancy.test.ts src/services/auth-security.test.ts",
+    "test:unit": "tsx --test src/services/availability.test.ts src/utils/pricing.test.ts src/services/payments.test.ts src/utils/rate-limit.test.ts src/services/email.test.ts src/services/bookings-cancel.test.ts src/services/bookings-confirm.test.ts src/services/bookings-late-payment.test.ts src/utils/indexes.test.ts src/utils/legacy-payout-keys.test.ts src/utils/async.test.ts src/services/media.test.ts src/config/env.test.ts src/config/vercel-rewrite.test.ts src/services/listings-moderation.test.ts src/services/payouts.test.ts src/services/refunds-occupancy.test.ts src/services/auth-security.test.ts",
     "indexes:check": "tsx src/scripts/ensure-indexes.ts",
     "payouts:stamp-legacy-keys": "tsx src/scripts/stamp-legacy-payout-keys.ts",
     "test:booking-flow": "tsx src/scripts/test-booking-flow.ts",

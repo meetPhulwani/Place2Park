@@ -5,6 +5,12 @@ import { ApiError } from "../middleware/error.js";
 import { Booking, Payment } from "../models/index.js";
 import { expireStalePendingBookings } from "./availability.js";
 import { applyRouteTransferEvent, markBookingRefunded } from "./payouts.js";
+import { withTimeout } from "../utils/async.js";
+
+/** Per Razorpay HTTP call. Cancel/refund must not wait forever. */
+export const RAZORPAY_CALL_TIMEOUT_MS = 8_000;
+/** Whole refund attempt (fetch + optional capture + refund). */
+export const RAZORPAY_REFUND_TIMEOUT_MS = 20_000;
 
 /**
  * Payment provider boundary. Razorpay is used when credentials exist.
@@ -179,9 +185,11 @@ export async function listRazorpayRefunds(paymentId: string, listFn?: ListRefund
   if (!razorpayConfigured() || !paymentId) return [];
   const Razorpay = (await import("razorpay")).default;
   const rzp = new Razorpay({ key_id: env.RAZORPAY_KEY_ID, key_secret: env.RAZORPAY_KEY_SECRET });
-  const payload = (await rzp.payments.fetchMultipleRefund(paymentId)) as {
-    items?: { id?: string; status?: string }[];
-  };
+  const payload = (await withTimeout(
+    rzp.payments.fetchMultipleRefund(paymentId) as Promise<{ items?: { id?: string; status?: string }[] }>,
+    RAZORPAY_CALL_TIMEOUT_MS,
+    "timeout listing Razorpay refunds"
+  )) as { items?: { id?: string; status?: string }[] };
   return (payload.items ?? []).map((item) => asRefundResult(item)).filter((row) => row.refundId);
 }
 
@@ -233,32 +241,44 @@ export async function settleRazorpayRefund(input: {
   orderId?: string;
   payments: RazorpayRefundPaymentsClient;
   orders?: RazorpayRefundOrdersClient;
+  timeoutMs?: number;
 }): Promise<RazorpayRefundResult> {
+  const timeoutMs = input.timeoutMs ?? RAZORPAY_CALL_TIMEOUT_MS;
   if (!Number.isFinite(input.amountPaise) || input.amountPaise <= 0) refundFailure();
-  const paymentId = await resolveRefundPaymentId(input.paymentId, input.orderId, input.orders);
+  console.info("[refund] start", { paymentId: input.paymentId || "(resolve)", orderId: input.orderId || undefined });
+  const paymentId = input.orders
+    ? await withTimeout(resolveRefundPaymentId(input.paymentId, input.orderId, input.orders), timeoutMs, "timeout contacting Razorpay")
+    : await resolveRefundPaymentId(input.paymentId, input.orderId, input.orders);
   if (!paymentId) refundFailure();
 
   let status = "";
   try {
-    const fetched = await input.payments.fetch(paymentId);
+    const fetched = await withTimeout(input.payments.fetch(paymentId), timeoutMs, "timeout contacting Razorpay");
     status = String(fetched?.status ?? "").toLowerCase();
   } catch (err) {
     console.error("[refund] razorpay fetch failed", razorpayErrorText(err));
+    if (/timeout/i.test(razorpayErrorText(err))) throw err instanceof Error ? err : new Error("timeout contacting Razorpay");
   }
 
   if (status === "authorized") {
     try {
-      await input.payments.capture(paymentId, input.amountPaise, "INR");
+      await withTimeout(input.payments.capture(paymentId, input.amountPaise, "INR"), timeoutMs, "timeout contacting Razorpay");
     } catch (err) {
       console.error("[refund] razorpay capture failed", razorpayErrorText(err));
+      if (/timeout/i.test(razorpayErrorText(err))) throw err instanceof Error ? err : new Error("timeout contacting Razorpay");
       refundFailure();
     }
   }
 
   try {
-    const refund = await input.payments.refund(paymentId, razorpayRefundParams(input.amountPaise));
+    const refund = await withTimeout(
+      input.payments.refund(paymentId, razorpayRefundParams(input.amountPaise)),
+      timeoutMs,
+      "timeout contacting Razorpay"
+    );
     const refundId = String((refund as { id?: string }).id ?? "");
     if (!refundId) refundFailure();
+    console.info("[refund] end", { paymentId, refundId, processed: String((refund as { status?: string }).status ?? "") });
     return {
       refundId,
       processed: String((refund as { status?: string }).status ?? "").toLowerCase() === "processed",
@@ -266,6 +286,7 @@ export async function settleRazorpayRefund(input: {
     };
   } catch (err) {
     console.error("[refund] razorpay refund failed", razorpayErrorText(err));
+    if (/timeout/i.test(razorpayErrorText(err))) throw err instanceof Error ? err : new Error("timeout contacting Razorpay");
     refundFailure();
   }
 }
@@ -311,13 +332,14 @@ export async function cancelUnpaidRazorpayOrder(
     const rzp = new Razorpay({ key_id: env.RAZORPAY_KEY_ID, key_secret: env.RAZORPAY_KEY_SECRET });
     const orders = rzp.orders as { cancel?: (id: string) => Promise<unknown> };
     if (typeof orders.cancel === "function") {
-      await orders.cancel(orderId);
+      await withTimeout(Promise.resolve(orders.cancel(orderId)), RAZORPAY_CALL_TIMEOUT_MS, "timeout contacting Razorpay");
       return "cancelled";
     }
     const auth = Buffer.from(`${env.RAZORPAY_KEY_ID}:${env.RAZORPAY_KEY_SECRET}`).toString("base64");
     const res = await fetch(`https://api.razorpay.com/v1/orders/${encodeURIComponent(orderId)}/cancel`, {
       method: "POST",
       headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(RAZORPAY_CALL_TIMEOUT_MS),
     });
     if (res.ok) return "cancelled";
     if (res.status === 400 || res.status === 404) return "unsupported";

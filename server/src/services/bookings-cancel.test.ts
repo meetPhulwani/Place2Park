@@ -151,6 +151,27 @@ describe("cancelBooking Razorpay refunds", () => {
     assert.equal((await Booking.findById(booking._id))?.status, "CANCELLED");
   });
 
+  it("returns a 503 on Razorpay timeout and never marks the refund successful", async () => {
+    const booking = await seedBooking({ status: "CONFIRMED", start: hoursFromNow(3), paid: true });
+    await assert.rejects(
+      () =>
+        cancelBooking(String(booking._id), String(ownerId), false, {
+          notify: async () => undefined,
+          refundTimeoutMs: 25,
+          refundPayment: () => new Promise(() => undefined),
+        }),
+      (err: unknown) =>
+        err instanceof ApiError &&
+        err.status === 503 &&
+        err.message === "We couldn't process the refund. Try again shortly."
+    );
+    const payment = await Payment.findOne({ bookingId: booking._id });
+    assert.equal(payment?.status, "PAID");
+    assert.notEqual(payment?.refundStatus, "PROCESSED");
+    assert.equal(payment?.refundId, undefined);
+    assert.equal((await Booking.findById(booking._id))?.refunded, false);
+  });
+
   it("does not mark REFUNDED when Razorpay fails", async () => {
     const booking = await seedBooking({ status: "CONFIRMED", start: hoursFromNow(3), paid: true });
     await assert.rejects(

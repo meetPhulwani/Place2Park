@@ -151,6 +151,23 @@ describe("Razorpay refund settlement", () => {
     assert.equal(result.refundId, "rfnd_pay_from_order");
   });
 
+  it("times out a hung Razorpay refund call without treating it as success", async () => {
+    await assert.rejects(
+      () =>
+        settleRazorpayRefund({
+          paymentId: "pay_hang",
+          amountPaise: 7350,
+          timeoutMs: 20,
+          payments: {
+            fetch: async () => ({ status: "captured" }),
+            capture: async () => ({}),
+            refund: () => new Promise(() => undefined),
+          },
+        }),
+      /timeout contacting Razorpay/
+    );
+  });
+
   it("maps Razorpay SDK object errors to the public 503 refund message", async () => {
     await assert.rejects(
       () =>

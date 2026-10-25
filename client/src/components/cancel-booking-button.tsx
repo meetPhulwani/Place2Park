@@ -1,5 +1,5 @@
 import * as React from "react";
-import { api, errorMessage } from "@/services/api";
+import { postBookingCancel, runCancelBooking } from "@/lib/cancel-booking";
 import { Button } from "./ui/button";
 import { ConfirmDialog } from "./ui/dialog";
 import { toast } from "./ui/toaster";
@@ -15,25 +15,27 @@ export function CancelBookingButton({
 }) {
   const [open, setOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
+  const inflight = React.useRef(false);
+
+  function closeDialog() {
+    setOpen(false);
+    setBusy(false);
+  }
 
   async function onConfirm() {
-    setBusy(true);
+    if (inflight.current) return;
+    inflight.current = true;
     try {
-      const { data } = await api.post(`/bookings/${bookingId}/cancel`);
-      const refundStatus = data.data.refundStatus as string | null | undefined;
-      toast.success(
-        refundStatus === "PROCESSED"
-          ? "Booking cancelled. Razorpay has confirmed the refund."
-          : refundStatus === "PENDING" || data.data.refunded
-            ? "Booking cancelled. A refund was requested — it can take a few days to appear."
-            : "Booking cancelled."
-      );
-      onCancelled?.();
-    } catch (e) {
-      toast.error(errorMessage(e, "Couldn't cancel this booking."));
+      const result = await runCancelBooking({
+        post: () => postBookingCancel(bookingId),
+        setBusy,
+        onSuccess: (message) => toast.success(message),
+        onError: (message) => toast.error(message),
+        onCancelled,
+      });
+      if (result.ok) setOpen(false);
     } finally {
-      setBusy(false);
-      setOpen(false);
+      inflight.current = false;
     }
   }
 
@@ -44,7 +46,7 @@ export function CancelBookingButton({
       </Button>
       <ConfirmDialog
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={closeDialog}
         onConfirm={onConfirm}
         loading={busy}
         danger

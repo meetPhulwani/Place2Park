@@ -172,6 +172,23 @@ export async function detail(req: AuthedRequest, res: Response) {
 }
 
 export async function cancel(req: AuthedRequest, res: Response) {
-  const { refunded, refundStatus } = await cancelBooking(req.params.id, req.userId, req.userRole === "ADMIN");
-  res.json({ success: true, data: { refunded, refundStatus } });
+  const started = Date.now();
+  console.info("[cancel] request", { bookingId: req.params.id, userId: req.userId });
+  try {
+    const { refunded, refundStatus } = await cancelBooking(req.params.id, req.userId, req.userRole === "ADMIN");
+    console.info("[cancel] response", {
+      bookingId: req.params.id,
+      refunded,
+      refundStatus,
+      ms: Date.now() - started,
+    });
+    res.json({ success: true, data: { refunded, refundStatus } });
+  } catch (err) {
+    console.error("[cancel] failed", {
+      bookingId: req.params.id,
+      ms: Date.now() - started,
+      message: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
 }

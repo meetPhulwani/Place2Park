@@ -2,7 +2,8 @@ import axios, { AxiosError } from "axios";
 
 /** Axios instance for the Parkly Express API. */
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "/api",
+  baseURL: import.meta.env?.VITE_API_URL || "/api",
+  timeout: 25_000,
 });
 
 const TOKEN_KEY = "parkly_token";
@@ -26,6 +27,9 @@ export function errorMessage(err: unknown, fallback = "Something went wrong. Ple
   if (err instanceof AxiosError) {
     const msg = (err.response?.data as { message?: string } | undefined)?.message;
     if (msg) return msg;
+    if (err.code === "ECONNABORTED" || /timeout/i.test(err.message)) {
+      return "The server took too long to respond. Please try again.";
+    }
     if (err.code === "ERR_NETWORK") return "Can't reach the server. Check your connection.";
   }
   return fallback;
