@@ -125,6 +125,32 @@ describe("cancelBooking Razorpay refunds", () => {
     assert.equal(fresh?.refunded, true);
   });
 
+  it("does not refund when the stored Razorpay payment id is missing and cannot be resolved", async () => {
+    const booking = await seedBooking({
+      status: "CONFIRMED",
+      start: hoursFromNow(3),
+      paid: true,
+      paymentId: "",
+    });
+    let calls = 0;
+    await assert.rejects(
+      () =>
+        cancelBooking(String(booking._id), String(ownerId), false, {
+          notify: async () => undefined,
+          refundPayment: async () => {
+            calls += 1;
+            return { refundId: "rfnd_no", processed: true };
+          },
+        }),
+      (err: unknown) => err instanceof ApiError && err.status === 503
+    );
+    assert.equal(calls, 0);
+    const payment = await Payment.findOne({ bookingId: booking._id });
+    assert.equal(payment?.status, "PAID");
+    assert.equal(payment?.refundStatus, "FAILED");
+    assert.equal((await Booking.findById(booking._id))?.status, "CANCELLED");
+  });
+
   it("does not mark REFUNDED when Razorpay fails", async () => {
     const booking = await seedBooking({ status: "CONFIRMED", start: hoursFromNow(3), paid: true });
     await assert.rejects(

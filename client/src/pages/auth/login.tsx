@@ -6,6 +6,7 @@ import { useAuth } from "@/context/auth";
 import { Button } from "@/components/ui/button";
 import { Input, Label, FieldError } from "@/components/ui/input";
 import { GoogleButton } from "@/components/google-button";
+import { shouldShowDemoAccounts } from "@/lib/demo-accounts";
 
 const googleEnabled = !!import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
@@ -111,10 +112,12 @@ export default function LoginPage() {
         </Link>
       </p>
 
-      <div className="glass-soft mt-8 rounded-xl p-3.5 text-xs leading-relaxed text-slate-500">
-        <p className="font-medium text-slate-600">Demo accounts (password: password123)</p>
-        <p className="mt-1">driver@parkly.dev · host@parkly.dev · admin@parkly.dev</p>
-      </div>
+      {import.meta.env.DEV && shouldShowDemoAccounts(import.meta.env.DEV) && (
+        <div className="glass-soft mt-8 rounded-xl p-3.5 text-xs leading-relaxed text-slate-500">
+          <p className="font-medium text-slate-600">Demo accounts (password: password123)</p>
+          <p className="mt-1">driver@parkly.dev · host@parkly.dev · admin@parkly.dev</p>
+        </div>
+      )}
     </div>
   );
 }

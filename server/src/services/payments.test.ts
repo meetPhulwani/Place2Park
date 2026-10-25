@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { ApiError } from "../middleware/error.js";
 import {
   EXPECTED_RAZORPAY_WEBHOOK_EVENTS,
   checkoutSignature,
   razorpayConfigured,
+  razorpayOrderCreatePayload,
+  razorpayRefundParams,
+  settleRazorpayRefund,
   verifyRazorpaySignature,
   verifyWebhookSignature,
   webhookSignature,
@@ -71,5 +75,100 @@ describe("Razorpay signature helpers", () => {
     } finally {
       env.RAZORPAY_WEBHOOK_SECRET = prev;
     }
+  });
+});
+
+describe("Razorpay refund settlement", () => {
+  it("creates orders with automatic capture so Test Mode payments can be refunded", () => {
+    const payload = razorpayOrderCreatePayload("64b0f0f0f0f0f0f0f0f0f0f0", 7350);
+    assert.equal(payload.amount, 7350);
+    assert.equal(payload.currency, "INR");
+    assert.equal(payload.payment_capture, true);
+    assert.deepEqual(razorpayRefundParams(7350), { amount: 7350, speed: "normal" });
+  });
+
+  it("captures an authorized Test Mode payment before refunding at normal speed", async () => {
+    const calls: string[] = [];
+    const result = await settleRazorpayRefund({
+      paymentId: "pay_auth_1",
+      amountPaise: 7350,
+      payments: {
+        fetch: async (id) => {
+          calls.push(`fetch:${id}`);
+          return { status: "authorized" };
+        },
+        capture: async (id, amount, currency) => {
+          calls.push(`capture:${id}:${amount}:${currency}`);
+          return { status: "captured" };
+        },
+        refund: async (id, params) => {
+          calls.push(`refund:${id}:${params.amount}:${params.speed}`);
+          return { id: "rfnd_ok", status: "processed" };
+        },
+      },
+    });
+    assert.deepEqual(calls, ["fetch:pay_auth_1", "capture:pay_auth_1:7350:INR", "refund:pay_auth_1:7350:normal"]);
+    assert.equal(result.refundId, "rfnd_ok");
+    assert.equal(result.processed, true);
+  });
+
+  it("refunds an already captured payment without capturing again", async () => {
+    const captures: string[] = [];
+    const result = await settleRazorpayRefund({
+      paymentId: "pay_cap_1",
+      amountPaise: 1000,
+      payments: {
+        fetch: async () => ({ status: "captured" }),
+        capture: async (id) => {
+          captures.push(id);
+          return {};
+        },
+        refund: async () => ({ id: "rfnd_cap", status: "pending" }),
+      },
+    });
+    assert.deepEqual(captures, []);
+    assert.equal(result.refundId, "rfnd_cap");
+    assert.equal(result.processed, false);
+  });
+
+  it("resolves a missing payment id from the Razorpay order before refunding", async () => {
+    const result = await settleRazorpayRefund({
+      paymentId: "",
+      orderId: "order_1",
+      amountPaise: 7350,
+      orders: {
+        fetchPayments: async (orderId) => {
+          assert.equal(orderId, "order_1");
+          return { items: [{ id: "pay_from_order", status: "authorized" }] };
+        },
+      },
+      payments: {
+        fetch: async (id) => ({ id, status: "authorized" }),
+        capture: async () => ({ status: "captured" }),
+        refund: async (id) => ({ id: `rfnd_${id}`, status: "processed" }),
+      },
+    });
+    assert.equal(result.refundId, "rfnd_pay_from_order");
+  });
+
+  it("maps Razorpay SDK object errors to the public 503 refund message", async () => {
+    await assert.rejects(
+      () =>
+        settleRazorpayRefund({
+          paymentId: "pay_bad",
+          amountPaise: 7350,
+          payments: {
+            fetch: async () => ({ status: "captured" }),
+            capture: async () => ({}),
+            refund: async () => {
+              throw { statusCode: 400, error: { description: "The payment is not captured and cannot be refunded" } };
+            },
+          },
+        }),
+      (err: unknown) =>
+        err instanceof ApiError &&
+        err.status === 503 &&
+        err.message === "We couldn't process the refund. Try again shortly."
+    );
   });
 });

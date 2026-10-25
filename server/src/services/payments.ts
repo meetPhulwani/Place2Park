@@ -23,18 +23,27 @@ export interface PaymentOrder {
   bookingCode?: string;
 }
 
+export function razorpayOrderCreatePayload(bookingId: string, amountPaise: number) {
+  return {
+    amount: amountPaise,
+    currency: "INR",
+    payment_capture: true,
+    receipt: bookingId.slice(-20),
+    notes: { bookingId },
+  };
+}
+
+export function razorpayRefundParams(amountPaise: number) {
+  return { amount: amountPaise, speed: "normal" as const };
+}
+
 export async function createPaymentOrder(bookingId: string, amountPaise: number): Promise<PaymentOrder> {
   if (!razorpayConfigured()) {
     throw new ApiError(503, "Razorpay isn't configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.");
   }
   const Razorpay = (await import("razorpay")).default;
   const rzp = new Razorpay({ key_id: env.RAZORPAY_KEY_ID, key_secret: env.RAZORPAY_KEY_SECRET });
-  const order = await rzp.orders.create({
-    amount: amountPaise,
-    currency: "INR",
-    receipt: bookingId.slice(-20),
-    notes: { bookingId },
-  });
+  const order = await rzp.orders.create(razorpayOrderCreatePayload(bookingId, amountPaise));
   return {
     provider: "RAZORPAY",
     orderId: order.id,
@@ -140,6 +149,7 @@ export function verifyWebhookSignature(rawBody: string, signature: string) {
 export interface RazorpayRefundResult {
   refundId: string;
   processed: boolean;
+  paymentId?: string;
 }
 
 export type RefundPaymentFn = (paymentId: string, amountPaise: number) => Promise<RazorpayRefundResult>;
@@ -175,26 +185,114 @@ export async function listRazorpayRefunds(paymentId: string, listFn?: ListRefund
   return (payload.items ?? []).map((item) => asRefundResult(item)).filter((row) => row.refundId);
 }
 
+export type RazorpayRefundPaymentsClient = {
+  fetch: (paymentId: string) => Promise<{ id?: string; status?: string }>;
+  capture: (paymentId: string, amount: number, currency: string) => Promise<unknown>;
+  refund: (paymentId: string, params: { amount: number; speed?: string }) => Promise<{ id?: string; status?: string }>;
+};
+
+export type RazorpayRefundOrdersClient = {
+  fetchPayments: (orderId: string) => Promise<{ items?: { id?: string; status?: string }[] }>;
+};
+
+function refundFailure(): never {
+  throw new ApiError(503, "We couldn't process the refund. Try again shortly.");
+}
+
+function razorpayErrorText(err: unknown) {
+  if (err instanceof Error) return err.message;
+  if (err && typeof err === "object") {
+    const nested = (err as { error?: { description?: string; reason?: string } }).error;
+    return String(nested?.description || nested?.reason || (err as { message?: string }).message || "");
+  }
+  return String(err);
+}
+
+async function resolveRefundPaymentId(
+  paymentId: string,
+  orderId: string | undefined,
+  orders?: RazorpayRefundOrdersClient
+) {
+  if (paymentId) return paymentId;
+  if (!orderId || !orders) return "";
+  const listed = await orders.fetchPayments(orderId);
+  const match = (listed.items ?? []).find((item) => {
+    const status = String(item.status ?? "").toLowerCase();
+    return item.id && (status === "authorized" || status === "captured");
+  });
+  return String(match?.id ?? "");
+}
+
+/**
+ * Refund a Razorpay payment. Authorized (uncaptured) Test Mode payments are captured first.
+ * Always request normal speed so dashboard Instant Refund defaults cannot fail the call.
+ */
+export async function settleRazorpayRefund(input: {
+  paymentId: string;
+  amountPaise: number;
+  orderId?: string;
+  payments: RazorpayRefundPaymentsClient;
+  orders?: RazorpayRefundOrdersClient;
+}): Promise<RazorpayRefundResult> {
+  if (!Number.isFinite(input.amountPaise) || input.amountPaise <= 0) refundFailure();
+  const paymentId = await resolveRefundPaymentId(input.paymentId, input.orderId, input.orders);
+  if (!paymentId) refundFailure();
+
+  let status = "";
+  try {
+    const fetched = await input.payments.fetch(paymentId);
+    status = String(fetched?.status ?? "").toLowerCase();
+  } catch (err) {
+    console.error("[refund] razorpay fetch failed", razorpayErrorText(err));
+  }
+
+  if (status === "authorized") {
+    try {
+      await input.payments.capture(paymentId, input.amountPaise, "INR");
+    } catch (err) {
+      console.error("[refund] razorpay capture failed", razorpayErrorText(err));
+      refundFailure();
+    }
+  }
+
+  try {
+    const refund = await input.payments.refund(paymentId, razorpayRefundParams(input.amountPaise));
+    const refundId = String((refund as { id?: string }).id ?? "");
+    if (!refundId) refundFailure();
+    return {
+      refundId,
+      processed: String((refund as { status?: string }).status ?? "").toLowerCase() === "processed",
+      paymentId,
+    };
+  } catch (err) {
+    console.error("[refund] razorpay refund failed", razorpayErrorText(err));
+    refundFailure();
+  }
+}
+
 /** Refund a captured payment. Amount always comes from the caller (Mongo), never the client. */
 export async function refundRazorpayPayment(
   paymentId: string,
   amountPaise: number,
-  refundFn?: RefundPaymentFn
+  refundFn?: RefundPaymentFn,
+  extras?: { orderId?: string }
 ): Promise<RazorpayRefundResult> {
   if (refundFn) return refundFn(paymentId, amountPaise);
   if (!razorpayConfigured()) {
     throw new ApiError(503, "We couldn't process the refund. Try again shortly.");
   }
-  if (!paymentId || !Number.isFinite(amountPaise) || amountPaise <= 0) {
+  if ((!paymentId && !extras?.orderId) || !Number.isFinite(amountPaise) || amountPaise <= 0) {
     throw new ApiError(503, "We couldn't process the refund. Try again shortly.");
   }
   const Razorpay = (await import("razorpay")).default;
   const rzp = new Razorpay({ key_id: env.RAZORPAY_KEY_ID, key_secret: env.RAZORPAY_KEY_SECRET });
-  const refund = await rzp.payments.refund(paymentId, { amount: amountPaise });
-  const refundId = String((refund as { id?: string }).id ?? "");
-  if (!refundId) throw new ApiError(503, "We couldn't process the refund. Try again shortly.");
-  const status = String((refund as { status?: string }).status ?? "").toLowerCase();
-  return { refundId, processed: status === "processed" };
+  return settleRazorpayRefund({
+    paymentId,
+    amountPaise,
+    orderId: extras?.orderId,
+    payments: rzp.payments,
+    orders: rzp.orders,
+  });
 }
 
 /**

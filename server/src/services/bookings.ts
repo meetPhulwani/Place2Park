@@ -521,11 +521,11 @@ async function persistRefundResult(
 
 async function completeRefundAfterClaim(
   booking: { _id: unknown },
-  claimed: { _id: unknown; paymentId?: string | null; amount: number },
+  claimed: { _id: unknown; paymentId?: string | null; orderId?: string | null; amount: number },
   deps: CancelBookingDeps
 ): Promise<RefundSettlement> {
   const paymentId = claimed.paymentId ?? "";
-  if (!paymentId) {
+  if (!paymentId && (deps.refundPayment || !claimed.orderId)) {
     await Payment.updateOne(
       { _id: claimed._id, status: { $ne: "REFUNDED" } },
       { $set: { refundStatus: "FAILED", refundFailedAt: new Date(), refundInFlight: false } }
@@ -538,7 +538,12 @@ async function completeRefundAfterClaim(
   if (existing) return persistRefundResult(booking._id, claimed._id, claimed.amount, existing);
 
   try {
-    const result = await refundRazorpayPayment(paymentId, claimed.amount, deps.refundPayment);
+    const result = await refundRazorpayPayment(paymentId, claimed.amount, deps.refundPayment, {
+      orderId: claimed.orderId ?? undefined,
+    });
+    if (result.paymentId && result.paymentId !== paymentId) {
+      await Payment.updateOne({ _id: claimed._id }, { $set: { paymentId: result.paymentId } });
+    }
     return persistRefundResult(booking._id, claimed._id, claimed.amount, result);
   } catch (err) {
     const afterError = await listRefundsSafe(paymentId, deps);
@@ -620,7 +625,12 @@ async function settlePaidRefund(
   }
   return completeRefundAfterClaim(
     booking,
-    { _id: claimed._id, paymentId: claimed.paymentId || opts.paymentId, amount: claimed.amount },
+    {
+      _id: claimed._id,
+      paymentId: claimed.paymentId || opts.paymentId,
+      orderId: claimed.orderId,
+      amount: claimed.amount,
+    },
     deps
   );
 }
