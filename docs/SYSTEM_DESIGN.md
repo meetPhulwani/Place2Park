@@ -328,12 +328,12 @@ erDiagram
 
 **Verified** — `services/email.ts`, `services/notify.ts`, `auth.controller.ts`
 
-- SMTP if `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` are set. From: `EMAIL_FROM` or `SMTP_USER`. Port 465 → implicit TLS. Production refuses reserved/placeholder sender or recipient domains (`.test`, `.example`, `parkly.dev`). Admin payout-request mail uses `ADMIN_NOTIFICATION_EMAIL` only.
-- Password reset: send link, or log full URL only in development when SMTP is unset. Never log the raw token when SMTP is configured. Delivery failure → 503, not a fake success. Unknown emails still get 200.
-- `notify()` always writes `Notification`; emails only if SMTP configured and `user.notifyEmail !== false`. Failures log `describeSmtpError` (code/command/responseCode only).
+- Resend HTTPS if `RESEND_API_KEY` is set (`POST https://api.resend.com/emails`). SMTP (`SMTP_HOST`/`PORT`/`USER`/`PASS`) is used only when no Resend key is set. From: `EMAIL_FROM` or `SMTP_USER`. Production refuses reserved/placeholder sender or recipient domains (`.test`, `.example`, `parkly.dev`). Admin payout-request mail uses `ADMIN_NOTIFICATION_EMAIL` only.
+- Password reset: send link, or log full URL only in development when email is unset. Never log the raw token when a provider is configured. Delivery failure → 503, not a fake success. Unknown emails still get 200.
+- `notify()` always writes `Notification`; emails only if Resend or SMTP is configured and `user.notifyEmail !== false`. Failures log `describeEmailError` (provider status/code only).
 - Used on booking confirm, host new booking, cancel.
 
-**Proposed:** do not treat SMTP as optional in production boot if reset email is a product requirement.
+**Proposed:** do not treat outbound email as optional in production boot if reset email is a product requirement.
 
 ---
 
@@ -354,7 +354,7 @@ Never commit or paste real values. Names only.
 | `GOOGLE_CLIENT_SECRET` | Render | unused by GIS ID-token flow |
 | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` | Render | checkout + refunds |
 | `RAZORPAY_WEBHOOK_SECRET` | Render | webhook + refund events; **required in production** |
-| `EMAIL_FROM`, `ADMIN_NOTIFICATION_EMAIL`, `SMTP_*` | Render | password-reset + notify mail; admin payout alerts |
+| `EMAIL_FROM`, `ADMIN_NOTIFICATION_EMAIL`, `RESEND_API_KEY`, `SMTP_*` | Render | password-reset + notify mail; Resend preferred; admin payout alerts |
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Render | listing photos; required in production |
 
 **Client** (Vite, **inlined at build time**)

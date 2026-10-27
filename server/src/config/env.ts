@@ -18,6 +18,7 @@ export const env = {
   EMAIL_FROM: process.env.EMAIL_FROM ?? "",
   ADMIN_NOTIFICATION_EMAIL: process.env.ADMIN_NOTIFICATION_EMAIL ?? "",
   SMTP_TEST_RECIPIENT: process.env.SMTP_TEST_RECIPIENT ?? "",
+  RESEND_API_KEY: process.env.RESEND_API_KEY ?? "",
   SMTP_HOST: process.env.SMTP_HOST ?? "",
   SMTP_PORT: Number(process.env.SMTP_PORT ?? 0),
   SMTP_USER: process.env.SMTP_USER ?? "",

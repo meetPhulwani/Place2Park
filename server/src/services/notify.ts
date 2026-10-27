@@ -1,10 +1,10 @@
 import { Notification, User } from "../models/index.js";
 import { env, isProd } from "../config/env.js";
 import {
-  describeSmtpError,
+  describeEmailError,
   evaluateEmailDeliveryConfig,
+  isEmailConfigured,
   isPlaceholderEmail,
-  isSmtpConfigured,
   sendMail,
 } from "./email.js";
 
@@ -22,7 +22,7 @@ export type NotificationType =
 
 /**
  * Notification abstraction: always persists in-app; sends email only when
- * SMTP credentials are configured (provider-agnostic boundary).
+ * Resend or SMTP is configured (provider-agnostic boundary).
  */
 export async function notify(
   userId: string,
@@ -36,18 +36,18 @@ export async function notify(
 }
 
 async function sendEmailIfConfigured(userId: string, subject: string, text: string) {
-  if (!isSmtpConfigured()) return;
+  if (!isEmailConfigured()) return;
   const report = evaluateEmailDeliveryConfig(env, isProd);
   if (isProd && !report.sendEnabled) return;
   try {
     const user = await User.findById(userId).select("email notifyEmail");
     if (!user?.email || user.notifyEmail === false) return;
     if (isPlaceholderEmail(user.email)) {
-      console.warn(`[smtp] skipped user notification; stored address uses a placeholder domain`);
+      console.warn("[email] skipped user notification; stored address uses a placeholder domain");
       return;
     }
     await sendMail({ to: user.email, subject, text });
   } catch (e) {
-    console.error(`[smtp] notify failed: ${describeSmtpError(e)}`);
+    console.error(`[email] notify failed: ${describeEmailError(e)}`);
   }
 }

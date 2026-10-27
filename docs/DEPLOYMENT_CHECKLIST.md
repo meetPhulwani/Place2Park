@@ -24,13 +24,14 @@ Do not run `npx tsx src/scripts/ensure-indexes.ts --apply` as part of this deplo
 | `CLOUDINARY_API_SECRET` | Yes | |
 | `GOOGLE_CLIENT_ID` | If Google login is offered | Must match the client GIS client id |
 | `GOOGLE_CLIENT_SECRET` | No for GIS ID-token login | Unused by `POST /api/auth/google` |
-| `EMAIL_FROM` | Yes if SMTP is used | Real mailbox or `Name <addr@your-domain>`. `.test` / `.example` / `parkly.dev` disable sending |
+| `EMAIL_FROM` | Yes if sending mail | Verified Resend sender, e.g. `Place2Park <hello@your-domain>`. `.test` / `.example` / `parkly.dev` disable sending |
 | `ADMIN_NOTIFICATION_EMAIL` | Yes for payout-request alerts | Real ops inbox. Never `parkly.test` or other placeholders |
-| `SMTP_TEST_RECIPIENT` | Optional | Allowlisted inbox for the explicit SMTP probe. Defaults to `ADMIN_NOTIFICATION_EMAIL` |
-| `SMTP_HOST` | Yes if sending mail | Production forgot-password returns 503 if SMTP is unset |
-| `SMTP_PORT` | Yes if sending mail | `587` STARTTLS or `465` implicit TLS |
-| `SMTP_USER` | Yes if sending mail | |
-| `SMTP_PASS` | Yes if sending mail | Never log |
+| `RESEND_API_KEY` | Yes for production mail on Render | Resend HTTPS API key. Preferred over SMTP (Render often times out Gmail SMTP). Never log |
+| `SMTP_TEST_RECIPIENT` | Optional | Allowlisted inbox for the explicit email probe. Defaults to `ADMIN_NOTIFICATION_EMAIL` |
+| `SMTP_HOST` | Optional fallback | Ignored when `RESEND_API_KEY` is set. Production forgot-password returns 503 if neither Resend nor SMTP is set |
+| `SMTP_PORT` | Optional fallback | `587` STARTTLS or `465` implicit TLS |
+| `SMTP_USER` | Optional fallback | |
+| `SMTP_PASS` | Optional fallback | Never log |
 
 Never put Razorpay or Cloudinary secrets in the Vercel client env.
 
@@ -101,7 +102,7 @@ Use test mode or a single controlled live booking — not a script that creates 
 7. Let a `PENDING` hold expire: booking `EXPIRED`, occupancy free. Order cancel may be `cancelled`, `unsupported`, or `skipped`; a later `payment.captured` must refund, not confirm over a taken slot.
 8. Admin payouts: list shows `****last4` only. Reveal is admin-only, writes an `AdminAudit` row with last4 only (`GET /api/admin/payouts/:id/destination-audits`). Hide / refresh / leave the tab clears the on-screen number.
 9. Host listing photo upload lands under `place2park/listings/{userId}/`. Saving another host’s publicId does not delete their Cloudinary asset.
-10. SMTP probe (optional, explicit only): set `ADMIN_NOTIFICATION_EMAIL` or `SMTP_TEST_RECIPIENT` to your inbox, then either `npx tsx src/scripts/send-smtp-test.ts --to you@your-domain --confirm` from `server/` or `POST /api/admin/email/test` as an admin with `{ "confirm": true, "to": "you@your-domain" }`. Do not omit `--confirm`. The route is admin-authenticated and rate-limited. It never emails user records or `.test` fixtures.
+10. Email probe (optional, explicit only): set `RESEND_API_KEY` plus `EMAIL_FROM` (verified Resend domain) and `ADMIN_NOTIFICATION_EMAIL` or `SMTP_TEST_RECIPIENT` to your inbox, then either `npx tsx src/scripts/send-smtp-test.ts --to you@your-domain --confirm` from `server/` or `POST /api/admin/email/test` as an admin with `{ "confirm": true, "to": "you@your-domain" }`. Do not omit `--confirm`. The route is admin-authenticated and rate-limited. It never emails user records or `.test` fixtures. Confirm Render logs show `[email] Resend accepted`, not `SMTP ETIMEDOUT`.
 
 ## 6. Rollback
 

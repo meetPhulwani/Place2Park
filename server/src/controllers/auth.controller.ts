@@ -6,7 +6,7 @@ import { User } from "../models/index.js";
 import { ApiError } from "../middleware/error.js";
 import { signToken, type AuthedRequest } from "../middleware/auth.js";
 import { env, isProd } from "../config/env.js";
-import { deliverPasswordResetLink, isSmtpConfigured } from "../services/email.js";
+import { deliverPasswordResetLink, isEmailConfigured } from "../services/email.js";
 import { resolveGoogleAccountLink } from "../services/auth-accounts.js";
 
 function issueToken(user: { _id: unknown; tokenVersion?: number | null }) {
@@ -92,8 +92,8 @@ export async function googleLogin(req: Request, res: Response) {
 /** Always responds success when no send is attempted; never reveals whether the email exists. */
 export async function forgotPassword(req: Request, res: Response) {
   const email = String((req.body as { email?: string }).email ?? "").toLowerCase().trim();
-  if (!isSmtpConfigured() && isProd) {
-    console.error("[smtp] password-reset skipped: SMTP is not configured");
+  if (!isEmailConfigured() && isProd) {
+    console.error("[email] password-reset skipped: email is not configured");
     throw new ApiError(503, "We couldn't send the reset email. Try again shortly.");
   }
   if (email) {

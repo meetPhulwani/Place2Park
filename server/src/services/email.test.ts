@@ -7,10 +7,14 @@ import {
   evaluateEmailDeliveryConfig,
   extractEmailAddress,
   isPlaceholderEmail,
+  describeEmailError,
+  isEmailConfigured,
+  isResendConfigured,
   isSmtpConfigured,
   sendMail,
   sendSmtpTestMessage,
   smtpTransportOptions,
+  RESEND_EMAILS_URL,
 } from "./email.js";
 
 describe("SMTP env wiring", () => {
@@ -22,6 +26,7 @@ describe("SMTP env wiring", () => {
     assert.equal(typeof env.EMAIL_FROM, "string");
     assert.equal(typeof env.ADMIN_NOTIFICATION_EMAIL, "string");
     assert.equal(typeof env.SMTP_TEST_RECIPIENT, "string");
+    assert.equal(typeof env.RESEND_API_KEY, "string");
   });
 
   it("treats SMTP as configured only when host, port, user, and pass are present", () => {
@@ -120,7 +125,7 @@ describe("password-reset email delivery", () => {
           send: async () => undefined,
           log: (msg) => logs.push(msg),
         }),
-      /SMTP is not configured/
+      /Email is not configured/
     );
     assert.equal(
       logs.some((line) => line.includes(token) || line.includes("reset-password?token=")),
@@ -297,5 +302,162 @@ describe("explicit SMTP test message", () => {
       /configured test recipient/i
     );
     assert.equal(sent.length, 0);
+  });
+});
+
+const resendOnly = {
+  SMTP_HOST: "",
+  SMTP_PORT: 0,
+  SMTP_USER: "",
+  SMTP_PASS: "",
+  RESEND_API_KEY: "re_test_secret_should_never_appear",
+  EMAIL_FROM: "Place2Park <hello@place2park.app>",
+  ADMIN_NOTIFICATION_EMAIL: "ops@place2park.app",
+};
+
+function jsonResponse(status: number, body: unknown): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => body,
+  } as Response;
+}
+
+describe("Resend HTTPS delivery", () => {
+  it("treats a Resend API key as configured email even without SMTP", () => {
+    assert.equal(isResendConfigured(resendOnly), true);
+    assert.equal(isEmailConfigured(resendOnly), true);
+    assert.equal(isSmtpConfigured(resendOnly), false);
+    assert.equal(
+      isEmailConfigured({
+        SMTP_HOST: "",
+        SMTP_PORT: 0,
+        SMTP_USER: "",
+        SMTP_PASS: "",
+        RESEND_API_KEY: "",
+      }),
+      false
+    );
+    const report = evaluateEmailDeliveryConfig(resendOnly, true);
+    assert.equal(report.sendEnabled, true);
+    assert.equal(report.adminNotifyEnabled, true);
+  });
+
+  it("sends through the Resend HTTPS API and does not use SMTP", async () => {
+    const calls: { url: string; init: RequestInit }[] = [];
+    const logs: string[] = [];
+    await sendMail(
+      { to: "driver@place2park.app", subject: "Booking confirmed 🎉", text: "Your parking is confirmed." },
+      {
+        cfg: resendOnly,
+        isProd: true,
+        log: (line) => logs.push(line),
+        fetch: async (url, init) => {
+          calls.push({ url, init });
+          return jsonResponse(200, { id: "msg_1" });
+        },
+      }
+    );
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0]?.url, RESEND_EMAILS_URL);
+    const body = JSON.parse(String(calls[0]?.init.body));
+    assert.equal(body.from, resendOnly.EMAIL_FROM);
+    assert.deepEqual(body.to, ["driver@place2park.app"]);
+    assert.equal(body.subject, "Booking confirmed 🎉");
+    assert.equal(body.text, "Your parking is confirmed.");
+    assert.match(String((calls[0]?.init.headers as { Authorization?: string }).Authorization), /Bearer re_/);
+    assert.equal(logs.some((line) => line.includes("re_test_secret_should_never_appear")), false);
+  });
+
+  it("maps provider errors without logging the API key or message body", async () => {
+    const logs: string[] = [];
+    await assert.rejects(
+      () =>
+        sendMail(
+          { to: "driver@place2park.app", subject: "Booking cancelled", text: "secret booking body NEFT999" },
+          {
+            cfg: resendOnly,
+            isProd: true,
+            log: (line) => logs.push(line),
+            fetch: async () => jsonResponse(403, { name: "validation_error", message: "domain not verified NEFT999" }),
+          }
+        ),
+      /Resend 403/
+    );
+    const described = describeEmailError(
+      Object.assign(new Error("Resend 403 validation_error"), {
+        provider: "resend",
+        status: 403,
+        name: "validation_error",
+      })
+    );
+    assert.match(described, /Resend/);
+    assert.match(described, /403/);
+    assert.doesNotMatch(described, /re_test_secret_should_never_appear/);
+    assert.doesNotMatch(described, /NEFT999/);
+    assert.equal(logs.some((line) => line.includes("re_test_secret_should_never_appear")), false);
+    assert.equal(logs.some((line) => line.includes("NEFT999")), false);
+  });
+
+  it("times out a hung Resend request without treating it as sent", async () => {
+    await assert.rejects(
+      () =>
+        sendMail(
+          { to: "driver@place2park.app", subject: "Host payout", text: "paid" },
+          {
+            cfg: resendOnly,
+            isProd: true,
+            timeoutMs: 25,
+            fetch: () => new Promise(() => undefined),
+          }
+        ),
+      /timeout contacting Resend/i
+    );
+  });
+
+  it("refuses to send when no Resend key or SMTP transport is configured", async () => {
+    await assert.rejects(
+      () =>
+        sendMail(
+          { to: "driver@place2park.app", subject: "Reset", text: "link" },
+          {
+            cfg: {
+              SMTP_HOST: "",
+              SMTP_PORT: 0,
+              SMTP_USER: "",
+              SMTP_PASS: "",
+              RESEND_API_KEY: "",
+              EMAIL_FROM: "Place2Park <hello@place2park.app>",
+            },
+            isProd: true,
+          }
+        ),
+      /Email is not configured/
+    );
+  });
+
+  it("skips placeholder recipients on the Resend path and does not call the provider", async () => {
+    const calls: unknown[] = [];
+    const warnings: string[] = [];
+    await assert.rejects(
+      () =>
+        sendMail(
+          { to: "host-payout@parkly.test", subject: "Payout", text: "paid ref NEFT123" },
+          {
+            cfg: resendOnly,
+            isProd: true,
+            fetch: async (url, init) => {
+              calls.push({ url, init });
+              return jsonResponse(200, { id: "should-not-send" });
+            },
+            log: (line) => warnings.push(line),
+          }
+        ),
+      /placeholder|deliverable/i
+    );
+    assert.equal(calls.length, 0);
+    assert.equal(warnings.some((line) => /placeholder|parkly\.test/i.test(line)), true);
+    assert.equal(warnings.some((line) => line.includes("re_test_secret_should_never_appear")), false);
+    assert.equal(warnings.some((line) => line.includes("NEFT123")), false);
   });
 });
