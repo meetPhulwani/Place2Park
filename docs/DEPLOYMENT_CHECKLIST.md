@@ -101,8 +101,9 @@ Use test mode or a single controlled live booking — not a script that creates 
 6. Refunded **CONFIRMED** whose window already ended: slot is free; status is not `ACTIVE`.
 7. Let a `PENDING` hold expire: booking `EXPIRED`, occupancy free. Order cancel may be `cancelled`, `unsupported`, or `skipped`; a later `payment.captured` must refund, not confirm over a taken slot.
 8. Admin payouts: list shows `****last4` only. Reveal is admin-only, writes an `AdminAudit` row with last4 only (`GET /api/admin/payouts/:id/destination-audits`). Hide / refresh / leave the tab clears the on-screen number.
-9. Host listing photo upload lands under `place2park/listings/{userId}/`. Saving another host’s publicId does not delete their Cloudinary asset.
-10. Email probe (optional, explicit only): set `RESEND_API_KEY` plus `EMAIL_FROM` (verified Resend domain) and `ADMIN_NOTIFICATION_EMAIL` or `SMTP_TEST_RECIPIENT` to your inbox, then either `npx tsx src/scripts/send-smtp-test.ts --to you@your-domain --confirm` from `server/` or `POST /api/admin/email/test` as an admin with `{ "confirm": true, "to": "you@your-domain" }`. Do not omit `--confirm`. The route is admin-authenticated and rate-limited. It never emails user records or `.test` fixtures. Confirm Render logs show `[email] Resend accepted`, not `SMTP ETIMEDOUT`.
+9. Host listing photo upload lands under `place2park/listings/{userId}/`. Saving another host’s publicId does not delete their Cloudinary asset. Pasting an off-origin image URL on listing save is rejected.
+10. After the SPA deploy, confirm Vercel sends `Content-Security-Policy` and `X-Frame-Options: DENY`. Google sign-in, Maps search, listing photos, and Razorpay checkout still load. No production env vars need to change for these headers.
+11. Email probe (optional, explicit only): set `RESEND_API_KEY` plus `EMAIL_FROM` (verified Resend domain) and `ADMIN_NOTIFICATION_EMAIL` or `SMTP_TEST_RECIPIENT` to your inbox, then either `npx tsx src/scripts/send-smtp-test.ts --to you@your-domain --confirm` from `server/` or `POST /api/admin/email/test` as an admin with `{ "confirm": true, "to": "you@your-domain" }`. Do not omit `--confirm`. The route is admin-authenticated and rate-limited. It never emails user records or `.test` fixtures. Confirm Render logs show `[email] Resend accepted`, not `SMTP ETIMEDOUT`.
 
 ## 6. Rollback
 
@@ -117,7 +118,7 @@ Use test mode or a single controlled live booking — not a script that creates 
 - Reconcile processes at most 50 unpaid expired holds per request. A large backlog needs traffic or a later operator pass.
 - Search still expires pending holds on read. A quiet site can delay both expiry visibility and order-cancel retries.
 - A refunded **ACTIVE** stay occupies until `end`. That is intentional.
-- Stolen Cloudinary **URLs** can still be displayed if pasted without a publicId.
+- Listing image URLs are limited to `/demo`, `/uploads`, and the configured Cloudinary delivery host. Older off-origin URLs stay in Mongo until a host save, which then rejects them.
 - There is no self-serve “link Google after password login” flow.
 - Reveal audit is Mongo-backed but there is no admin UI for the audit list yet (`GET /api/admin/payouts/:id/destination-audits` only).
 - Unique indexes may still be missing on Atlas until a reviewed `--apply`.

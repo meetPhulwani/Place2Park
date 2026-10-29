@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isAllowedListingImageUrl } from "../services/media.js";
 import { ALLOWED_DURATIONS_MINS, LEVELS, PROPERTY_TYPES, REPORT_REASONS, VEHICLE_TYPES } from "./constants.js";
 
 export const signupSchema = z.object({
@@ -111,7 +112,10 @@ export const listingSchema = z
     images: z
       .array(
         z.object({
-          url: z.string().min(1),
+          url: z
+            .string()
+            .min(1)
+            .refine((url) => isAllowedListingImageUrl(url), "Use an uploaded Parkly photo."),
           alt: z.string().default(""),
           publicId: z
             .string()

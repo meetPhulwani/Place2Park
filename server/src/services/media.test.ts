@@ -3,10 +3,12 @@ import { describe, it } from "node:test";
 import { ApiError } from "../middleware/error.js";
 import {
   cloudinaryConfigured,
+  isAllowedListingImageUrl,
   persistListingImages,
   removedCloudinaryPublicIds,
   sanitizeListingImages,
   uploadListingImage,
+  validateUploadFile,
 } from "./media.js";
 
 const jpeg = {
@@ -153,5 +155,56 @@ describe("listing image persistence vs cloud destroy", () => {
       ),
       ["place2park/listings/a"]
     );
+  });
+});
+
+describe("upload magic-byte validation", () => {
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+  const webp = Buffer.concat([Buffer.from("RIFF"), Buffer.from([0x0c, 0, 0, 0]), Buffer.from("WEBP")]);
+  const gif = Buffer.from("GIF89aXXXXXXXX");
+
+  it("accepts JPEG, PNG, and WebP signatures that match the declared MIME type", () => {
+    assert.doesNotThrow(() => validateUploadFile(jpeg));
+    assert.doesNotThrow(() => validateUploadFile({ buffer: png, mimetype: "image/png", size: png.length }));
+    assert.doesNotThrow(() => validateUploadFile({ buffer: webp, mimetype: "image/webp", size: webp.length }));
+  });
+
+  it("rejects a GIF labeled as JPEG", () => {
+    assert.throws(
+      () => validateUploadFile({ buffer: gif, mimetype: "image/jpeg", size: gif.length }),
+      (err: unknown) => err instanceof ApiError && err.status === 400
+    );
+  });
+});
+
+describe("listing image URL allowlist", () => {
+  const opts = { cloudName: "demo" };
+
+  it("allows demo, upload, and configured Cloudinary delivery URLs", () => {
+    assert.equal(isAllowedListingImageUrl("/demo/p1.svg", opts), true);
+    assert.equal(isAllowedListingImageUrl("/uploads/ab12cd34.jpg", opts), true);
+    assert.equal(
+      isAllowedListingImageUrl("https://res.cloudinary.com/demo/image/upload/v1/place2park/listings/abc.jpg", opts),
+      true
+    );
+  });
+
+  it("rejects off-origin, traversal, and non-https image URLs", () => {
+    assert.equal(isAllowedListingImageUrl("https://evil.example/track.jpg", opts), false);
+    assert.equal(isAllowedListingImageUrl("https://res.cloudinary.com/other/image/upload/v1/x.jpg", opts), false);
+    assert.equal(isAllowedListingImageUrl("http://res.cloudinary.com/demo/image/upload/v1/x.jpg", opts), false);
+    assert.equal(isAllowedListingImageUrl("javascript:alert(1)", opts), false);
+    assert.equal(isAllowedListingImageUrl("/uploads/../secret.jpg", opts), false);
+    assert.equal(isAllowedListingImageUrl("/demo/nested/path.svg", opts), false);
+  });
+
+  it("drops disallowed URLs when sanitizing a listing save", () => {
+    const host = "bbbbbbbbbbbbbbbbbbbbbbbb";
+    const sanitized = sanitizeListingImages(host, [], [
+      { url: "https://evil.example/track.jpg" },
+      { url: "/demo/p1.svg" },
+    ]);
+    assert.equal(sanitized[0]?.url, "");
+    assert.equal(sanitized[1]?.url, "/demo/p1.svg");
   });
 });

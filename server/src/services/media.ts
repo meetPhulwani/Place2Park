@@ -11,6 +11,10 @@ export const ALLOWED_UPLOAD_TYPES: Record<string, string> = {
   "image/webp": ".webp",
 };
 
+const JPEG_SIGNATURE = Buffer.from([0xff, 0xd8, 0xff]);
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const CLOUDINARY_HOST = "res.cloudinary.com";
+
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 export const CLOUDINARY_FOLDER = "place2park/listings";
 export const UPLOAD_ERROR_MESSAGE = "Upload a JPEG, PNG or WebP image up to 5 MB.";
@@ -38,6 +42,56 @@ export function isAllowedUploadMime(mime: string | undefined): boolean {
   return Boolean(mime && ALLOWED_UPLOAD_TYPES[mime]);
 }
 
+export function matchesUploadSignature(mimetype: string | undefined, buffer: Buffer | undefined): boolean {
+  if (!mimetype || !buffer) return false;
+  if (mimetype === "image/jpeg") {
+    return buffer.length >= JPEG_SIGNATURE.length && buffer.subarray(0, JPEG_SIGNATURE.length).equals(JPEG_SIGNATURE);
+  }
+  if (mimetype === "image/png") {
+    return buffer.length >= PNG_SIGNATURE.length && buffer.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE);
+  }
+  if (mimetype === "image/webp") {
+    return (
+      buffer.length >= 12 &&
+      buffer.toString("ascii", 0, 4) === "RIFF" &&
+      buffer.toString("ascii", 8, 12) === "WEBP"
+    );
+  }
+  return false;
+}
+
+export function isAllowedListingImageUrl(url: string, opts: { cloudName?: string } = {}): boolean {
+  const raw = String(url ?? "").trim();
+  if (!raw || raw.length > 2000) return false;
+  if (raw.includes("\\") || raw.includes("..")) return false;
+
+  if (raw.startsWith("/uploads/")) {
+    return /^[A-Za-z0-9._-]+$/.test(raw.slice("/uploads/".length));
+  }
+  if (raw.startsWith("/demo/")) {
+    return /^[A-Za-z0-9._-]+$/.test(raw.slice("/demo/".length));
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== "https:" || parsed.username || parsed.password) return false;
+  if (parsed.hostname !== CLOUDINARY_HOST) return false;
+
+  const parts = parsed.pathname.split("/").filter(Boolean);
+  if (parts.length < 4) return false;
+  const [cloud, resource, action] = parts;
+  if (!cloud || !/^[A-Za-z0-9_-]+$/.test(cloud)) return false;
+  if (resource !== "image" || action !== "upload") return false;
+
+  const configured = String(opts.cloudName ?? env.CLOUDINARY_CLOUD_NAME ?? "").trim();
+  if (configured && cloud !== configured) return false;
+  return true;
+}
+
 export function isManagedPublicId(publicId?: string): boolean {
   return Boolean(publicId && publicId.startsWith(`${CLOUDINARY_FOLDER}/`));
 }
@@ -62,13 +116,15 @@ export function sanitizeListingImages(
     previous.map((img) => img.publicId).filter((id): id is string => isManagedPublicId(id))
   );
   return next.map((img) => {
+    const url = isAllowedListingImageUrl(img.url) ? img.url : "";
+    if (!url) return { url: "", publicId: "" };
     if (!isManagedPublicId(img.publicId)) {
-      return { url: img.url, ...(img.publicId ? { publicId: img.publicId } : {}) };
+      return { url, ...(img.publicId ? { publicId: img.publicId } : {}) };
     }
     if (previousIds.has(img.publicId!) || isOwnedPublicId(hostId, img.publicId)) {
-      return { url: img.url, publicId: img.publicId };
+      return { url, publicId: img.publicId };
     }
-    return { url: img.url, publicId: "" };
+    return { url, publicId: "" };
   });
 }
 
@@ -80,7 +136,12 @@ export function canDestroyPublicId(hostId: string | undefined, publicId: string)
 
 export function validateUploadFile(file: { mimetype?: string; size?: number; buffer?: Buffer }) {
   const size = file.size ?? file.buffer?.length ?? 0;
-  if (!isAllowedUploadMime(file.mimetype) || size <= 0 || size > MAX_UPLOAD_BYTES) {
+  if (
+    !isAllowedUploadMime(file.mimetype) ||
+    size <= 0 ||
+    size > MAX_UPLOAD_BYTES ||
+    !matchesUploadSignature(file.mimetype, file.buffer)
+  ) {
     throw new ApiError(400, UPLOAD_ERROR_MESSAGE);
   }
 }
@@ -189,6 +250,7 @@ export async function persistListingImages(
   if (deps.hostId) {
     for (let i = 0; i < next.length; i++) {
       next[i]!.publicId = images[i]?.publicId ?? "";
+      next[i]!.url = images[i]?.url ?? "";
     }
   }
   await save();

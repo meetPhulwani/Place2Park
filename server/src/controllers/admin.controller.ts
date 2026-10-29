@@ -1,5 +1,6 @@
 import type { Response } from "express";
 import { Booking, HostPayout, ParkingSpace, Payment, Report, Review, User } from "../models/index.js";
+import { adminDirectoryPayoutFlags } from "../models/User.js";
 import type { AuthedRequest } from "../middleware/auth.js";
 import { ApiError } from "../middleware/error.js";
 import { notify } from "../services/notify.js";
@@ -54,6 +55,7 @@ export async function listUsers(_req: AuthedRequest, res: Response) {
         ...u.toJSON(),
         bookings: b.get(String(u._id)) ?? 0,
         listings: l.get(String(u._id)) ?? 0,
+        ...adminDirectoryPayoutFlags(u),
       })),
     },
   });

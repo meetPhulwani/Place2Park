@@ -20,7 +20,8 @@ interface AdminUser {
   createdAt: string;
   bookings: number;
   listings: number;
-  payoutProfile?: { accountLast4?: string; verified?: boolean };
+  payoutSubmitted?: boolean;
+  payoutVerified?: boolean;
 }
 
 export default function AdminUsersPage() {
@@ -92,8 +93,8 @@ export default function AdminUsersPage() {
                     status={u.status}
                     role={u.role}
                     hostVerified={u.hostVerified}
-                    payoutVerified={!!u.payoutProfile?.verified}
-                    payoutSubmitted={!!u.payoutProfile?.accountLast4}
+                    payoutVerified={!!u.payoutVerified}
+                    payoutSubmitted={!!u.payoutSubmitted}
                     isSelf={u.id === admin?.id}
                     onChanged={load}
                   />

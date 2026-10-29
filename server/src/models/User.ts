@@ -43,8 +43,8 @@ const userSchema = new Schema(
         delete ret.googleId;
         delete ret.resetToken;
         delete ret.resetTokenExpires;
-        const profile = ret.payoutProfile as { accountNumberEnc?: string } | undefined;
-        if (profile) delete profile.accountNumberEnc;
+        // Bank details stay on authorized payout endpoints only.
+        delete ret.payoutProfile;
         return ret;
       },
     },
@@ -53,3 +53,13 @@ const userSchema = new Schema(
 
 export type UserDoc = HydratedDocument<InferSchemaType<typeof userSchema>>;
 export const User = mongoose.model("User", userSchema);
+
+/** Non-PII flags for the admin user directory. Bank details stay on payout endpoints. */
+export function adminDirectoryPayoutFlags(user: {
+  payoutProfile?: { accountLast4?: string | null; verified?: boolean | null } | null;
+}) {
+  return {
+    payoutSubmitted: Boolean(user.payoutProfile?.accountLast4),
+    payoutVerified: Boolean(user.payoutProfile?.verified),
+  };
+}
