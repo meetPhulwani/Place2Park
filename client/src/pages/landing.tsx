@@ -71,7 +71,7 @@ export default function LandingPage() {
             className="absolute inset-0"
             style={{
               backgroundImage:
-                "radial-gradient(ellipse 70% 55% at 65% 0%, rgba(35,151,126,0.28), transparent), radial-gradient(ellipse 45% 45% at 15% 100%, rgba(16,79,68,0.35), transparent)",
+                "radial-gradient(ellipse 70% 55% at 65% 0%, rgba(108,122,137,0.35), transparent), radial-gradient(ellipse 45% 45% at 15% 100%, rgba(31,41,55,0.55), transparent)",
             }}
           />
           <div
@@ -85,12 +85,12 @@ export default function LandingPage() {
           />
           <div className="relative mx-auto max-w-7xl px-4 pb-20 pt-16 sm:px-6 sm:pt-24">
             <div className="max-w-2xl">
-              <p className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-brand-500/30 bg-brand-500/10 px-3 py-1 text-xs font-medium text-brand-300">
+              <p className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-medium text-slate-200">
                 <ShieldCheck className="size-3.5" aria-hidden />
                 Verified private parking · Self-parking only
               </p>
               <h1 className="font-display text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-[3.4rem] lg:leading-[1.08]">
-                Find parking <span className="text-brand-400">before</span> you arrive.
+                Find parking <span className="text-brand-300">before</span> you arrive.
               </h1>
               <p className="mt-4 max-w-xl text-base leading-relaxed text-slate-300 sm:text-lg">
                 Reserve a verified private parking space near your destination — guaranteed for
@@ -150,9 +150,9 @@ export default function LandingPage() {
             ].map((s, i) => (
               <div
                 key={s.title}
-                className="group glass relative rounded-2xl p-6 transition-shadow hover:shadow-card-hover"
+                className="group relative rounded-xl border border-line bg-white p-6 shadow-card"
               >
-                <span className="absolute right-5 top-5 font-display text-4xl font-bold text-slate-100 transition-colors group-hover:text-brand-100">
+                <span className="absolute right-5 top-5 font-display text-4xl font-bold text-page">
                   {i + 1}
                 </span>
                 <div className="mb-4 flex size-11 items-center justify-center rounded-xl bg-brand-50">
@@ -166,7 +166,7 @@ export default function LandingPage() {
         </section>
 
         {/* Benefits */}
-        <section className="border-y border-white/40">
+        <section className="border-y border-line bg-white">
           <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
             <h2 className="font-display text-3xl font-bold tracking-tight text-slate-900">
               Why drivers choose Parkly
@@ -195,7 +195,7 @@ export default function LandingPage() {
                 },
               ].map((b) => (
                 <div key={b.title}>
-                  <div className="glass mb-3 flex size-10 items-center justify-center rounded-xl">
+                  <div className="mb-3 flex size-10 items-center justify-center rounded-lg border border-line bg-page">
                     <b.icon className="size-5 text-brand-700" aria-hidden />
                   </div>
                   <h3 className="text-[15px] font-semibold text-slate-900">{b.title}</h3>
@@ -252,8 +252,8 @@ export default function LandingPage() {
                 ))}
               </ul>
             </div>
-            <div className="glass-dark rounded-3xl p-8 sm:p-10">
-              <p className="text-sm font-medium uppercase tracking-wider text-brand-400">
+            <div className="rounded-xl bg-ink p-8 text-white sm:p-10">
+              <p className="text-sm font-medium uppercase tracking-wider text-brand-300">
                 The Parkly promise
               </p>
               <blockquote className="mt-4 font-display text-2xl font-semibold leading-snug text-white">
@@ -268,7 +268,7 @@ export default function LandingPage() {
                   ["1 tap", "navigation to your spot"],
                 ].map(([big, small]) => (
                   <div key={small} className="rounded-2xl bg-white/8 p-4 ring-1 ring-white/10">
-                    <p className="font-display text-2xl font-bold text-brand-300">{big}</p>
+                    <p className="font-display text-2xl font-bold text-white">{big}</p>
                     <p className="mt-1 text-xs text-slate-400">{small}</p>
                   </div>
                 ))}
@@ -278,11 +278,11 @@ export default function LandingPage() {
         </section>
 
         {/* Host value prop */}
-        <section id="host-earnings" className="border-y border-slate-200 bg-brand-950 scroll-mt-20">
+        <section id="host-earnings" className="scroll-mt-20 border-y border-line bg-ink">
           <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
             <div className="grid items-center gap-12 lg:grid-cols-2">
               <div>
-                <p className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-brand-500/40 bg-brand-500/10 px-3 py-1 text-xs font-medium text-brand-300">
+                <p className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-medium text-slate-200">
                   <Wallet className="size-3.5" aria-hidden />
                   For hosts
                 </p>
@@ -302,20 +302,20 @@ export default function LandingPage() {
                     "Track bookings and earnings in a clean dashboard",
                   ].map((t) => (
                     <li key={t} className="flex items-center gap-2.5">
-                      <ShieldCheck className="size-4 shrink-0 text-brand-400" aria-hidden />
+                      <ShieldCheck className="size-4 shrink-0 text-brand-300" aria-hidden />
                       {t}
                     </li>
                   ))}
                 </ul>
                 <Link
                   href="/become-a-host"
-                  className="mt-8 inline-flex items-center gap-2 rounded-xl bg-brand-500 px-5 py-3 text-sm font-semibold text-brand-950 transition-colors hover:bg-brand-400"
+                  className="mt-8 inline-flex items-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-semibold text-ink transition-colors hover:bg-page"
                 >
                   Start earning from your space
                   <ArrowRight className="size-4" aria-hidden />
                 </Link>
               </div>
-              <div className="glass-dark rounded-3xl p-8">
+              <div className="rounded-xl border border-white/10 bg-white/5 p-8">
                 <p className="text-sm text-slate-400">Example: one covered spot in Bandra</p>
                 <div className="mt-4 space-y-3">
                   {[
@@ -333,7 +333,7 @@ export default function LandingPage() {
                   ))}
                   <div className="flex items-center justify-between pt-1">
                     <span className="text-sm font-semibold text-white">Your estimated earnings</span>
-                    <span className="font-display text-2xl font-bold text-brand-300">
+                    <span className="font-display text-2xl font-bold text-white">
                       ₹7,128<span className="text-sm font-medium text-slate-400">/month</span>
                     </span>
                   </div>
@@ -367,7 +367,7 @@ export default function LandingPage() {
               <Link
                 key={a.name}
                 href={`/search?q=${encodeURIComponent(a.name)}`}
-                className="group glass flex items-center justify-between rounded-2xl p-5 transition-all hover:shadow-card-hover"
+                className="group flex items-center justify-between rounded-xl border border-line bg-white p-5 shadow-card transition-colors hover:border-brand-300"
               >
                 <div className="flex items-center gap-3.5">
                   <div className="flex size-10 items-center justify-center rounded-xl bg-slate-100 transition-colors group-hover:bg-brand-50">
@@ -394,7 +394,7 @@ export default function LandingPage() {
               {faqs.map((f) => (
                 <details
                   key={f.q}
-                  className="group glass rounded-2xl px-5 open:pb-4"
+                  className="group rounded-xl border border-line bg-white px-5 open:pb-4"
                 >
                   <summary className="flex cursor-pointer list-none items-center justify-between py-4 text-[15px] font-medium text-slate-900 [&::-webkit-details-marker]:hidden">
                     {f.q}
@@ -409,7 +409,7 @@ export default function LandingPage() {
 
         {/* CTA */}
         <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
-          <div className="glass-dark rounded-3xl px-6 py-14 text-center sm:px-14">
+          <div className="rounded-xl bg-ink px-6 py-14 text-center text-white sm:px-14">
             <h2 className="mx-auto max-w-xl font-display text-3xl font-bold tracking-tight text-white">
               Never circle the block again.
             </h2>
@@ -420,7 +420,7 @@ export default function LandingPage() {
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Link
                 href="/search"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-6 py-3 text-sm font-semibold text-brand-950 transition-colors hover:bg-brand-400 sm:w-auto"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white px-6 py-3 text-sm font-semibold text-ink transition-colors hover:bg-page sm:w-auto"
               >
                 <Search className="size-4" aria-hidden />
                 Find parking now

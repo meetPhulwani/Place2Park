@@ -29,12 +29,14 @@ export function StatCard({
   const Icon: LucideIcon = typeof icon === "string" ? ICONS[icon] : icon;
   return (
     <Card className={cn("p-5", className)}>
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-slate-500">{label}</p>
-        <Icon className="size-4.5 text-slate-300" aria-hidden />
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm font-medium text-muted">{label}</p>
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-50">
+          <Icon className="size-4 text-brand-600" aria-hidden />
+        </span>
       </div>
-      <p className="mt-2 font-display text-2xl font-bold text-slate-900">{value}</p>
-      {hint && <p className="mt-1 text-xs text-slate-400">{hint}</p>}
+      <p className="mt-3 font-display text-2xl font-semibold tracking-tight text-ink">{value}</p>
+      {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
     </Card>
   );
 }

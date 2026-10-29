@@ -39,7 +39,7 @@ export function MockMapView({
     <div
       role="application"
       aria-label="Map of parking spaces (offline preview)"
-      className={cn("relative overflow-hidden bg-[#eef2ee]", className)}
+      className={cn("relative overflow-hidden bg-[#F3F4F6]", className)}
     >
       {/* Abstract terrain texture */}
       <div
@@ -47,7 +47,7 @@ export function MockMapView({
         className="absolute inset-0"
         style={{
           backgroundImage:
-            "linear-gradient(rgba(100,116,139,0.10) 1px, transparent 1px), linear-gradient(90deg, rgba(100,116,139,0.10) 1px, transparent 1px), radial-gradient(circle at 20% 30%, rgba(35,151,126,0.07) 0 18%, transparent 22%), radial-gradient(circle at 75% 65%, rgba(59,130,180,0.08) 0 22%, transparent 26%)",
+            "linear-gradient(rgba(100,116,139,0.10) 1px, transparent 1px), linear-gradient(90deg, rgba(100,116,139,0.10) 1px, transparent 1px), radial-gradient(circle at 20% 30%, rgba(108,122,137,0.08) 0 18%, transparent 22%), radial-gradient(circle at 75% 65%, rgba(100,116,139,0.08) 0 22%, transparent 26%)",
           backgroundSize: "44px 44px, 44px 44px, 100% 100%, 100% 100%",
         }}
       />

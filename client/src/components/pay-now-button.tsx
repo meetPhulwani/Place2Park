@@ -63,7 +63,7 @@ export function PayNowButton({ bookingId, bookingCode, onPaid }: Props) {
           description: `Booking ${order.bookingCode || bookingCode}`,
           order_id: order.orderId,
           prefill: { name: user?.name ?? "", email: user?.email ?? "", contact: user?.phone ?? "" },
-          theme: { color: "#0f6353" },
+          theme: { color: "#6C7A89" },
           handler: (response) => {
             api
               .post("/payments/verify", {

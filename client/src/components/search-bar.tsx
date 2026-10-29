@@ -56,7 +56,7 @@ export function SearchBar({
       role="search"
       aria-label="Search parking"
       className={cn(
-        "glass-strong w-full overflow-visible rounded-2xl p-2",
+        "w-full overflow-visible rounded-xl border border-line bg-white p-2 shadow-card",
         compact ? "flex flex-col gap-2" : "grid gap-2 sm:grid-cols-[1.6fr_1fr_0.8fr_1fr_auto]"
       )}
     >
@@ -64,7 +64,7 @@ export function SearchBar({
         <label htmlFor="search-destination" className="sr-only">
           Destination
         </label>
-        <div className="flex items-center gap-2 rounded-xl bg-white/40 px-3">
+        <div className="flex items-center gap-2 rounded-lg bg-page px-3">
           <MapPin className="size-4 shrink-0 text-slate-400" aria-hidden />
           <PlacesAutocomplete
             id="search-destination"
@@ -92,7 +92,7 @@ export function SearchBar({
           value={date}
           min={toDateInputValue(new Date())}
           onChange={(e) => setDate(e.target.value)}
-          className="h-11 w-full rounded-xl bg-white/40 px-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+          className="h-11 w-full rounded-lg bg-page px-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand-500/30"
         />
       </div>
       <div>
@@ -104,7 +104,7 @@ export function SearchBar({
           type="time"
           value={time}
           onChange={(e) => setTime(e.target.value)}
-          className="h-11 w-full rounded-xl bg-white/40 px-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+          className="h-11 w-full rounded-lg bg-page px-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand-500/30"
         />
       </div>
       <div>
@@ -115,7 +115,7 @@ export function SearchBar({
           id="search-duration"
           value={duration}
           onChange={(e) => setDuration(Number(e.target.value))}
-          className="h-11 w-full appearance-none rounded-xl bg-white/40 px-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+          className="h-11 w-full appearance-none rounded-lg bg-page px-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand-500/30"
         >
           {ALLOWED_DURATIONS_MINS.map((m) => (
             <option key={m} value={m}>

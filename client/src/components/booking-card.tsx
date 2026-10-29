@@ -41,13 +41,13 @@ export function BookingCard({ booking }: { booking: BookingWithSpace }) {
   const space = spaceOf(booking);
   const img = space.images?.[0]?.url;
   return (
-    <div className="glass flex gap-4 rounded-2xl p-4 transition-shadow hover:shadow-card-hover">
-      <div className="relative hidden size-24 shrink-0 overflow-hidden rounded-xl bg-slate-100 sm:block">
+    <div className="flex gap-4 rounded-xl border border-line bg-white p-4 shadow-card">
+      <div className="relative hidden size-24 shrink-0 overflow-hidden rounded-lg bg-page sm:block">
         {img && <Image src={img} alt="" fill sizes="96px" className="object-cover" />}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="truncate text-[15px] font-semibold text-slate-900">{space.title}</h3>
+          <h3 className="truncate text-[15px] font-semibold text-ink">{space.title}</h3>
           <BookingStatusBadge status={booking.status} />
         </div>
         <p className="mt-0.5 flex items-center gap-1 text-sm text-slate-500">
@@ -65,7 +65,7 @@ export function BookingCard({ booking }: { booking: BookingWithSpace }) {
         <div className="mt-3 flex items-center gap-4">
           <Link
             href={`/bookings/${booking.id}`}
-            className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:text-brand-800"
+            className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-800"
           >
             Details <ArrowRight className="size-3.5" aria-hidden />
           </Link>

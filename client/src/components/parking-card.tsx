@@ -28,9 +28,9 @@ export function ParkingCard({
       onMouseEnter={() => onHover?.(space.id)}
       onMouseLeave={() => onHover?.(null)}
       className={cn(
-        "group glass block overflow-hidden rounded-2xl transition-all duration-200",
-        "hover:-translate-y-0.5 hover:shadow-card-hover",
-        selected && "ring-2 ring-brand-500/45 shadow-card-hover"
+        "group block overflow-hidden rounded-xl border border-line bg-white shadow-card transition-colors",
+        "hover:border-brand-300",
+        selected && "border-brand-500 ring-1 ring-brand-500"
       )}
       data-space-id={space.id}
     >
@@ -41,7 +41,7 @@ export function ParkingCard({
             alt={space.title}
             fill
             sizes="(max-width: 640px) 100vw, 400px"
-            className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+            className="object-cover"
           />
         ) : (
           <div className="flex h-full items-center justify-center text-slate-300">
@@ -50,7 +50,7 @@ export function ParkingCard({
         )}
         <div className="absolute left-3 top-3 flex gap-1.5">
           {space.verified && (
-            <Badge variant="brand" className="bg-white/80 backdrop-blur-md">
+            <Badge variant="brand" className="bg-white">
               <BadgeCheck className="size-3" aria-hidden />
               Verified
             </Badge>
@@ -59,14 +59,14 @@ export function ParkingCard({
             <Badge variant="danger">Unavailable for this slot</Badge>
           )}
         </div>
-        <div className="glass-dark absolute bottom-3 right-3 rounded-lg px-2.5 py-1 text-sm font-semibold">
+        <div className="absolute bottom-3 right-3 rounded-lg bg-ink px-2.5 py-1 text-sm font-semibold text-white">
           {formatINR(space.pricePerHour)}
           <span className="text-xs font-normal text-slate-300">/hr</span>
         </div>
       </div>
       <div className="p-4">
         <div className="flex items-start justify-between gap-2">
-          <h3 className="line-clamp-1 text-[15px] font-semibold text-slate-900">{space.title}</h3>
+          <h3 className="line-clamp-1 text-[15px] font-semibold text-ink">{space.title}</h3>
         </div>
         <p className="mt-0.5 flex items-center gap-1.5 text-sm text-slate-500">
           <MapPin className="size-3.5 shrink-0 text-slate-400" aria-hidden />

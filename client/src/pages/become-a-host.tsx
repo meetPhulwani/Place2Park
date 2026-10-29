@@ -72,7 +72,7 @@ export default function BecomeAHostPage() {
               body: "Every booking is paid online before arrival. Self-parking only, no keys.",
             },
           ].map((c) => (
-            <div key={c.title} className="glass rounded-2xl p-5">
+            <div key={c.title} className="rounded-xl border border-line bg-white p-5 shadow-card">
               <c.icon className="size-6 text-brand-700" aria-hidden />
               <h2 className="mt-3 text-[15px] font-semibold text-slate-900">{c.title}</h2>
               <p className="mt-1 text-sm text-slate-500">{c.body}</p>

@@ -122,8 +122,8 @@ export default function SearchPage() {
             mobileView === "map" && "hidden lg:flex"
           )}
         >
-          <div className="glass-strong flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.5rem]">
-            <div className="relative z-20 space-y-3 overflow-visible border-b border-white/40 p-3 sm:p-4">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-line bg-white shadow-card">
+            <div className="relative z-20 space-y-3 overflow-visible border-b border-line p-3 sm:p-4">
               <SearchBar
                 compact
                 defaults={{
@@ -194,7 +194,7 @@ export default function SearchPage() {
         <div className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] left-1/2 z-30 -translate-x-1/2 lg:hidden">
           <button
             onClick={() => setMobileView((v) => (v === "list" ? "map" : "list"))}
-            className="glass-dark flex items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold"
+            className="flex items-center gap-2 rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white shadow-pop"
           >
             {mobileView === "list" ? (
               <>

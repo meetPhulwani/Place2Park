@@ -65,7 +65,7 @@ export function UserMenu({
       {open && (
         <div
           role="menu"
-          className="glass-strong absolute right-0 mt-2 w-60 rounded-2xl p-1.5 animate-scale-in"
+          className="absolute right-0 mt-2 w-60 rounded-xl border border-line bg-white p-1.5 shadow-pop"
         >
           <div className="border-b border-slate-100 px-3 py-2.5">
             <p className="truncate text-sm font-semibold text-slate-900">{name}</p>
@@ -78,7 +78,7 @@ export function UserMenu({
                 href={it.href}
                 role="menuitem"
                 onClick={() => setOpen(false)}
-                className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-white/55"
+                className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-ink transition-colors hover:bg-page"
               >
                 <it.icon className="size-4 text-slate-400" aria-hidden />
                 {it.label}
@@ -139,14 +139,14 @@ export function MobileMenu({
       <button
         onClick={() => setOpen(true)}
         aria-label="Open menu"
-        className="rounded-xl p-2 text-slate-600 transition-colors hover:bg-white/50"
+        className="rounded-lg p-2 text-muted transition-colors hover:bg-page"
       >
         <Menu className="size-5" />
       </button>
       {open && (
         <div className="fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm animate-fade-in" onClick={() => setOpen(false)} />
-          <div className="glass-strong absolute inset-y-0 right-0 w-[300px] p-5 animate-slide-up">
+          <div className="absolute inset-0 bg-ink/40" onClick={() => setOpen(false)} />
+          <div className="absolute inset-y-0 right-0 w-[300px] border-l border-line bg-white p-5 shadow-pop">
             <div className="mb-4 flex items-center justify-between">
               <span className="font-display text-lg font-bold text-slate-900">Menu</span>
               <button

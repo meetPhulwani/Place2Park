@@ -2,13 +2,13 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const styles = {
-  neutral: "glass-chip text-slate-700",
-  brand: "border border-brand-200/70 bg-brand-50/80 text-brand-800 backdrop-blur-md",
-  success: "border border-emerald-200/70 bg-emerald-50/80 text-emerald-700 backdrop-blur-md",
-  warning: "border border-amber-200/70 bg-amber-50/80 text-amber-800 backdrop-blur-md",
-  danger: "border border-red-200/70 bg-red-50/80 text-red-700 backdrop-blur-md",
-  info: "border border-sky-200/70 bg-sky-50/80 text-sky-700 backdrop-blur-md",
-  outline: "glass-chip text-slate-600",
+  neutral: "border border-line bg-page text-ink",
+  brand: "border border-brand-200 bg-brand-50 text-brand-800",
+  success: "border border-emerald-200 bg-emerald-50 text-emerald-800",
+  warning: "border border-amber-200 bg-amber-50 text-amber-800",
+  danger: "border border-red-200 bg-red-50 text-red-700",
+  info: "border border-slate-200 bg-slate-50 text-slate-700",
+  outline: "border border-line bg-white text-muted",
 } as const;
 
 export function Badge({
@@ -19,7 +19,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap",
+        "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium whitespace-nowrap",
         styles[variant],
         className
       )}

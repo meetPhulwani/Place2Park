@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "@/components/link";
 import { useAuth } from "@/context/auth";
 import { Logo } from "./brand";
@@ -7,9 +8,9 @@ export function Navbar() {
   const { user } = useAuth();
 
   return (
-    <header className="sticky top-0 z-40 px-3 pt-3 sm:px-4">
+    <header className="sticky top-0 z-40 border-b border-line bg-white">
       <nav
-        className="glass-strong mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 rounded-2xl px-3 sm:h-16 sm:px-5"
+        className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-4 sm:h-16 sm:px-6"
         aria-label="Primary"
       >
         <Logo />
@@ -34,13 +35,13 @@ export function Navbar() {
             <>
               <Link
                 href="/login"
-                className="hidden rounded-xl px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-white/50 sm:block"
+                className="hidden rounded-lg px-4 py-2 text-sm font-medium text-muted transition-colors hover:bg-page hover:text-ink sm:block"
               >
                 Log in
               </Link>
               <Link
                 href="/signup"
-                className="rounded-xl bg-brand-700 px-4 py-2 text-sm font-medium text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.22)] transition-colors hover:bg-brand-800"
+                className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-600"
               >
                 Sign up
               </Link>
@@ -57,11 +58,11 @@ export function Navbar() {
   );
 }
 
-function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
+function NavLink({ href, children }: { href: string; children: ReactNode }) {
   return (
     <Link
       href={href}
-      className="rounded-xl px-3.5 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-white/50 hover:text-slate-900"
+      className="rounded-lg px-3.5 py-2 text-sm font-medium text-muted transition-colors hover:bg-page hover:text-ink"
     >
       {children}
     </Link>

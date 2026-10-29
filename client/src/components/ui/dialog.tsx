@@ -41,7 +41,7 @@ export function Dialog({
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
       <div
-        className="absolute inset-0 bg-slate-950/35 backdrop-blur-[6px] animate-fade-in"
+        className="absolute inset-0 bg-ink/40"
         onClick={onClose}
         aria-hidden
       />
@@ -52,7 +52,7 @@ export function Dialog({
         aria-label={title}
         tabIndex={-1}
         className={cn(
-          "glass-strong relative z-10 w-full max-w-md rounded-t-3xl p-6 outline-none animate-slide-up sm:rounded-3xl",
+          "relative z-10 w-full max-w-md rounded-t-xl border border-line bg-white p-6 shadow-pop outline-none sm:rounded-xl",
           className
         )}
       >

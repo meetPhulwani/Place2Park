@@ -617,7 +617,7 @@ export function ListingWizard({
                           days[i] = { ...d, enabled: e.target.checked };
                           set({ days });
                         }}
-                        className="size-4 rounded accent-[#0f6353]"
+                        className="size-4 rounded accent-[#6C7A89]"
                       />
                       {DAY_NAMES[d.day]}
                     </label>
@@ -782,7 +782,7 @@ export function ListingWizard({
                 type="checkbox"
                 checked={data.selfParkingConfirmed}
                 onChange={(e) => set({ selfParkingConfirmed: e.target.checked })}
-                className="mt-0.5 size-4 rounded accent-[#0f6353]"
+                className="mt-0.5 size-4 rounded accent-[#6C7A89]"
               />
               <span>
                 I understand that drivers park their own vehicles and I will not request their keys.
@@ -816,7 +816,7 @@ export function ListingWizard({
                             : data.rules.filter((r) => r !== rule),
                         })
                       }
-                      className="size-4 rounded accent-[#0f6353]"
+                      className="size-4 rounded accent-[#6C7A89]"
                     />
                     {rule}
                     {rule === COMMON_RULES[0] && (

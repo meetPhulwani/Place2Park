@@ -52,9 +52,9 @@ export function GoogleMapView({
       const isSelected = m.id === selectedId;
       const icon = {
         path: "M -22,-14 a 6 6 0 0 1 6,-6 h 32 a 6 6 0 0 1 6,6 v 12 a 6 6 0 0 1 -6,6 h -10 l -6,7 -6,-7 h -10 a 6 6 0 0 1 -6,-6 z",
-        fillColor: isSelected ? "#0f6353" : "#ffffff",
+        fillColor: isSelected ? "#6C7A89" : "#ffffff",
         fillOpacity: 1,
-        strokeColor: isSelected ? "#0f6353" : "#cbd5e1",
+        strokeColor: isSelected ? "#6C7A89" : "#E5E7EB",
         strokeWeight: 1.5,
         scale: 1,
         labelOrigin: new google.maps.Point(0, -8),
