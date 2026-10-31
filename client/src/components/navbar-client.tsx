@@ -5,10 +5,14 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/auth";
 import {
   Menu, X, LayoutDashboard, CalendarClock, History, Heart, User,
-  Building2, LogOut, Search, ShieldCheck,
+  Building2, LogOut, ShieldCheck,
 } from "lucide-react";
 import { Avatar } from "./ui/avatar";
 import { cn } from "@/lib/utils";
+
+export function showHostDashboardLink(role?: string | null) {
+  return !!role && ["HOST", "BOTH", "ADMIN"].includes(role);
+}
 
 export function UserMenu({
   name,
@@ -107,12 +111,10 @@ export function UserMenu({
 
 export function MobileMenu({
   loggedIn,
-  isHost,
-  isAdmin,
+  role,
 }: {
   loggedIn: boolean;
-  isHost: boolean;
-  isAdmin: boolean;
+  role?: string;
 }) {
   const [open, setOpen] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
@@ -133,7 +135,6 @@ export function MobileMenu({
   }, [open]);
 
   const links = [
-    { href: "/search", label: "Find parking", icon: Search },
     ...(loggedIn
       ? [
           { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -143,10 +144,10 @@ export function MobileMenu({
           { href: "/profile", label: "Profile", icon: User },
         ]
       : []),
-    isHost
-      ? { href: "/host", label: "Host dashboard", icon: Building2 }
-      : { href: "/become-a-host", label: "Become a host", icon: Building2 },
-    ...(isAdmin ? [{ href: "/admin", label: "Admin", icon: ShieldCheck }] : []),
+    ...(showHostDashboardLink(loggedIn ? role : null)
+      ? [{ href: "/host", label: "Host dashboard", icon: Building2 }]
+      : []),
+    ...(role === "ADMIN" ? [{ href: "/admin", label: "Admin", icon: ShieldCheck }] : []),
   ];
 
   return (

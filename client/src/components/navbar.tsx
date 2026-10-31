@@ -3,11 +3,12 @@ import { useLocation } from "react-router-dom";
 import Link from "@/components/link";
 import { useAuth } from "@/context/auth";
 import { Logo } from "./brand";
-import { UserMenu, MobileMenu } from "./navbar-client";
+import { UserMenu, MobileMenu, showHostDashboardLink } from "./navbar-client";
 import { cn } from "@/lib/utils";
 
 export function Navbar({ overlay }: { overlay?: boolean }) {
   const { user } = useAuth();
+  const showHostDashboard = showHostDashboardLink(user?.role);
 
   return (
     <header
@@ -18,18 +19,15 @@ export function Navbar({ overlay }: { overlay?: boolean }) {
       )}
     >
       <nav
-        className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-4 sm:h-16 sm:px-6"
+        className="flex h-14 w-full items-center justify-between gap-4 px-4 sm:h-16 sm:px-6 lg:px-8"
         aria-label="Primary"
       >
         <Logo />
-        <div className="hidden items-center gap-1 md:flex">
-          <NavLink href="/search">Find parking</NavLink>
-          {user && ["HOST", "BOTH", "ADMIN"].includes(user.role) ? (
+        {showHostDashboard && (
+          <div className="hidden items-center gap-1 md:flex">
             <NavLink href="/host">Host dashboard</NavLink>
-          ) : (
-            <NavLink href="/become-a-host">Become a host</NavLink>
-          )}
-        </div>
+          </div>
+        )}
         <div className="flex items-center gap-2">
           {user ? (
             <UserMenu
@@ -54,11 +52,7 @@ export function Navbar({ overlay }: { overlay?: boolean }) {
               </Link>
             </>
           )}
-          <MobileMenu
-            loggedIn={!!user}
-            isHost={!!user && ["HOST", "BOTH", "ADMIN"].includes(user.role)}
-            isAdmin={user?.role === "ADMIN"}
-          />
+          <MobileMenu loggedIn={!!user} role={user?.role} />
         </div>
       </nav>
     </header>
