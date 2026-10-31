@@ -5,7 +5,7 @@ import { Logo } from "@/components/brand";
 
 export function AuthLayout() {
   return (
-    <div className="grid min-h-screen lg:grid-cols-[1fr_1.1fr]">
+    <div className="grid min-h-dvh lg:h-dvh lg:grid-cols-[1fr_1.1fr] lg:overflow-hidden">
       <aside className="relative hidden overflow-hidden bg-ink lg:block">
         <div
           aria-hidden
@@ -37,18 +37,20 @@ export function AuthLayout() {
           <p className="text-xs text-slate-500">© {new Date().getFullYear()} Place2Park</p>
         </div>
       </aside>
-      <div className="flex flex-col bg-page px-4 py-8 sm:px-8">
-        <div className="flex items-center justify-between lg:justify-end">
-          <span className="lg:hidden">
-            <Logo />
-          </span>
-          <Link href="/" className="text-sm font-medium text-muted hover:text-ink">
-            ← Back to home
-          </Link>
-        </div>
-        <div className="flex flex-1 items-center justify-center py-10">
-          <div className="w-full max-w-sm rounded-xl border border-line bg-white p-6 shadow-card sm:p-8">
-            <Outlet />
+      <div className="min-h-dvh bg-page lg:h-full lg:min-h-0 lg:overflow-y-auto">
+        <div className="flex min-h-dvh flex-col px-4 py-8 sm:px-8 lg:min-h-full">
+          <div className="flex items-center justify-between lg:justify-end">
+            <span className="lg:hidden">
+              <Logo />
+            </span>
+            <Link href="/" className="text-sm font-medium text-muted hover:text-ink">
+              ← Back to home
+            </Link>
+          </div>
+          <div className="flex flex-1 items-center justify-center py-10">
+            <div className="w-full max-w-sm rounded-xl border border-line bg-white p-6 shadow-card sm:p-8">
+              <Outlet />
+            </div>
           </div>
         </div>
       </div>
