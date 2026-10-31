@@ -140,8 +140,13 @@ export default function SignupPage() {
       await api.post("/auth/signup", { ...form, role, otp });
       navigate("/login?registered=1");
     } catch (e2) {
+      const status = e2 instanceof AxiosError ? e2.response?.status : null;
+      if (status === 409 && /email or password/i.test(errorMessage(e2, ""))) {
+        setFormError("Invalid email or password.");
+        return;
+      }
       const flat = fieldErrorsFrom(e2);
-      if (flat) setErrors(flat);
+      if (flat && Object.keys(flat).length) setErrors(flat);
       else setFormError(errorMessage(e2, "Couldn't create your account."));
     } finally {
       setLoading(false);
@@ -165,6 +170,11 @@ export default function SignupPage() {
           Change
         </button>
       </p>
+      {formError && (
+        <p role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-800">
+          {formError}
+        </p>
+      )}
 
       <div className="mt-6 space-y-4">
         {googleEnabled && (
@@ -278,7 +288,6 @@ export default function SignupPage() {
             />
             <FieldError error={errors.confirmPassword} />
           </div>
-          <FieldError error={formError ?? undefined} />
           <Button type="submit" variant="accent" size="lg" className="w-full" loading={loading}>
             Create account
           </Button>

@@ -38,12 +38,20 @@ export async function signup(req: Request, res: Response) {
     otp: string;
   };
   const existing = await User.findOne({ email });
-  if (existing) throw new ApiError(409, "An account with this email already exists.");
+  if (existing) throw new ApiError(409, "Invalid email or password.");
   const existingPhone = await User.findOne({ phone });
   if (existingPhone) throw new ApiError(409, "An account with this phone number already exists.");
   await consumePhoneOtp(phone, otp);
   const passwordHash = await bcrypt.hash(password, 10);
-  const user = await User.create({ name, email, passwordHash, role, phone, phoneVerified: true });
+  let user;
+  try {
+    user = await User.create({ name, email, passwordHash, role, phone, phoneVerified: true });
+  } catch (err) {
+    if (typeof err === "object" && err !== null && (err as { code?: number }).code === 11000) {
+      throw new ApiError(409, "Invalid email or password.");
+    }
+    throw err;
+  }
   res.status(201).json({ success: true, data: { token: issueToken(user), user: publicUser(user) } });
 }
 
