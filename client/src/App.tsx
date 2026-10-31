@@ -10,6 +10,7 @@ import LandingPage from "@/pages/landing";
 import LoginPage from "@/pages/auth/login";
 import SignupRolePage from "@/pages/auth/signup-role";
 import SignupPage from "@/pages/auth/signup";
+import VerifyEmailPage from "@/pages/auth/verify-email";
 import ForgotPasswordPage from "@/pages/auth/forgot-password";
 import ResetPasswordPage from "@/pages/auth/reset-password";
 import SearchPage from "@/pages/search";
@@ -60,6 +61,7 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupRolePage />} />
           <Route path="/signup/account" element={<SignupPage />} />
+          <Route path="/signup/verify-email" element={<VerifyEmailPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
         </Route>

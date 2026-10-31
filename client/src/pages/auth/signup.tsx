@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label, FieldError } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { GoogleButton } from "@/components/google-button";
+import { saveEmailOtpChallenge } from "@/lib/google-auth";
 import type { SignupRole } from "@/pages/auth/signup-role";
 
 const googleEnabled = !!import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -52,15 +53,9 @@ export default function SignupPage() {
   const role = isSignupRole(chosen) ? chosen : null;
   const [form, setForm] = React.useState({ name: "", email: "", password: "", phone: "" });
   const [confirmPassword, setConfirmPassword] = React.useState("");
-  const [otp, setOtp] = React.useState("");
-  const [sentTo, setSentTo] = React.useState<string | null>(null);
-  const [codeFor, setCodeFor] = React.useState<string | null>(null);
-  const [cooldownUntil, setCooldownUntil] = React.useState<number | null>(null);
-  const [secondsLeft, setSecondsLeft] = React.useState(0);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [formError, setFormError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
-  const [sending, setSending] = React.useState(false);
 
   React.useEffect(() => {
     document.title = "Sign up · Place2Park";
@@ -69,18 +64,6 @@ export default function SignupPage() {
   React.useEffect(() => {
     if (!role) navigate("/signup", { replace: true });
   }, [navigate, role]);
-
-  React.useEffect(() => {
-    if (!cooldownUntil) return;
-    const tick = () => {
-      const left = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000));
-      setSecondsLeft(left);
-      if (left === 0) setCooldownUntil(null);
-    };
-    tick();
-    const id = window.setInterval(tick, 250);
-    return () => window.clearInterval(id);
-  }, [cooldownUntil]);
 
   function fieldErrorsFrom(e2: unknown) {
     const fieldErrors =
@@ -93,43 +76,16 @@ export default function SignupPage() {
     return flat;
   }
 
-  const codeSent = sentTo === form.phone;
-  const frozen = codeSent && secondsLeft > 0;
-
-  async function sendCode() {
-    setFormError(null);
-    if (!isIndianMobile(form.phone)) {
-      setErrors((prev) => ({ ...prev, phone: "Enter a valid 10-digit mobile number." }));
-      return;
-    }
-    if (sentTo === form.phone && secondsLeft > 0) return;
-    setCodeFor(form.phone);
-    setOtp("");
-    setSending(true);
-    try {
-      await api.post("/auth/phone-otp", { phone: form.phone });
-      setSentTo(form.phone);
-      setCooldownUntil(Date.now() + 60_000);
-      setErrors((prev) => ({ ...prev, phone: "", otp: "" }));
-    } catch (e2) {
-      const flat = fieldErrorsFrom(e2);
-      if (flat?.phone) setErrors((prev) => ({ ...prev, phone: flat.phone }));
-      else setErrors((prev) => ({ ...prev, phone: errorMessage(e2, "Couldn't send the verification code.") }));
-    } finally {
-      setSending(false);
-    }
-  }
-
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFormError(null);
     const next: Record<string, string> = {};
+    if (form.name.trim().length < 2) next.name = "Enter your name.";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) next.email = "Enter a valid email.";
     const passwordError = passwordIssue(form.password);
     if (passwordError) next.password = passwordError;
     if (form.password !== confirmPassword) next.confirmPassword = "Passwords do not match.";
     if (!isIndianMobile(form.phone)) next.phone = "Enter a valid 10-digit mobile number.";
-    else if (sentTo !== form.phone) next.phone = "Send a verification code to your contact number.";
-    else if (!/^\d{6}$/.test(otp)) next.otp = "Enter the 6-digit code.";
     if (Object.keys(next).length) {
       setErrors(next);
       return;
@@ -137,8 +93,9 @@ export default function SignupPage() {
     setErrors({});
     setLoading(true);
     try {
-      await api.post("/auth/signup", { ...form, role, otp });
-      navigate("/login?registered=1");
+      const { data } = await api.post("/auth/signup", { ...form, role });
+      saveEmailOtpChallenge(data.data);
+      navigate("/signup/verify-email");
     } catch (e2) {
       const status = e2 instanceof AxiosError ? e2.response?.status : null;
       if (status === 409 && /email or password/i.test(errorMessage(e2, ""))) {
@@ -215,52 +172,18 @@ export default function SignupPage() {
           </div>
           <div>
             <Label htmlFor="phone">Contact number</Label>
-            <div className="flex gap-2">
-              <Input
-                id="phone"
-                type="tel"
-                inputMode="tel"
-                autoComplete="tel"
-                required
-                value={form.phone}
-                onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                placeholder="9876543210"
-                className="min-w-0"
-              />
-              <Button
-                type="button"
-                variant="secondary"
-                className="shrink-0"
-                loading={sending}
-                disabled={frozen}
-                onClick={sendCode}
-              >
-                {frozen ? `Resend in ${secondsLeft}s` : codeSent ? "Resend code" : "Send code"}
-              </Button>
-            </div>
-            <p className="mt-1.5 text-xs text-slate-500">
-              {codeSent
-                ? "Click Resend if you didn't receive it."
-                : "A verification code will be sent to this number."}
-            </p>
+            <Input
+              id="phone"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              required
+              value={form.phone}
+              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+              placeholder="9876543210"
+            />
             <FieldError error={errors.phone} />
           </div>
-          {codeFor === form.phone && (
-            <div>
-              <Label htmlFor="otp">Verification code</Label>
-              <Input
-                id="otp"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                required
-                maxLength={6}
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                placeholder="6-digit code"
-              />
-              <FieldError error={errors.otp} />
-            </div>
-          )}
           <div>
             <Label htmlFor="password">Password</Label>
             <PasswordInput

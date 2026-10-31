@@ -1,7 +1,8 @@
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
 import { api, errorMessage } from "@/services/api";
-import { useAuth } from "@/context/auth";
+import { useAuth, type AuthUser } from "@/context/auth";
+import { googleSignInResult, saveEmailOtpChallenge } from "@/lib/google-auth";
 import { toast } from "./ui/toaster";
 
 interface GsiClient {
@@ -18,8 +19,8 @@ const gsi = () => (window as unknown as { google?: GsiClient }).google;
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 
 /**
- * Google login via Google Identity Services: obtains an ID token in the browser,
- * then the Express backend verifies it and issues the app's JWT.
+ * Google login via Google Identity Services. The backend verifies the ID token.
+ * Existing accounts get a session. New Google users verify an email code first.
  */
 export function GoogleButton({ next }: { next?: string }) {
   const [loading, setLoading] = React.useState(false);
@@ -29,7 +30,14 @@ export function GoogleButton({ next }: { next?: string }) {
   async function handleCredential(credential: string) {
     try {
       const { data } = await api.post("/auth/google", { credential });
-      login(data.data.token, data.data.user);
+      const result = googleSignInResult<AuthUser>(data.data);
+      if (result.kind === "email") {
+        const dest = next && next.startsWith("/") ? next : "/dashboard";
+        saveEmailOtpChallenge(result.challenge, dest);
+        navigate("/signup/verify-email");
+        return;
+      }
+      login(result.token, result.user);
       navigate(next ?? "/dashboard");
     } catch (e) {
       toast.error(errorMessage(e, "Google sign-in failed."));

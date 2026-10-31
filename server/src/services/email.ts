@@ -344,6 +344,27 @@ export async function notifyAdmin(
   }
 }
 
+/** Emails a signup or Google verification code. The code is never written to logs. */
+export async function deliverVerificationCode(
+  input: { email: string; code: string },
+  deps: {
+    send?: (msg: MailMessage) => Promise<unknown>;
+    isProd?: boolean;
+    log?: (msg: string) => void;
+    cfg?: SmtpAuthConfig;
+  } = {}
+): Promise<"sent"> {
+  await sendMail(
+    {
+      to: input.email,
+      subject: "Your Place2Park verification code",
+      text: `Your Place2Park verification code is ${input.code}. It expires in 5 minutes.\n`,
+    },
+    deps
+  );
+  return "sent";
+}
+
 export async function deliverPasswordResetLink(
   input: { email: string; token: string; clientUrl: string },
   deps: {

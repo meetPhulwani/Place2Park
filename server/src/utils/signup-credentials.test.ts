@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { passwordIssue, PASSWORD_MESSAGE } from "./password.js";
 import { normalizeIndianMobile } from "./phone.js";
-import { deliverSignupOtp } from "../services/sms.js";
-import { otpResendWaitMs } from "../services/phone-otp.js";
+import { deliverVerificationCode } from "../services/email.js";
+import { otpResendWaitMs } from "../services/email-otp.js";
 import { signupSchema } from "./validation.js";
 
 describe("signup credentials", () => {
@@ -23,31 +23,28 @@ describe("signup credentials", () => {
     assert.equal(normalizeIndianMobile("5876543210"), null);
   });
 
-  it("rejects a signup that skips the phone code or uses a weak password", () => {
+  it("rejects a weak password or a missing phone and accepts a valid signup", () => {
     const weak = signupSchema.safeParse({
       name: "Aarav Mehta",
       email: "aarav@example.com",
       password: "password",
       phone: "9876543210",
-      otp: "123456",
     });
     assert.equal(weak.success, false);
 
-    const missingCode = signupSchema.safeParse({
+    const missingPhone = signupSchema.safeParse({
       name: "Aarav Mehta",
       email: "aarav@example.com",
       password: "GoodPass1!",
-      phone: "9876543210",
-      otp: "",
+      phone: "",
     });
-    assert.equal(missingCode.success, false);
+    assert.equal(missingPhone.success, false);
 
     const ok = signupSchema.safeParse({
       name: "Aarav Mehta",
       email: "Aarav@Example.com",
       password: "GoodPass1!",
       phone: "9876543210",
-      otp: "123456",
     });
     assert.equal(ok.success, true);
     if (ok.success) {
@@ -56,20 +53,17 @@ describe("signup credentials", () => {
     }
   });
 
-  it("logs a development code only when SMS is not configured", async () => {
+  it("does not write the verification code to logs when email is not configured", async () => {
     const lines: string[] = [];
-    const logged = await deliverSignupOtp("+919876543210", "123456", {
-      isProd: false,
-      cfg: {},
-      log: (msg) => lines.push(msg),
-    });
-    assert.equal(logged, "logged");
-    assert.equal(lines.some((line) => line.includes("123456")), true);
-
     await assert.rejects(
-      () => deliverSignupOtp("+919876543210", "123456", { isProd: true, cfg: {}, log: () => {} }),
-      /SMS is not configured/
+      () =>
+        deliverVerificationCode(
+          { email: "aarav@gmail.com", code: "123456" },
+          { isProd: false, cfg: { SMTP_HOST: "", SMTP_PORT: 0, SMTP_USER: "", SMTP_PASS: "" }, log: (msg) => lines.push(msg) }
+        ),
+      /Email is not configured/
     );
+    assert.equal(lines.some((line) => line.includes("123456")), false);
   });
 
   it("freezes the next code for one minute after a send", () => {
@@ -79,18 +73,29 @@ describe("signup credentials", () => {
     assert.equal(otpResendWaitMs(null), 0);
   });
 
-  it("does not log the code when a sender is configured", async () => {
+  it("sends the code through the mailer without logging it", async () => {
     const lines: string[] = [];
     let sent = "";
-    const result = await deliverSignupOtp("+919876543210", "654321", {
-      isProd: true,
-      send: async (_phone, code) => {
-        sent = code;
-      },
-      log: (msg) => lines.push(msg),
-    });
+    const result = await deliverVerificationCode(
+      { email: "aarav@gmail.com", code: "654321" },
+      {
+        isProd: true,
+        cfg: {
+          SMTP_HOST: "smtp.example.com",
+          SMTP_PORT: 587,
+          SMTP_USER: "mailer@place2park.app",
+          SMTP_PASS: "secret",
+          EMAIL_FROM: "Place2Park <mailer@place2park.app>",
+          RESEND_API_KEY: "re_test",
+        },
+        send: async (msg) => {
+          sent = msg.text;
+        },
+        log: (msg) => lines.push(msg),
+      }
+    );
     assert.equal(result, "sent");
-    assert.equal(sent, "654321");
-    assert.equal(lines.length, 0);
+    assert.equal(sent.includes("654321"), true);
+    assert.equal(lines.some((line) => line.includes("654321")), false);
   });
 });

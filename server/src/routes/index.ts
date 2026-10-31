@@ -15,9 +15,10 @@ import { validate } from "../middleware/validate.js";
 import { asyncHandler } from "../middleware/error.js";
 import { BOOKING_RATE_LIMIT, BOOKING_RATE_WINDOW_MS, rateLimit } from "../utils/rate-limit.js";
 import {
-  blockSlotSchema, bookingRequestSchema, createPaymentOrderSchema, googleLoginSchema,
+  blockSlotSchema, bookingRequestSchema, createPaymentOrderSchema, emailOtpResendSchema,
+  emailOtpVerifySchema, googleLoginSchema,
   listingSchema, loginSchema, payoutNoteSchema, payoutProfileSchema, payoutReferenceSchema,
-  phoneOtpSchema, profileSchema, reportSchema, reviewSchema, signupSchema, smtpTestSchema,
+  profileSchema, reportSchema, reviewSchema, signupSchema, smtpTestSchema,
   vehicleSchema, verifyPaymentSchema,
 } from "../utils/validation.js";
 import { ALLOWED_UPLOAD_TYPES, MAX_UPLOAD_BYTES } from "../services/media.js";
@@ -26,8 +27,9 @@ const r = Router();
 const a = asyncHandler;
 
 // ---- Auth
-r.post("/auth/phone-otp", rateLimit("phone-otp", 5, 10 * 60000), validate(phoneOtpSchema), a(auth.requestPhoneOtp));
 r.post("/auth/signup", rateLimit("signup", 5, 10 * 60000), validate(signupSchema), a(auth.signup));
+r.post("/auth/email-otp/resend", rateLimit("email-otp-resend", 5, 10 * 60000), validate(emailOtpResendSchema), a(auth.requestEmailOtpResend));
+r.post("/auth/email-otp/verify", rateLimit("email-otp-verify", 8, 10 * 60000), validate(emailOtpVerifySchema), a(auth.verifyEmailOtp));
 r.post("/auth/login", rateLimit("login", 10, 10 * 60000), validate(loginSchema), a(auth.login));
 r.post("/auth/google", rateLimit("google", 10, 10 * 60000), validate(googleLoginSchema), a(auth.googleLogin));
 r.get("/auth/me", authenticate, a(auth.me));

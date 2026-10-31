@@ -53,7 +53,7 @@ export default function AdminPaymentsPage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard highlight icon="IndianRupee" label="Collected" value={formatINR(data.collected)} />
+        <StatCard icon="IndianRupee" label="Collected" value={formatINR(data.collected)} />
         <StatCard icon="History" label="Refunded" value={formatINR(data.refunded)} />
         <StatCard icon="Flag" label="Failed payments" value={data.failedCount} />
       </div>

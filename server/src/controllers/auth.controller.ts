@@ -7,8 +7,7 @@ import { ApiError } from "../middleware/error.js";
 import { signToken, type AuthedRequest } from "../middleware/auth.js";
 import { env, isProd } from "../config/env.js";
 import { deliverPasswordResetLink, isEmailConfigured } from "../services/email.js";
-import { resolveGoogleAccountLink } from "../services/auth-accounts.js";
-import { consumePhoneOtp, issuePhoneOtp } from "../services/phone-otp.js";
+import { beginGoogleSignIn, completeEmailOtp, resendEmailOtp, startSignupEmailOtp } from "../services/email-otp.js";
 
 function issueToken(user: { _id: unknown; tokenVersion?: number | null }) {
   return signToken(String(user._id), user.tokenVersion ?? 0);
@@ -22,36 +21,28 @@ function publicUser(u: InstanceType<typeof User>) {
   return u.toJSON();
 }
 
-export async function requestPhoneOtp(req: Request, res: Response) {
-  const { phone } = req.body as { phone: string };
-  await issuePhoneOtp(phone);
-  res.json({ success: true, data: {} });
-}
-
+/** Checks the signup fields and emails a code. The account is created only after that code matches. */
 export async function signup(req: Request, res: Response) {
-  const { name, email, password, role, phone, otp } = req.body as {
+  const { name, email, password, role, phone } = req.body as {
     name: string;
     email: string;
     password: string;
     role: "DRIVER" | "HOST" | "BOTH";
     phone: string;
-    otp: string;
   };
-  const existing = await User.findOne({ email });
-  if (existing) throw new ApiError(409, "Invalid email or password.");
-  const existingPhone = await User.findOne({ phone });
-  if (existingPhone) throw new ApiError(409, "An account with this phone number already exists.");
-  await consumePhoneOtp(phone, otp);
-  const passwordHash = await bcrypt.hash(password, 10);
-  let user;
-  try {
-    user = await User.create({ name, email, passwordHash, role, phone, phoneVerified: true });
-  } catch (err) {
-    if (typeof err === "object" && err !== null && (err as { code?: number }).code === 11000) {
-      throw new ApiError(409, "Invalid email or password.");
-    }
-    throw err;
-  }
+  const challenge = await startSignupEmailOtp({ name, email, password, role, phone });
+  res.json({ success: true, data: challenge });
+}
+
+export async function requestEmailOtpResend(req: Request, res: Response) {
+  const { pendingToken } = req.body as { pendingToken: string };
+  const challenge = await resendEmailOtp(pendingToken);
+  res.json({ success: true, data: challenge });
+}
+
+export async function verifyEmailOtp(req: Request, res: Response) {
+  const { pendingToken, otp } = req.body as { pendingToken: string; otp: string };
+  const user = await completeEmailOtp(pendingToken, otp);
   res.status(201).json({ success: true, data: { token: issueToken(user), user: publicUser(user) } });
 }
 
@@ -66,8 +57,8 @@ export async function login(req: Request, res: Response) {
 }
 
 /**
- * Google login: the client obtains an ID token via Google Identity Services and
- * posts it here; we verify it and create/authenticate the user, then issue our JWT.
+ * Google login: the client obtains an ID token via Google Identity Services.
+ * Existing accounts receive a session. New Google users must verify an email code first.
  */
 export async function googleLogin(req: Request, res: Response) {
   if (!env.GOOGLE_CLIENT_ID) throw new ApiError(503, "Google login isn't configured.");
@@ -80,36 +71,30 @@ export async function googleLogin(req: Request, res: Response) {
   } catch {
     throw new ApiError(401, "Google sign-in failed. Try again.");
   }
-  if (!payload?.email || payload.email_verified !== true)
+  if (!payload?.email || !payload.sub || payload.email_verified !== true)
     throw new ApiError(401, "Google account email is not verified.");
 
-  let user = await User.findOne({ googleId: payload.sub });
-  if (!user) {
-    const byEmail = await User.findOne({ email: payload.email }).select("+googleId +passwordHash");
-    const decision = resolveGoogleAccountLink(
-      byEmail
-        ? { email: byEmail.email, googleId: byEmail.googleId, passwordHash: byEmail.passwordHash }
-        : null,
-      { sub: payload.sub, email: payload.email }
-    );
-    if (decision.action === "conflict" || decision.action === "mismatch") {
-      throw new ApiError(409, "An account with this email already exists. Sign in with your password.");
-    }
-    if (decision.action === "login" && byEmail) {
-      user = byEmail;
-    } else {
-      user = await User.create({
-        name: payload.name ?? payload.email.split("@")[0],
-        email: payload.email,
-        googleId: payload.sub,
-        image: payload.picture,
-        role: "DRIVER",
-      });
-    }
+  const result = await beginGoogleSignIn({
+    sub: payload.sub,
+    email: payload.email,
+    emailVerified: true,
+    name: payload.name,
+    picture: payload.picture,
+  });
+  if (result.kind === "email") {
+    res.json({
+      success: true,
+      data: {
+        emailVerificationRequired: true,
+        pendingToken: result.pendingToken,
+        maskedEmail: result.maskedEmail,
+        expiresAt: result.expiresAt,
+        resendAvailableAt: result.resendAvailableAt,
+      },
+    });
+    return;
   }
-  if (user.status === "SUSPENDED")
-    throw new ApiError(403, "This account has been suspended. Contact support for help.");
-  res.json({ success: true, data: { token: issueToken(user), user: publicUser(user) } });
+  res.json({ success: true, data: { token: issueToken(result.user), user: publicUser(result.user) } });
 }
 
 /** Always responds success when no send is attempted; never reveals whether the email exists. */

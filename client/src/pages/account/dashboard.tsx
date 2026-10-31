@@ -106,7 +106,6 @@ export default function DashboardPage() {
           hint={`${formatINR(stats.totalSpent)} spent in total`}
         />
         <StatCard
-          highlight
           icon="IndianRupee"
           label="Total spent"
           value={stats.totalSpent}

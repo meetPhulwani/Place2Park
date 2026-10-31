@@ -19,7 +19,6 @@ export function StatCard({
   label,
   value,
   hint,
-  highlight,
   format,
   className,
 }: {
@@ -27,7 +26,6 @@ export function StatCard({
   label: string;
   value: string | number;
   hint?: string;
-  highlight?: boolean;
   format?: AnimatedNumberFormat;
   className?: string;
 }) {
@@ -36,11 +34,14 @@ export function StatCard({
   return (
     <Card
       className={cn(
-        "flex h-full flex-col border-t-[3px] p-5 transition-shadow duration-200 hover:shadow-card-hover",
-        highlight ? "border-t-volt" : "border-t-transparent",
+        "group relative flex h-full flex-col border-t-[3px] border-t-transparent p-5 transition-shadow duration-200 [@media(hover:hover)_and_(pointer:fine)]:hover:shadow-card-hover",
         className
       )}
     >
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-[3px] rounded-t-xl bg-volt opacity-0 transition-opacity duration-200 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100"
+      />
       <div className="flex items-start justify-between gap-3">
         <p className="text-sm font-medium text-muted">{label}</p>
         <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-50">

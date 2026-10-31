@@ -24,11 +24,15 @@ export const signupSchema = z.object({
   password: signupPassword,
   role: z.enum(["DRIVER", "HOST", "BOTH"]).default("DRIVER"),
   phone: indianMobile,
-  otp: z.string().regex(/^\d{6}$/, "Enter the 6-digit code"),
 });
 
-export const phoneOtpSchema = z.object({
-  phone: indianMobile,
+export const emailOtpResendSchema = z.object({
+  pendingToken: z.string().trim().min(20),
+});
+
+export const emailOtpVerifySchema = z.object({
+  pendingToken: z.string().trim().min(20),
+  otp: z.string().regex(/^\d{6}$/, "Enter the 6-digit code"),
 });
 
 export const loginSchema = z.object({

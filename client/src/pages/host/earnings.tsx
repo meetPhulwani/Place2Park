@@ -124,7 +124,6 @@ export default function HostEarningsPage() {
         />
         <StatCard
           icon="Wallet"
-          highlight
           label="Eligible to request"
           value={formatINR(data.eligibleAmount)}
           hint={`${data.eligibleCount} completed booking${data.eligibleCount === 1 ? "" : "s"} ready`}

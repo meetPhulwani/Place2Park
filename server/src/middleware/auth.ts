@@ -39,6 +39,7 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
     } catch {
       throw new ApiError(401, "Your session has expired. Please log in again.");
     }
+    if (payload.purpose) throw new ApiError(401, "Your session has expired. Please log in again.");
     const user = await User.findById(payload.sub).select("role status tokenVersion");
     if (!user) throw new ApiError(401, "Account not found.");
     if (!tokenVersionOf(user, payload)) throw new ApiError(401, "Your session has expired. Please log in again.");
@@ -57,6 +58,7 @@ export async function maybeAuthenticate(req: Request, _res: Response, next: Next
   if (!token) return next();
   try {
     const payload = jwt.verify(token, env.JWT_SECRET, { algorithms: ["HS256"] }) as jwt.JwtPayload;
+    if (payload.purpose) return next();
     const user = await User.findById(payload.sub).select("role status tokenVersion");
     if (user && user.status !== "SUSPENDED" && tokenVersionOf(user, payload)) {
       (req as AuthedRequest).userId = String(user._id);

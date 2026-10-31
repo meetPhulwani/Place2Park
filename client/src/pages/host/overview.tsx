@@ -157,7 +157,6 @@ export default function HostDashboardPage() {
         <StatCard icon="CalendarClock" label="Today's bookings" value={data.todays.length} format="integer" />
         <StatCard
           icon="Wallet"
-          highlight
           label="This month"
           value={data.monthEarning}
           format="currency-paise"

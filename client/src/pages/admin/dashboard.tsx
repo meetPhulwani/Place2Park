@@ -78,7 +78,7 @@ export default function AdminDashboardPage() {
           hint={data.pendingListings > 0 ? `${data.pendingListings} awaiting review` : "None awaiting review"}
         />
         <StatCard icon="CalendarClock" label="Bookings this month" value={data.monthBookings} />
-        <StatCard highlight icon="IndianRupee" label="Gross booking value" value={formatINR(data.gmv)} />
+        <StatCard icon="IndianRupee" label="Gross booking value" value={formatINR(data.gmv)} />
         <StatCard
           icon="ShieldCheck"
           label="Platform revenue"
