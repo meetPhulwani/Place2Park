@@ -23,7 +23,7 @@ export default function HostSettingsPage() {
   const [busy, setBusy] = React.useState(false);
 
   React.useEffect(() => {
-    document.title = "Host settings · Parkly";
+    document.title = "Host settings · Place2Park";
     api.get("/host/payout-profile").then(({ data }) => {
       const p = data.data.payoutProfile;
       setProfile(p);

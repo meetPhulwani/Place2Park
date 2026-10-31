@@ -44,7 +44,7 @@ export function ReportDialog({ spaceId, loggedIn }: { spaceId: string; loggedIn:
         open={open}
         onClose={() => setOpen(false)}
         title="Report this listing"
-        description="Reports are reviewed by the Parkly team. The host won't see your identity."
+        description="Reports are reviewed by the Place2Park team. The host won't see your identity."
       >
         <form onSubmit={submit} className="space-y-4">
           <div>

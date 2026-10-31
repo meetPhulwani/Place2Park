@@ -24,7 +24,7 @@ export default function HostListingsPage() {
   }, []);
 
   React.useEffect(() => {
-    document.title = "My listings · Parkly";
+    document.title = "My listings · Place2Park";
     load();
   }, [load]);
 
@@ -58,7 +58,7 @@ export default function HostListingsPage() {
           </p>
         </div>
         <Link href="/host/listings/new">
-          <Button>
+          <Button variant="accent">
             <Plus className="size-4" aria-hidden />
             New listing
           </Button>
@@ -72,7 +72,7 @@ export default function HostListingsPage() {
           description="Add your first parking space — it takes about five minutes."
           action={
             <Link href="/host/listings/new">
-              <Button>Create your first listing</Button>
+              <Button variant="accent">Create your first listing</Button>
             </Link>
           }
         />
@@ -158,7 +158,8 @@ function ListingCard({ listing, onChanged }: { listing: Listing; onChanged: () =
           </p>
         )}
         <p className="mt-0.5 text-sm text-slate-500">
-          {getDisplayLocation(listing)} · {formatINR(listing.pricePerHour)}/hr
+          {getDisplayLocation(listing)} ·{" "}
+          <span className="font-medium text-brand-600">{formatINR(listing.pricePerHour)}/hr</span>
         </p>
         {listing.availabilitySummary && (
           <p className="mt-0.5 truncate text-xs text-slate-400">{listing.availabilitySummary}</p>

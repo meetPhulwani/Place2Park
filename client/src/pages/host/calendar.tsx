@@ -44,7 +44,7 @@ export default function HostCalendarPage() {
   const spaceParam = params.get("space") ?? "";
 
   React.useEffect(() => {
-    document.title = "Calendar · Parkly";
+    document.title = "Calendar · Place2Park";
     const qs = new URLSearchParams({ year: String(year), month: String(month) });
     if (spaceParam) qs.set("spaceId", spaceParam);
     api.get(`/host/calendar?${qs.toString()}`).then(({ data: d }) => setData(d.data)).catch(() => undefined);
@@ -69,7 +69,7 @@ export default function HostCalendarPage() {
           description="Publish a listing first, then manage its availability here."
           action={
             <Link href="/host/listings/new">
-              <Button>Create a listing</Button>
+              <Button variant="accent">Create a listing</Button>
             </Link>
           }
         />
@@ -262,7 +262,7 @@ function CalendarView({
                 <span
                   className={cn(
                     "inline-flex size-6 items-center justify-center rounded-full text-xs font-medium",
-                    isToday ? "bg-brand-700 text-white" : "text-slate-600"
+                    isToday ? "bg-volt text-ink" : "text-slate-600"
                   )}
                 >
                   {d.getDate()}

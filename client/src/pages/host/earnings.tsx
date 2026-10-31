@@ -60,7 +60,7 @@ export default function HostEarningsPage() {
   }, []);
 
   React.useEffect(() => {
-    document.title = "Earnings · Parkly";
+    document.title = "Earnings · Place2Park";
     load();
   }, [load]);
 
@@ -124,6 +124,7 @@ export default function HostEarningsPage() {
         />
         <StatCard
           icon="Wallet"
+          highlight
           label="Eligible to request"
           value={formatINR(data.eligibleAmount)}
           hint={`${data.eligibleCount} completed booking${data.eligibleCount === 1 ? "" : "s"} ready`}
@@ -197,7 +198,7 @@ export default function HostEarningsPage() {
                   {b.total > 0 ? formatINR(b.total) : ""}
                 </span>
                 <div
-                  className="w-full max-w-16 rounded-t-lg bg-brand-600 transition-all"
+                  className="w-full max-w-16 rounded-t-lg bg-brand-500 transition-all"
                   style={{ height: `${Math.max(4, (b.total / maxBucket) * 140)}px` }}
                 />
                 <span className="text-xs text-slate-400">{b.label}</span>

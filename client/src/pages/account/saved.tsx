@@ -12,7 +12,7 @@ export default function SavedPage() {
   const [spaces, setSpaces] = React.useState<SpaceSummary[] | null>(null);
 
   React.useEffect(() => {
-    document.title = "Saved parking · Parkly";
+    document.title = "Saved parking · Place2Park";
     api.get("/favorites").then(({ data }) => setSpaces(data.data.spaces)).catch(() => setSpaces([]));
   }, []);
 
@@ -38,7 +38,7 @@ export default function SavedPage() {
           description="Tap the heart on any parking space to keep it handy here."
           action={
             <Link href="/search">
-              <Button>Browse parking</Button>
+              <Button variant="accent">Browse parking</Button>
             </Link>
           }
         />

@@ -8,6 +8,7 @@ import { AdminLayout } from "@/layouts/admin-layout";
 
 import LandingPage from "@/pages/landing";
 import LoginPage from "@/pages/auth/login";
+import SignupRolePage from "@/pages/auth/signup-role";
 import SignupPage from "@/pages/auth/signup";
 import ForgotPasswordPage from "@/pages/auth/forgot-password";
 import ResetPasswordPage from "@/pages/auth/reset-password";
@@ -57,7 +58,8 @@ export default function App() {
 
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/signup" element={<SignupPage />} />
+          <Route path="/signup" element={<SignupRolePage />} />
+          <Route path="/signup/account" element={<SignupPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
         </Route>

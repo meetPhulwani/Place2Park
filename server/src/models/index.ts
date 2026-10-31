@@ -1,4 +1,5 @@
 export { User, type UserDoc } from "./User.js";
+export { PhoneOtp } from "./PhoneOtp.js";
 export { Vehicle } from "./Vehicle.js";
 export { ParkingSpace, type ParkingSpaceDoc } from "./ParkingSpace.js";
 export { BlockedSlot } from "./BlockedSlot.js";

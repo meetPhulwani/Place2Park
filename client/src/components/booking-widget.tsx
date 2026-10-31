@@ -99,6 +99,11 @@ export function BookingWidget({
   }, [spaceId, date, time, duration]);
 
   async function reserve() {
+    const vehicleNumber = plate.trim();
+    if (vehicleNumber.length < 4) {
+      setError("Enter the vehicle number");
+      return;
+    }
     if (!loggedIn) {
       navigate(`/login?next=/parking/${spaceId}`);
       return;
@@ -111,7 +116,7 @@ export function BookingWidget({
         start: start.toISOString(),
         durationMins: duration,
         vehicleType,
-        vehiclePlate: plate,
+        vehiclePlate: vehicleNumber,
       });
       const bookingId = data.data.bookingId as string;
       navigate(`/bookings/${bookingId}?new=1`);
@@ -137,7 +142,7 @@ export function BookingWidget({
   return (
     <div className="glass-strong rounded-2xl p-5">
       <p className="flex items-baseline gap-1">
-        <span className="font-display text-2xl font-bold text-slate-900">
+        <span className="font-display text-2xl font-bold text-brand-600">
           {formatINR(pricePerHour)}
         </span>
         <span className="text-sm text-slate-500">/hour</span>
@@ -193,15 +198,16 @@ export function BookingWidget({
           </div>
         )}
         <div className={vehicleTypes.length > 1 ? "" : "col-span-2"}>
-          <Label htmlFor="bk-plate" hint="(optional)">
-            Plate no.
-          </Label>
+          <Label htmlFor="bk-vehicle-number">Vehicle number</Label>
           <Input
-            id="bk-plate"
+            id="bk-vehicle-number"
+            required
+            aria-required="true"
             value={plate}
             onChange={(e) => setPlate(e.target.value.toUpperCase())}
             placeholder="MH02AB1234"
             maxLength={15}
+            autoComplete="off"
           />
         </div>
       </div>
@@ -220,6 +226,7 @@ export function BookingWidget({
 
       <Button
         size="lg"
+        variant="accent"
         className="mt-4 w-full"
         onClick={reserve}
         loading={busy}

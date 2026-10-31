@@ -1,441 +1,215 @@
 import * as React from "react";
+import { useNavigate } from "react-router-dom";
 import Link from "@/components/link";
-import {
-  ShieldCheck, MapPin, Clock, IndianRupee, KeyRound, Star, Search,
-  CalendarCheck2, Car, ArrowRight, BadgeCheck, Camera, Wallet,
-} from "lucide-react";
+import { LocateFixed, MapPin } from "lucide-react";
 import { Navbar } from "@/components/navbar";
-import { Footer } from "@/components/footer";
 import { SearchBar } from "@/components/search-bar";
+import { MapView } from "@/components/map/map-view";
+import Image from "@/components/image";
 import { api } from "@/services/api";
+import { useAuth } from "@/context/auth";
+import type { Booking, SpaceSummary } from "@/types";
 import { formatINR } from "@/lib/utils";
+import { getDisplayLocation } from "@/lib/location";
+import {
+  pickRecentPlaces,
+  readRecentPlaces,
+  recentPlaceFromBooking,
+  rememberPlace,
+  type RecentPlace,
+} from "@/lib/recent-places";
 
-const featuredAreas = [
-  { name: "Bandra West", blurb: "Linking Road, Pali Hill & cafés" },
-  { name: "Bandra Kurla Complex (BKC)", blurb: "Offices & business meetings" },
-  { name: "Andheri West", blurb: "Malls, metro & nightlife" },
-  { name: "Powai", blurb: "Hiranandani & lakeside offices" },
-  { name: "Lower Parel", blurb: "High Street Phoenix & mills" },
-  { name: "Dadar", blurb: "Station, markets & events" },
-];
-
-const faqs = [
-  {
-    q: "Is my parking spot guaranteed?",
-    a: "Yes. Once your booking is confirmed and paid, the slot is reserved exclusively for your time window. Double booking is blocked at the database level.",
-  },
-  {
-    q: "Do I hand over my car keys?",
-    a: "Never. Parkly is self-parking only — you drive in, park in your reserved slot, and keep your keys. No valet, no key handover, ever.",
-  },
-  {
-    q: "How do prices work?",
-    a: "Hosts set an hourly price. You see the full breakdown — parking cost plus a small service fee — before you pay. No hidden charges on arrival.",
-  },
-  {
-    q: "Can I cancel a booking?",
-    a: "Yes. Cancel up to an hour before your start time for a full refund. Later cancellations may not be refundable, and the policy is always shown before you book.",
-  },
-  {
-    q: "How do I earn from my empty parking spot?",
-    a: "List your space with photos, availability and an hourly price. Drivers book and pay online; you receive earnings after our platform fee. You stay in control of your calendar.",
-  },
-  {
-    q: "Are the spaces verified?",
-    a: "Listings go through a review process, and verified spaces carry a badge. Ratings and reviews from real bookings keep quality visible.",
-  },
-];
+const MUMBAI = { lat: 19.076, lng: 72.8777 };
 
 export default function LandingPage() {
-  const [stats, setStats] = React.useState<{ count: number; avgPricePerHour: number }>({
-    count: 0,
-    avgPricePerHour: 5000,
-  });
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [origin, setOrigin] = React.useState(MUMBAI);
+  const [spaces, setSpaces] = React.useState<SpaceSummary[]>([]);
+  const [selectedId, setSelectedId] = React.useState<string | null>(null);
+  const [recent, setRecent] = React.useState<RecentPlace[]>(() => pickRecentPlaces([], readRecentPlaces()));
+
   React.useEffect(() => {
-    document.title = "Parkly — Find parking before you arrive";
-    api
-      .get("/parking/stats")
-      .then(({ data }) => setStats(data.data))
-      .catch(() => undefined);
+    document.title = "Place2Park — Find parking before you arrive";
   }, []);
-  const spaceCount = stats.count;
+
+  React.useEffect(() => {
+    const searches = readRecentPlaces();
+    if (!user) {
+      setRecent(pickRecentPlaces([], searches));
+      return;
+    }
+    let cancelled = false;
+    api
+      .get("/bookings?scope=past")
+      .then(({ data }) => {
+        if (cancelled) return;
+        const went = ((data.data.bookings as Booking[]) ?? [])
+          .map(recentPlaceFromBooking)
+          .filter((place): place is RecentPlace => place != null);
+        setRecent(pickRecentPlaces(went, searches));
+      })
+      .catch(() => {
+        if (!cancelled) setRecent(pickRecentPlaces([], searches));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  React.useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setOrigin({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => undefined,
+      { enableHighAccuracy: false, timeout: 4000, maximumAge: 300000 }
+    );
+  }, []);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const qs = new URLSearchParams({
+      lat: String(origin.lat),
+      lng: String(origin.lng),
+      radius: "14",
+      sort: "closest",
+    });
+    api
+      .get(`/parking/search?${qs}`)
+      .then(({ data }) => {
+        if (!cancelled) setSpaces((data.data.results as SpaceSummary[]) ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setSpaces([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [origin]);
+
+  const markers = spaces
+    .filter((s) => Number.isFinite(s.latitude) && Number.isFinite(s.longitude))
+    .map((s) => ({
+      id: s.id,
+      lat: s.latitude,
+      lng: s.longitude,
+      label: formatINR(s.pricePerHour),
+      title: s.title,
+    }));
+
+  const selected = spaces.find((s) => s.id === selectedId) ?? null;
+
+  function locate() {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setOrigin({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => undefined,
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+    );
+  }
 
   return (
-    <>
-      <Navbar />
-      <main>
-        {/* Hero */}
-        <section className="relative overflow-hidden bg-slate-950">
-          <div
-            aria-hidden
-            className="absolute inset-0"
-            style={{
-              backgroundImage:
-                "radial-gradient(ellipse 70% 55% at 65% 0%, rgba(108,122,137,0.35), transparent), radial-gradient(ellipse 45% 45% at 15% 100%, rgba(31,41,55,0.55), transparent)",
-            }}
-          />
-          <div
-            aria-hidden
-            className="absolute inset-0 opacity-[0.35]"
-            style={{
-              backgroundImage:
-                "linear-gradient(rgba(148,163,184,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.08) 1px, transparent 1px)",
-              backgroundSize: "56px 56px",
-            }}
-          />
-          <div className="relative mx-auto max-w-7xl px-4 pb-20 pt-16 sm:px-6 sm:pt-24">
-            <div className="max-w-2xl">
-              <p className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-medium text-slate-200">
-                <ShieldCheck className="size-3.5" aria-hidden />
-                Verified private parking · Self-parking only
+    <div className="relative isolate h-dvh overflow-hidden bg-page">
+      <div className="absolute inset-x-0 top-0 z-40">
+        <Navbar overlay />
+      </div>
+
+      <div className="absolute inset-0 z-0">
+        <MapView
+          markers={markers}
+          center={origin}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+          className="h-full w-full"
+        />
+        <button
+          type="button"
+          onClick={locate}
+          className="absolute right-3 top-[4.75rem] z-20 flex size-10 items-center justify-center rounded-full border border-line bg-white text-brand-600 shadow-card transition-colors hover:bg-brand-50 sm:right-4"
+          aria-label="Use my location"
+        >
+          <LocateFixed className="size-4" aria-hidden />
+        </button>
+      </div>
+
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex flex-col items-stretch">
+        {selected && (
+          <Link
+            href={`/parking/${selected.id}`}
+            className="pointer-events-auto mx-3 mb-2 flex gap-3 rounded-2xl border border-line bg-white p-3 shadow-pop sm:mx-4 sm:w-80 sm:self-end"
+          >
+            <div className="relative size-16 shrink-0 overflow-hidden rounded-xl bg-page">
+              {selected.imageUrl && (
+                <Image src={selected.imageUrl} alt="" fill sizes="64px" className="object-cover" />
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-ink">{selected.title}</p>
+              <p className="mt-0.5 truncate text-xs text-muted">{getDisplayLocation(selected)}</p>
+              <p className="mt-1 text-sm font-semibold text-brand-600">
+                {formatINR(selected.pricePerHour)}
+                <span className="font-normal text-muted">/hr</span>
               </p>
-              <h1 className="font-display text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-[3.4rem] lg:leading-[1.08]">
-                Find parking <span className="text-brand-300">before</span> you arrive.
+            </div>
+          </Link>
+        )}
+        <section className="pointer-events-auto w-full rounded-t-2xl border border-b-0 border-line bg-white px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-pop sm:rounded-t-3xl sm:px-6 sm:pt-5">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <h1 className="font-display text-lg font-semibold tracking-tight text-ink sm:text-xl">
+                Where to?
               </h1>
-              <p className="mt-4 max-w-xl text-base leading-relaxed text-slate-300 sm:text-lg">
-                Reserve a verified private parking space near your destination — guaranteed for
-                your time slot, at a transparent price. Park it yourself and keep your keys.
-              </p>
-            </div>
-            <div className="mt-8 max-w-4xl">
-              <SearchBar />
-            </div>
-            <dl className="mt-10 flex flex-wrap gap-x-10 gap-y-4">
-              {[
-                { k: "Guaranteed slot", v: "Reserved just for you" },
-                { k: `${spaceCount}+ spaces`, v: "Across Mumbai (demo)" },
-                {
-                  k: `From ${formatINR(1500)}/hr`,
-                  v: `Avg ${formatINR(stats.avgPricePerHour)}/hr`,
-                },
-                { k: "No key handover", v: "Self-parking, always" },
-              ].map((s) => (
-                <div key={s.k}>
-                  <dt className="text-sm font-semibold text-white">{s.k}</dt>
-                  <dd className="text-xs text-slate-400">{s.v}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        </section>
-
-        {/* How it works */}
-        <section id="how-it-works" className="mx-auto max-w-7xl scroll-mt-20 px-4 py-20 sm:px-6">
-          <div className="max-w-xl">
-            <h2 className="font-display text-3xl font-bold tracking-tight text-slate-900">
-              Parking, sorted in three steps
-            </h2>
-            <p className="mt-2 text-slate-500">
-              No circling the block. No arguing over street rates. Know exactly where you&apos;ll
-              park before you leave home.
-            </p>
-          </div>
-          <div className="mt-10 grid gap-5 md:grid-cols-3">
-            {[
-              {
-                icon: Search,
-                title: "Search your destination",
-                body: "Enter where you're headed, when, and for how long. See verified spaces nearby with live availability and walking distance.",
-              },
-              {
-                icon: CalendarCheck2,
-                title: "Reserve & pay online",
-                body: "Pick a space, confirm your time slot, and pay securely. The price you see is the price you pay — service fee included upfront.",
-              },
-              {
-                icon: Car,
-                title: "Drive in & park yourself",
-                body: "Show your access code at the gate, park in your reserved slot, and keep your keys. Directions are one tap away.",
-              },
-            ].map((s, i) => (
-              <div
-                key={s.title}
-                className="group relative rounded-xl border border-line bg-white p-6 shadow-card"
-              >
-                <span className="absolute right-5 top-5 font-display text-4xl font-bold text-page">
-                  {i + 1}
-                </span>
-                <div className="mb-4 flex size-11 items-center justify-center rounded-xl bg-brand-50">
-                  <s.icon className="size-5.5 text-brand-700" aria-hidden />
-                </div>
-                <h3 className="text-base font-semibold text-slate-900">{s.title}</h3>
-                <p className="mt-1.5 text-sm leading-relaxed text-slate-500">{s.body}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Benefits */}
-        <section className="border-y border-line bg-white">
-          <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
-            <h2 className="font-display text-3xl font-bold tracking-tight text-slate-900">
-              Why drivers choose Parkly
-            </h2>
-            <div className="mt-10 grid gap-x-8 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
-              {[
-                {
-                  icon: MapPin,
-                  title: "Right where you need it",
-                  body: "Private spaces inside societies, offices and hotels — often closer than any public lot.",
-                },
-                {
-                  icon: Clock,
-                  title: "Guaranteed for your slot",
-                  body: "Your booking blocks the space for your exact window. No one else can take it.",
-                },
-                {
-                  icon: IndianRupee,
-                  title: "Transparent pricing",
-                  body: "Hourly rates and fees shown upfront. Pay online — nothing to settle in cash.",
-                },
-                {
-                  icon: KeyRound,
-                  title: "Keys stay with you",
-                  body: "Strictly self-parking. There is no valet and no key handover, anywhere on Parkly.",
-                },
-              ].map((b) => (
-                <div key={b.title}>
-                  <div className="mb-3 flex size-10 items-center justify-center rounded-lg border border-line bg-page">
-                    <b.icon className="size-5 text-brand-700" aria-hidden />
-                  </div>
-                  <h3 className="text-[15px] font-semibold text-slate-900">{b.title}</h3>
-                  <p className="mt-1 text-sm leading-relaxed text-slate-500">{b.body}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Trust & safety */}
-        <section id="trust" className="mx-auto max-w-7xl scroll-mt-20 px-4 py-20 sm:px-6">
-          <div className="grid items-center gap-12 lg:grid-cols-2">
-            <div>
-              <h2 className="font-display text-3xl font-bold tracking-tight text-slate-900">
-                Built on trust, checked at every step
-              </h2>
-              <p className="mt-3 text-slate-500">
-                Every listing carries its safety details openly — verification status, security
-                features, and reviews from drivers who actually parked there.
-              </p>
-              <ul className="mt-8 space-y-5">
-                {[
-                  {
-                    icon: BadgeCheck,
-                    title: "Verified listings",
-                    body: "Spaces are reviewed before going live. Verified spots carry a visible badge.",
-                  },
-                  {
-                    icon: Star,
-                    title: "Real ratings & reviews",
-                    body: "Only drivers who completed a booking can review — no fake feedback.",
-                  },
-                  {
-                    icon: Camera,
-                    title: "Security details upfront",
-                    body: "CCTV, gated access, guards, covered parking — all visible before you book.",
-                  },
-                  {
-                    icon: KeyRound,
-                    title: "Never hand over your keys",
-                    body: "Self-parking is a platform rule, not a suggestion. Report any listing that asks otherwise.",
-                  },
-                ].map((t) => (
-                  <li key={t.title} className="flex gap-4">
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-50">
-                      <t.icon className="size-5 text-brand-700" aria-hidden />
-                    </div>
-                    <div>
-                      <h3 className="text-[15px] font-semibold text-slate-900">{t.title}</h3>
-                      <p className="mt-0.5 text-sm text-slate-500">{t.body}</p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="rounded-xl bg-ink p-8 text-white sm:p-10">
-              <p className="text-sm font-medium uppercase tracking-wider text-brand-300">
-                The Parkly promise
-              </p>
-              <blockquote className="mt-4 font-display text-2xl font-semibold leading-snug text-white">
-                “Your car, your keys, your reserved spot. We just make sure it&apos;s waiting for
-                you.”
-              </blockquote>
-              <div className="mt-8 grid grid-cols-2 gap-4">
-                {[
-                  ["100%", "prepaid & guaranteed bookings"],
-                  ["0", "key handovers — ever"],
-                  ["24×7", "booking support"],
-                  ["1 tap", "navigation to your spot"],
-                ].map(([big, small]) => (
-                  <div key={small} className="rounded-2xl bg-white/8 p-4 ring-1 ring-white/10">
-                    <p className="font-display text-2xl font-bold text-white">{big}</p>
-                    <p className="mt-1 text-xs text-slate-400">{small}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Host value prop */}
-        <section id="host-earnings" className="scroll-mt-20 border-y border-line bg-ink">
-          <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
-            <div className="grid items-center gap-12 lg:grid-cols-2">
-              <div>
-                <p className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-medium text-slate-200">
-                  <Wallet className="size-3.5" aria-hidden />
-                  For hosts
-                </p>
-                <h2 className="font-display text-3xl font-bold tracking-tight text-white">
-                  Your empty parking spot is money standing still
-                </h2>
-                <p className="mt-3 text-slate-300">
-                  Societies, offices, hotels and individuals list unused spaces on Parkly and earn
-                  from hours that would otherwise go to waste. You set the price, the schedule and
-                  the rules.
-                </p>
-                <ul className="mt-6 space-y-3 text-sm text-slate-300">
-                  {[
-                    "Set your own hourly rate and availability",
-                    "Drivers are prepaid and identity-backed",
-                    "Pause your listing anytime — no lock-in",
-                    "Track bookings and earnings in a clean dashboard",
-                  ].map((t) => (
-                    <li key={t} className="flex items-center gap-2.5">
-                      <ShieldCheck className="size-4 shrink-0 text-brand-300" aria-hidden />
-                      {t}
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  href="/become-a-host"
-                  className="mt-8 inline-flex items-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-semibold text-ink transition-colors hover:bg-page"
-                >
-                  Start earning from your space
-                  <ArrowRight className="size-4" aria-hidden />
-                </Link>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-white/5 p-8">
-                <p className="text-sm text-slate-400">Example: one covered spot in Bandra</p>
-                <div className="mt-4 space-y-3">
-                  {[
-                    ["₹60/hour × 6 booked hrs/day", "₹360/day"],
-                    ["Busy weekdays (22 days/month)", "₹7,920/month"],
-                    ["Host commission (10%)", "− ₹792"],
-                  ].map(([label, value]) => (
-                    <div
-                      key={label}
-                      className="flex items-center justify-between border-b border-white/10 pb-3 text-sm"
-                    >
-                      <span className="text-slate-300">{label}</span>
-                      <span className="font-medium text-white">{value}</span>
-                    </div>
-                  ))}
-                  <div className="flex items-center justify-between pt-1">
-                    <span className="text-sm font-semibold text-white">Your estimated earnings</span>
-                    <span className="font-display text-2xl font-bold text-white">
-                      ₹7,128<span className="text-sm font-medium text-slate-400">/month</span>
-                    </span>
-                  </div>
-                </div>
-                <p className="mt-4 text-xs text-slate-500">
-                  Illustrative example only. Actual earnings depend on location, pricing and demand.
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Featured locations */}
-        <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <h2 className="font-display text-3xl font-bold tracking-tight text-slate-900">
-                Popular in Mumbai
-              </h2>
-              <p className="mt-2 text-slate-500">Neighbourhoods where drivers book the most.</p>
+              <p className="text-xs text-muted sm:text-sm">Reserve a spot before you leave.</p>
             </div>
             <Link
-              href="/search"
-              className="hidden items-center gap-1.5 text-sm font-medium text-brand-700 hover:text-brand-800 sm:inline-flex"
+              href="/become-a-host"
+              className="hidden shrink-0 text-sm font-medium text-brand-600 hover:text-brand-700 sm:inline"
             >
-              Browse all <ArrowRight className="size-4" aria-hidden />
+              List a space
             </Link>
           </div>
-          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {featuredAreas.map((a) => (
-              <Link
-                key={a.name}
-                href={`/search?q=${encodeURIComponent(a.name)}`}
-                className="group flex items-center justify-between rounded-xl border border-line bg-white p-5 shadow-card transition-colors hover:border-brand-300"
-              >
-                <div className="flex items-center gap-3.5">
-                  <div className="flex size-10 items-center justify-center rounded-xl bg-slate-100 transition-colors group-hover:bg-brand-50">
-                    <MapPin className="size-5 text-slate-500 transition-colors group-hover:text-brand-700" aria-hidden />
-                  </div>
-                  <div>
-                    <h3 className="text-[15px] font-semibold text-slate-900">{a.name}</h3>
-                    <p className="text-xs text-slate-500">{a.blurb}</p>
-                  </div>
-                </div>
-                <ArrowRight className="size-4 text-slate-300 transition-all group-hover:translate-x-0.5 group-hover:text-brand-600" aria-hidden />
-              </Link>
-            ))}
+          <div className="mt-3">
+            <SearchBar variant="dock" />
           </div>
-        </section>
-
-        {/* FAQ */}
-        <section id="faq" className="scroll-mt-20">
-          <div className="mx-auto max-w-3xl px-4 py-20 sm:px-6">
-            <h2 className="text-center font-display text-3xl font-bold tracking-tight text-slate-900">
-              Frequently asked questions
-            </h2>
-            <div className="mt-10 space-y-3">
-              {faqs.map((f) => (
-                <details
-                  key={f.q}
-                  className="group rounded-xl border border-line bg-white px-5 open:pb-4"
+          {recent.length > 0 && (
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {recent.map((place) => (
+                <button
+                  key={place.q}
+                  type="button"
+                  onClick={() => {
+                    rememberPlace(place);
+                    const params = new URLSearchParams({ q: place.q });
+                    if (place.lat != null && place.lng != null) {
+                      params.set("lat", String(place.lat));
+                      params.set("lng", String(place.lng));
+                      params.set("radius", "12");
+                    }
+                    navigate(`/search?${params.toString()}`);
+                  }}
+                  className="flex min-w-0 items-center gap-2.5 rounded-xl border border-line bg-mist-50 px-2.5 py-2 text-left transition-colors hover:border-brand-400 hover:bg-brand-50"
                 >
-                  <summary className="flex cursor-pointer list-none items-center justify-between py-4 text-[15px] font-medium text-slate-900 [&::-webkit-details-marker]:hidden">
-                    {f.q}
-                    <span className="ml-4 text-slate-400 transition-transform group-open:rotate-45">＋</span>
-                  </summary>
-                  <p className="text-sm leading-relaxed text-slate-500">{f.a}</p>
-                </details>
+                  <div className="relative size-10 shrink-0 overflow-hidden rounded-lg bg-white">
+                    {place.imageUrl ? (
+                      <Image src={place.imageUrl} alt="" fill sizes="40px" className="object-cover" />
+                    ) : (
+                      <span className="flex size-full items-center justify-center text-brand-500">
+                        <MapPin className="size-4" aria-hidden />
+                      </span>
+                    )}
+                  </div>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium text-ink">{place.label}</span>
+                    {place.city && (
+                      <span className="block truncate text-xs text-muted">{place.city}</span>
+                    )}
+                  </span>
+                </button>
               ))}
             </div>
-          </div>
+          )}
         </section>
-
-        {/* CTA */}
-        <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
-          <div className="rounded-xl bg-ink px-6 py-14 text-center text-white sm:px-14">
-            <h2 className="mx-auto max-w-xl font-display text-3xl font-bold tracking-tight text-white">
-              Never circle the block again.
-            </h2>
-            <p className="mx-auto mt-3 max-w-md text-slate-400">
-              Reserve your next parking spot in under a minute — guaranteed, prepaid, and waiting
-              for you.
-            </p>
-            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Link
-                href="/search"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white px-6 py-3 text-sm font-semibold text-ink transition-colors hover:bg-page sm:w-auto"
-              >
-                <Search className="size-4" aria-hidden />
-                Find parking now
-              </Link>
-              <Link
-                href="/become-a-host"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/20 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10 sm:w-auto"
-              >
-                List your space
-              </Link>
-            </div>
-          </div>
-        </section>
-      </main>
-      <Footer />
-    </>
+      </div>
+    </div>
   );
 }

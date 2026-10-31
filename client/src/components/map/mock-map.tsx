@@ -1,6 +1,8 @@
 import * as React from "react";
 import { MapPinned } from "lucide-react";
+import Link from "@/components/link";
 import type { MapViewProps } from "./map-view";
+import { frameDestinationView } from "@/lib/destination";
 import { cn } from "@/lib/utils";
 
 /**
@@ -13,11 +15,22 @@ export function MockMapView({
   center,
   selectedId,
   onSelect,
+  onOpen,
   destination,
   className,
 }: MapViewProps) {
-  const pts = [...markers.map((m) => ({ lat: m.lat, lng: m.lng }))];
-  if (destination) pts.push({ lat: destination.lat, lng: destination.lng });
+  const [destinationOpen, setDestinationOpen] = React.useState(false);
+  const destinationKey = destination
+    ? `${destination.lat.toFixed(5)}:${destination.lng.toFixed(5)}:${destination.name ?? ""}`
+    : "";
+  React.useEffect(() => {
+    setDestinationOpen(false);
+  }, [destinationKey]);
+
+  const framed = destination
+    ? frameDestinationView(destination, markers, 800).points
+    : markers.map((m) => ({ lat: m.lat, lng: m.lng }));
+  const pts = [...framed];
   if (center && pts.length === 0) pts.push(center);
   if (pts.length === 0) pts.push({ lat: 19.076, lng: 72.8777 });
 
@@ -53,38 +66,45 @@ export function MockMapView({
       />
       {/* Destination */}
       {destination && (
-        <div
-          className="absolute z-10 -translate-x-1/2 -translate-y-1/2"
+        <button
+          type="button"
+          className="absolute z-10 -translate-x-1/2 -translate-y-full"
           style={{
             left: `${project(destination.lat, destination.lng).x}%`,
             top: `${project(destination.lat, destination.lng).y}%`,
           }}
-          title={destination.name ?? "Destination"}
+          aria-label={destination.name ?? "Destination"}
+          aria-expanded={destinationOpen}
+          onClick={() => setDestinationOpen((open) => !open)}
         >
-          <span className="block size-4 rounded-full border-[3px] border-white bg-slate-900 shadow-md" />
-          {destination.name && (
-            <span className="absolute left-1/2 top-full mt-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-1.5 py-0.5 text-[10px] font-medium text-white">
+          <span className="relative block">
+            <span className="block size-5 rounded-full border-[3px] border-ink bg-volt shadow-[0_2px_6px_rgba(17,24,39,0.45)]" />
+            <span className="absolute left-1/2 top-4 size-2.5 -translate-x-1/2 rotate-45 border-b-[3px] border-r-[3px] border-ink bg-volt" />
+          </span>
+          {destinationOpen && destination.name && (
+            <span className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-white px-2 py-1 text-[11px] font-medium text-ink shadow-card">
               {destination.name}
             </span>
           )}
-        </div>
+        </button>
       )}
       {/* Markers */}
       {markers.map((m) => {
         const p = project(m.lat, m.lng);
         const selected = m.id === selectedId;
         return (
+          <React.Fragment key={m.id}>
           <button
-            key={m.id}
             type="button"
             onClick={() => onSelect?.(m.id)}
-            aria-label={`${m.title ?? "Parking space"} — ${m.label}`}
+            aria-label={`${m.title ?? "Parking space"} — ${m.label}${m.detail ? `, ${m.detail}` : ""}`}
+            title={m.detail ? `${m.title ?? "Parking"} — ${m.detail}` : m.title}
             aria-pressed={selected}
             className={cn(
               "absolute -translate-x-1/2 -translate-y-full rounded-full border px-2.5 py-1 text-xs font-semibold shadow-md transition-all",
               selected
-                ? "z-20 scale-110 border-brand-700 bg-brand-700 text-white"
-                : "z-10 border-slate-300 bg-white text-slate-800 hover:border-brand-500 hover:text-brand-800"
+                ? "z-20 scale-110 border-brand-500 bg-white text-ink ring-2 ring-brand-500"
+                : "z-10 border-mist bg-white text-ink hover:border-brand-500 hover:text-brand-700"
             )}
             style={{ left: `${p.x}%`, top: `${p.y}%` }}
           >
@@ -93,11 +113,27 @@ export function MockMapView({
               aria-hidden
               className={cn(
                 "absolute left-1/2 top-full -mt-px size-2 -translate-x-1/2 rotate-45 border-b border-r",
-                selected ? "border-brand-700 bg-brand-700" : "border-slate-300 bg-white"
+                selected ? "border-brand-500 bg-white" : "border-mist bg-white"
               )}
               style={{ marginTop: "-5px" }}
             />
           </button>
+          {selected && m.href && (
+            <Link
+              href={m.href}
+              onClick={(event) => {
+                if (!onOpen) return;
+                event.preventDefault();
+                onOpen(m.href!);
+              }}
+              className="absolute z-30 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg bg-white px-2.5 py-1.5 text-left shadow-card"
+              style={{ left: `${p.x}%`, top: `calc(${p.y}% - 2.25rem)` }}
+            >
+              <span className="block text-[11px] font-semibold text-ink">{m.title ?? "Parking"}</span>
+              <span className="mt-0.5 block text-[11px] font-semibold text-brand-600">Book this space</span>
+            </Link>
+          )}
+          </React.Fragment>
         );
       })}
       {/* Offline notice */}

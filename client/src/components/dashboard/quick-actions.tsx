@@ -21,10 +21,10 @@ export function QuickActions({
         <Link
           key={item.href}
           href={item.href}
-          className="flex items-center gap-3 rounded-xl border border-line bg-white px-3.5 py-3 shadow-card transition-colors hover:border-brand-300 hover:bg-brand-50"
+          className="flex items-center gap-3 rounded-xl border border-line bg-white px-3.5 py-3 shadow-card transition-colors duration-200 hover:border-brand-400 hover:bg-brand-50"
         >
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-page">
-            <item.icon className="size-4 text-brand-600" aria-hidden />
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-50">
+            <item.icon className="size-4 text-brand-500" aria-hidden />
           </span>
           <span className="text-sm font-medium text-ink">{item.label}</span>
         </Link>

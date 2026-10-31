@@ -17,7 +17,7 @@ export default function NotFoundPage() {
       <div className="mt-6 flex gap-3">
         <Link
           href="/"
-          className="rounded-xl bg-brand-700 px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-800"
+          className="rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors duration-200 hover:bg-brand-600"
         >
           Go home
         </Link>

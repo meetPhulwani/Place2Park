@@ -29,8 +29,8 @@ export function PriceBreakdown({
         <dd className="font-medium text-slate-800">{formatINR(serviceFee)}</dd>
       </div>
       <div className="flex justify-between border-t border-slate-200 pt-2.5">
-        <dt className="font-semibold text-slate-900">Total</dt>
-        <dd className="font-semibold text-slate-900">{formatINR(totalAmount)}</dd>
+        <dt className="font-semibold text-ink">Total</dt>
+        <dd className="font-semibold text-brand-600">{formatINR(totalAmount)}</dd>
       </div>
     </dl>
   );

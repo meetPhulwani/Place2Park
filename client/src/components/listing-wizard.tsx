@@ -374,7 +374,7 @@ export function ListingWizard({
               className={cn(
                 "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
                 i === step
-                  ? "bg-brand-700 text-white"
+                  ? "bg-brand-500 text-white"
                   : i < step
                     ? "bg-brand-50 text-brand-800 hover:bg-brand-100"
                     : "bg-slate-100 text-slate-400"
@@ -617,7 +617,7 @@ export function ListingWizard({
                           days[i] = { ...d, enabled: e.target.checked };
                           set({ days });
                         }}
-                        className="size-4 rounded accent-[#6C7A89]"
+                        className="size-4 rounded accent-[#0251B0]"
                       />
                       {DAY_NAMES[d.day]}
                     </label>
@@ -782,7 +782,7 @@ export function ListingWizard({
                 type="checkbox"
                 checked={data.selfParkingConfirmed}
                 onChange={(e) => set({ selfParkingConfirmed: e.target.checked })}
-                className="mt-0.5 size-4 rounded accent-[#6C7A89]"
+                className="mt-0.5 size-4 rounded accent-[#0251B0]"
               />
               <span>
                 I understand that drivers park their own vehicles and I will not request their keys.
@@ -816,7 +816,7 @@ export function ListingWizard({
                             : data.rules.filter((r) => r !== rule),
                         })
                       }
-                      className="size-4 rounded accent-[#6C7A89]"
+                      className="size-4 rounded accent-[#0251B0]"
                     />
                     {rule}
                     {rule === COMMON_RULES[0] && (
@@ -863,7 +863,7 @@ export function ListingWizard({
                 rows={3}
                 value={data.accessInstructions}
                 onChange={(e) => set({ accessInstructions: e.target.value })}
-                placeholder="e.g. Show your Parkly access code at the security gate. Slot number B-14 on basement level 1."
+                placeholder="e.g. Show your Place2Park access code at the security gate. Slot number B-14 on basement level 1."
               />
             </div>
           </div>
@@ -933,7 +933,7 @@ export function ListingWizard({
                 <ArrowRight className="size-4" aria-hidden />
               </Button>
             ) : (
-              <Button onClick={() => save(true)} loading={busy}>
+              <Button variant="accent" onClick={() => save(true)} loading={busy}>
                 {spaceId && ["ACTIVE", "VERIFIED"].includes(initialStatus ?? "") ? "Save & keep live" : "Publish"}
               </Button>
             )}

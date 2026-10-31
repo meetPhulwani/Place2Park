@@ -37,7 +37,7 @@ export default function BookingDetailPage() {
   const [reloadKey, setReloadKey] = React.useState(0);
 
   React.useEffect(() => {
-    document.title = "Booking details · Parkly";
+    document.title = "Booking details · Place2Park";
     let cancelled = false;
     api
       .get(`/bookings/${id}`)
@@ -172,13 +172,13 @@ export default function BookingDetailPage() {
               </div>
               {booking.vehiclePlate && (
                 <div>
-                  <dt className="text-slate-500">Vehicle</dt>
+                  <dt className="text-slate-500">Vehicle number</dt>
                   <dd className="font-medium text-slate-900">{booking.vehiclePlate}</dd>
                 </div>
               )}
               <div>
                 <dt className="text-slate-500">Host</dt>
-                <dd className="font-medium text-slate-900">{host?.name ?? "Parkly host"}</dd>
+                <dd className="font-medium text-slate-900">{host?.name ?? "Place2Park host"}</dd>
               </div>
             </dl>
             {showAccess && (

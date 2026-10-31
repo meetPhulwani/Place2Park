@@ -4,10 +4,12 @@ import { cn } from "@/lib/utils";
 
 const variants = {
   primary:
-    "bg-brand-500 text-white hover:bg-brand-600 active:bg-brand-700 disabled:bg-brand-500/50",
+    "bg-brand-500 text-white shadow-sm hover:bg-brand-600 active:bg-brand-700 focus-visible:ring-2 focus-visible:ring-brand-500/40 disabled:bg-brand-500/45 disabled:text-white/80",
+  accent:
+    "bg-volt text-ink shadow-sm hover:bg-volt-dark active:bg-volt-darker focus-visible:ring-2 focus-visible:ring-volt/70 disabled:bg-volt/45 disabled:text-ink/50",
   secondary:
-    "border border-line bg-white text-ink hover:bg-page active:bg-brand-50 disabled:opacity-50",
-  ghost: "text-muted hover:bg-white hover:text-ink active:bg-brand-50 disabled:opacity-50",
+    "border border-brand-500 bg-white text-brand-600 hover:bg-brand-50 active:bg-brand-100 disabled:border-mist disabled:text-muted disabled:opacity-60",
+  ghost: "text-muted hover:bg-brand-50 hover:text-brand-700 active:bg-brand-100 disabled:opacity-50",
   danger:
     "bg-red-600 text-white hover:bg-red-700 active:bg-red-800 disabled:bg-red-600/50",
   "danger-outline":
@@ -32,7 +34,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       ref={ref}
       disabled={disabled || loading}
       className={cn(
-        "inline-flex items-center justify-center font-medium transition-colors duration-150 select-none disabled:cursor-not-allowed",
+        "inline-flex items-center justify-center font-medium transition-colors duration-200 select-none focus-visible:outline-none disabled:cursor-not-allowed",
         variants[variant],
         sizes[size],
         className

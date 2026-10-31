@@ -1,12 +1,34 @@
 import { z } from "zod";
 import { isAllowedListingImageUrl } from "../services/media.js";
 import { ALLOWED_DURATIONS_MINS, LEVELS, PROPERTY_TYPES, REPORT_REASONS, VEHICLE_TYPES } from "./constants.js";
+import { passwordIssue } from "./password.js";
+import { normalizeIndianMobile } from "./phone.js";
+
+const indianMobile = z.string().trim().transform((value, ctx) => {
+  const phone = normalizeIndianMobile(value);
+  if (!phone) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Enter a valid 10-digit mobile number" });
+    return z.NEVER;
+  }
+  return phone;
+});
+
+const signupPassword = z.string().max(100).superRefine((value, ctx) => {
+  const message = passwordIssue(value);
+  if (message) ctx.addIssue({ code: z.ZodIssueCode.custom, message });
+});
 
 export const signupSchema = z.object({
   name: z.string().trim().min(2, "Enter your name").max(80),
   email: z.string().trim().toLowerCase().email("Enter a valid email"),
-  password: z.string().min(8, "Use at least 8 characters").max(100),
+  password: signupPassword,
   role: z.enum(["DRIVER", "HOST", "BOTH"]).default("DRIVER"),
+  phone: indianMobile,
+  otp: z.string().regex(/^\d{6}$/, "Enter the 6-digit code"),
+});
+
+export const phoneOtpSchema = z.object({
+  phone: indianMobile,
 });
 
 export const loginSchema = z.object({
@@ -37,7 +59,7 @@ export const bookingRequestSchema = z.object({
     .int()
     .refine((v) => (ALLOWED_DURATIONS_MINS as readonly number[]).includes(v), "Invalid duration"),
   vehicleType: z.enum(VEHICLE_TYPES).default("CAR"),
-  vehiclePlate: z.string().trim().max(15).optional().transform((v) => (v === "" ? undefined : v)),
+  vehiclePlate: z.string().trim().min(4, "Enter the vehicle number").max(15),
 });
 
 export const reviewSchema = z.object({
@@ -69,7 +91,7 @@ export const vehicleSchema = z.object({
   type: z.enum(VEHICLE_TYPES),
   make: z.string().trim().max(40).default(""),
   model: z.string().trim().max(40).default(""),
-  plate: z.string().trim().min(4, "Enter the plate number").max(15),
+  plate: z.string().trim().min(4, "Enter the vehicle number").max(15),
 });
 
 export const listingSchema = z

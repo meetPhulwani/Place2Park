@@ -19,7 +19,7 @@ export default function AdminReviewsPage() {
   const [reviews, setReviews] = React.useState<AdminReview[] | null>(null);
 
   React.useEffect(() => {
-    document.title = "Reviews — Admin · Parkly";
+    document.title = "Reviews — Admin · Place2Park";
     api.get("/admin/reviews").then(({ data }) => setReviews(data.data.reviews)).catch(() => setReviews([]));
   }, []);
 

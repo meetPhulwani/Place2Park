@@ -3,7 +3,7 @@ import { ListingWizard } from "@/components/listing-wizard";
 
 export default function NewListingPage() {
   React.useEffect(() => {
-    document.title = "New listing · Parkly";
+    document.title = "New listing · Place2Park";
   }, []);
   return (
     <div className="max-w-3xl">

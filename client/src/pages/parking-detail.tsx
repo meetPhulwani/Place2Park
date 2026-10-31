@@ -62,7 +62,7 @@ export default function ParkingDetailPage() {
   }, [id, authLoading]);
 
   React.useEffect(() => {
-    if (data) document.title = `${data.space.title} — ${getDisplayLocation(data.space)} · Parkly`;
+    if (data) document.title = `${data.space.title} — ${getDisplayLocation(data.space)} · Place2Park`;
   }, [data]);
 
   if (notFound) return <NotFoundPage />;
@@ -133,7 +133,7 @@ export default function ParkingDetailPage() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+              <h1 className="font-display text-2xl font-bold tracking-tight text-brand-500 sm:text-3xl">
                 {space.title}
               </h1>
               {space.verified && (
@@ -261,27 +261,27 @@ export default function ParkingDetailPage() {
               </div>
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">Rules</h2>
-                <ul className="mt-2 space-y-2">
-                  {(rules.length ? rules : ["Self-parking only — never hand over your keys"]).map((r) => (
-                    <li key={r} className="flex items-start gap-2 text-sm text-slate-600">
-                      <ShieldCheck className="mt-0.5 size-4 shrink-0 text-brand-600" aria-hidden />
-                      {r}
-                    </li>
-                  ))}
-                </ul>
-                <div className="mt-4 rounded-xl border border-brand-200 bg-brand-50 p-3.5 text-sm text-brand-900">
-                  <p className="flex items-center gap-2 font-semibold">
+                <div className="mt-2 rounded-xl border border-ink/15 bg-volt p-3.5 text-sm text-ink">
+                  <ul className="space-y-2">
+                    {(rules.length ? rules : ["Self-parking only — never hand over your keys"]).map((r) => (
+                      <li key={r} className="flex items-start gap-2 font-medium">
+                        <ShieldCheck className="mt-0.5 size-4 shrink-0" aria-hidden />
+                        {r}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-3 flex items-center gap-2 border-t border-ink/15 pt-3 font-semibold">
                     <KeyRound className="size-4" aria-hidden />
                     Never hand over your vehicle keys.
                   </p>
-                  <p className="mt-1 text-brand-800">
+                  <p className="mt-1">
                     Self-parking only. Your keys never leave your hand. Report any host who asks for your keys.
                   </p>
                   {space.overnightAllowed === false && (
-                    <p className="mt-1 text-xs text-brand-800">Overnight parking is not allowed.</p>
+                    <p className="mt-1 text-xs font-medium">Overnight parking is not allowed.</p>
                   )}
                   {space.vehicleSizeNotes && (
-                    <p className="mt-1 text-xs text-brand-800">Size: {space.vehicleSizeNotes}</p>
+                    <p className="mt-1 text-xs font-medium">Size: {space.vehicleSizeNotes}</p>
                   )}
                 </div>
               </div>
@@ -297,7 +297,7 @@ export default function ParkingDetailPage() {
                   <Avatar name={host.name} image={host.image} size={48} />
                   <div>
                     <h2 id="host-heading" className="text-[15px] font-semibold text-slate-900">
-                      Hosted by {host.name ?? "a Parkly host"}
+                      Hosted by {host.name ?? "a Place2Park host"}
                     </h2>
                     <p className="text-sm text-slate-500">
                       Host since{" "}

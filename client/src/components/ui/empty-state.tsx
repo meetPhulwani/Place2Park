@@ -22,8 +22,8 @@ export function EmptyState({
         className
       )}
     >
-      <div className="mb-4 flex size-11 items-center justify-center rounded-lg bg-page">
-        <Icon className="size-5 text-muted" aria-hidden />
+      <div className="mb-4 flex size-11 items-center justify-center rounded-lg bg-brand-50">
+        <Icon className="size-5 text-brand-500" aria-hidden />
       </div>
       <h3 className="text-base font-semibold text-ink">{title}</h3>
       {description && <p className="mt-1 max-w-sm text-sm text-muted">{description}</p>}

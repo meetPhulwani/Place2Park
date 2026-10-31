@@ -57,7 +57,7 @@ export default function AdminPayoutsPage() {
   }, [status]);
 
   React.useEffect(() => {
-    document.title = "Payouts — Admin · Parkly";
+    document.title = "Payouts — Admin · Place2Park";
     load();
   }, [load]);
 
@@ -79,8 +79,10 @@ export default function AdminPayoutsPage() {
               key={s}
               onClick={() => setParams(s === "ALL" ? {} : { status: s }, { replace: true })}
               aria-current={active ? "page" : undefined}
-              className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
-                active ? "bg-brand-700 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors duration-200 ${
+                active
+                  ? "bg-brand-500 text-white"
+                  : "border border-line bg-white text-muted hover:bg-brand-50 hover:text-brand-700"
               }`}
             >
               {s === "ALL" ? "All" : s.toLowerCase()}
@@ -179,7 +181,7 @@ function PayoutRow({
     <div className="glass space-y-3 rounded-2xl p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-[15px] font-semibold text-slate-900">
+          <p className="text-[15px] font-semibold text-brand-600">
             {formatINR(payout.amount)} {payout.currency}
           </p>
           <p className="text-sm text-slate-500">

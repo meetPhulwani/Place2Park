@@ -2,7 +2,8 @@ import Link from "@/components/link";
 import Image from "@/components/image";
 import { BadgeCheck, Zap, Umbrella, Cctv, Car, Bike, MapPin } from "lucide-react";
 import type { SpaceSummary } from "@/types";
-import { formatINR, walkingMins, cn } from "@/lib/utils";
+import { straightLineLabel } from "@/lib/destination";
+import { formatINR, cn } from "@/lib/utils";
 import { getDisplayLocation } from "@/lib/location";
 import { Rating } from "./ui/rating";
 import { Badge } from "./ui/badge";
@@ -27,21 +28,22 @@ export function ParkingCard({
       href={href}
       onMouseEnter={() => onHover?.(space.id)}
       onMouseLeave={() => onHover?.(null)}
+      onPointerDown={() => onHover?.(space.id)}
       className={cn(
-        "group block overflow-hidden rounded-xl border border-line bg-white shadow-card transition-colors",
-        "hover:border-brand-300",
-        selected && "border-brand-500 ring-1 ring-brand-500"
+        "group block overflow-hidden rounded-xl border border-line bg-white shadow-card transition-[border-color,box-shadow] duration-200",
+        "hover:border-brand-400 hover:shadow-card-hover",
+        selected && "border-volt ring-2 ring-volt/70"
       )}
       data-space-id={space.id}
     >
-      <div className="relative h-40 overflow-hidden bg-slate-100/70">
+      <div className="relative h-44 overflow-hidden bg-slate-100">
         {space.imageUrl ? (
           <Image
             src={space.imageUrl}
             alt={space.title}
             fill
             sizes="(max-width: 640px) 100vw, 400px"
-            className="object-cover"
+            className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
           />
         ) : (
           <div className="flex h-full items-center justify-center text-slate-300">
@@ -50,7 +52,7 @@ export function ParkingCard({
         )}
         <div className="absolute left-3 top-3 flex gap-1.5">
           {space.verified && (
-            <Badge variant="brand" className="bg-white">
+            <Badge variant="brand">
               <BadgeCheck className="size-3" aria-hidden />
               Verified
             </Badge>
@@ -58,10 +60,11 @@ export function ParkingCard({
           {space.available === false && (
             <Badge variant="danger">Unavailable for this slot</Badge>
           )}
+          {space.available === true && <Badge variant="volt">Available</Badge>}
         </div>
-        <div className="absolute bottom-3 right-3 rounded-lg bg-ink px-2.5 py-1 text-sm font-semibold text-white">
+        <div className="absolute bottom-3 right-3 rounded-lg bg-brand-500 px-2.5 py-1 text-sm font-semibold text-white shadow-sm">
           {formatINR(space.pricePerHour)}
-          <span className="text-xs font-normal text-slate-300">/hr</span>
+          <span className="text-xs font-normal text-white/80">/hr</span>
         </div>
       </div>
       <div className="p-4">
@@ -69,19 +72,19 @@ export function ParkingCard({
           <h3 className="line-clamp-1 text-[15px] font-semibold text-ink">{space.title}</h3>
         </div>
         <p className="mt-0.5 flex items-center gap-1.5 text-sm text-slate-500">
-          <MapPin className="size-3.5 shrink-0 text-slate-400" aria-hidden />
+          <MapPin className="size-3.5 shrink-0 text-brand-500" aria-hidden />
           <span className="line-clamp-1">
             {space.displayLocation || getDisplayLocation(space)}
-            {space.distanceKm != null && (
+            {straightLineLabel(space.distanceKm) && (
               <>
                 {" · "}
-                {walkingMins(space.distanceKm)} min walk
+                <span title="Straight-line distance, not a driving route">{straightLineLabel(space.distanceKm)}</span>
               </>
             )}
           </span>
         </p>
         <div className="mt-2.5 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-slate-400">
+          <div className="flex items-center gap-2 text-brand-500">
             {space.covered && <Umbrella className="size-4" aria-label="Covered parking" />}
             {space.evCharging && <Zap className="size-4" aria-label="EV charging" />}
             {space.cctv && <Cctv className="size-4" aria-label="CCTV monitored" />}

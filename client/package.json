@@ -8,16 +8,19 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
-    "test": "node ../server/node_modules/tsx/dist/cli.mjs --test src/lib/media-url.test.ts src/lib/payout-reveal.test.ts src/lib/demo-accounts.test.ts src/lib/cancel-booking.test.ts src/lib/space-coords.test.ts",
-    "test:unit": "node ../server/node_modules/tsx/dist/cli.mjs --test src/lib/media-url.test.ts src/lib/payout-reveal.test.ts src/lib/demo-accounts.test.ts src/lib/cancel-booking.test.ts src/lib/space-coords.test.ts"
+    "test": "node ../server/node_modules/tsx/dist/cli.mjs --test src/lib/media-url.test.ts src/lib/payout-reveal.test.ts src/lib/demo-accounts.test.ts src/lib/cancel-booking.test.ts src/lib/space-coords.test.ts src/lib/recent-places.test.ts src/lib/booking-timeline.test.ts src/lib/destination.test.ts",
+    "test:unit": "node ../server/node_modules/tsx/dist/cli.mjs --test src/lib/media-url.test.ts src/lib/payout-reveal.test.ts src/lib/demo-accounts.test.ts src/lib/cancel-booking.test.ts src/lib/space-coords.test.ts src/lib/recent-places.test.ts src/lib/booking-timeline.test.ts src/lib/destination.test.ts"
   },
   "dependencies": {
+    "@number-flow/react": "^0.6.2",
     "axios": "^1.7.9",
     "clsx": "^2.1.1",
+    "framer-motion": "^14.9.0",
     "lucide-react": "^0.468.0",
     "parkly": "file:..",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-intersection-observer": "^11.0.1",
     "react-router-dom": "^7.1.0",
     "tailwind-merge": "^2.5.5",
     "zod": "^3.24.1"

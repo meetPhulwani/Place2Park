@@ -12,7 +12,7 @@ export default function ForgotPasswordPage() {
   const [error, setError] = React.useState("");
 
   React.useEffect(() => {
-    document.title = "Reset password · Parkly";
+    document.title = "Reset password · Place2Park";
   }, []);
 
   async function onSubmit(e: React.FormEvent) {

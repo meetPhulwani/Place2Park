@@ -31,7 +31,7 @@ export default function ProfilePage() {
   const [data, setData] = React.useState<ProfileData | null>(null);
 
   React.useEffect(() => {
-    document.title = "Profile · Parkly";
+    document.title = "Profile · Place2Park";
     api.get("/users/me/profile").then(({ data: d }) => setData(d.data)).catch(() => undefined);
   }, []);
 
@@ -221,7 +221,7 @@ function ProfileForm({ data, onSaved }: { data: ProfileData; onSaved: (d: Profil
         <CardContent className="space-y-3">
           {vehicles.length === 0 && !showVehicleForm && (
             <p className="text-sm text-slate-500">
-              Add your vehicle so bookings pre-fill your plate number.
+              Add your vehicle so bookings pre-fill your vehicle number.
             </p>
           )}
           {vehicles.map((v) => (
@@ -269,7 +269,7 @@ function ProfileForm({ data, onSaved }: { data: ProfileData; onSaved: (d: Profil
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="v-plate">Plate number</Label>
+                  <Label htmlFor="v-plate">Vehicle number</Label>
                   <Input
                     id="v-plate"
                     required

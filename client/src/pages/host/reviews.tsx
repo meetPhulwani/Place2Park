@@ -19,7 +19,7 @@ export default function HostReviewsPage() {
   const [reviews, setReviews] = React.useState<HostReview[] | null>(null);
 
   React.useEffect(() => {
-    document.title = "Reviews · Parkly";
+    document.title = "Reviews · Place2Park";
     api.get("/host/reviews").then(({ data }) => setReviews(data.data.reviews)).catch(() => setReviews([]));
   }, []);
 

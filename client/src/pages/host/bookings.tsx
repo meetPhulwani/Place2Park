@@ -18,7 +18,7 @@ export default function HostBookingsPage() {
     : undefined;
 
   React.useEffect(() => {
-    document.title = "Host bookings · Parkly";
+    document.title = "Host bookings · Place2Park";
     setBookings(null);
     setError(null);
     api
@@ -53,8 +53,10 @@ export default function HostBookingsPage() {
               key={t.label}
               onClick={() => setParams(t.key ? { status: t.key } : {}, { replace: true })}
               aria-current={active ? "page" : undefined}
-              className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
-                active ? "bg-brand-700 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors duration-200 ${
+                active
+                  ? "bg-brand-500 text-white"
+                  : "border border-line bg-white text-muted hover:bg-brand-50 hover:text-brand-700"
               }`}
             >
               {t.label}

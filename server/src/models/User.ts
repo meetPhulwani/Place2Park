@@ -13,6 +13,7 @@ const userSchema = new Schema(
     hostVerified: { type: Boolean, default: false },
     // Profile (embedded — always loaded with the user)
     phone: { type: String, default: "" },
+    phoneVerified: { type: Boolean, default: false },
     preferredVehicleType: { type: String, enum: ["CAR", "BIKE"], default: "CAR" },
     notifyEmail: { type: Boolean, default: true },
     notifyReminders: { type: Boolean, default: true },

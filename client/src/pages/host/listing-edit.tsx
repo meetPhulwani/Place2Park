@@ -20,7 +20,7 @@ export default function EditListingPage() {
   const [notFound, setNotFound] = React.useState(false);
 
   React.useEffect(() => {
-    document.title = "Edit listing · Parkly";
+    document.title = "Edit listing · Place2Park";
     api
       .get(`/host/listings/${id}`)
       .then(({ data }) => setListing(data.data.listing))

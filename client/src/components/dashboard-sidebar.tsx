@@ -35,11 +35,13 @@ export function DashboardSidebar({ items, title }: { items: SidebarItem[]; title
                 href={it.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                  active ? "bg-brand-50 text-brand-800" : "text-muted hover:bg-page hover:text-ink"
+                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-200",
+                  active
+                    ? "bg-brand-50 text-brand-600"
+                    : "text-muted hover:bg-mist-50 hover:text-ink"
                 )}
               >
-                <Icon className={cn("size-4", active ? "text-brand-600" : "text-slate-400")} aria-hidden />
+                <Icon className={cn("size-4", active ? "text-brand-500" : "text-slate-400")} aria-hidden />
                 {it.label}
               </Link>
             );
@@ -48,7 +50,7 @@ export function DashboardSidebar({ items, title }: { items: SidebarItem[]; title
       </aside>
       <nav
         aria-label={title}
-        className="scrollbar-thin -mx-4 mb-4 flex gap-1.5 overflow-x-auto px-4 pb-2 lg:hidden"
+        className="scrollbar-thin -mx-4 mb-4 flex min-w-0 w-full gap-1.5 overflow-x-auto px-4 pb-2 lg:hidden"
       >
         {items.map((it) => {
           const active = it.exact ? pathname === it.href : pathname.startsWith(it.href);
@@ -59,7 +61,7 @@ export function DashboardSidebar({ items, title }: { items: SidebarItem[]; title
               href={it.href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+                "flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors duration-200",
                 active ? "bg-brand-500 text-white" : "border border-line bg-white text-muted"
               )}
             >

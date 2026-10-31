@@ -19,7 +19,7 @@ export default function PaymentsPage() {
   const [payments, setPayments] = React.useState<Payment[] | null>(null);
 
   React.useEffect(() => {
-    document.title = "Payments · Parkly";
+    document.title = "Payments · Place2Park";
     api.get("/payments").then(({ data }) => setPayments(data.data.payments)).catch(() => setPayments([]));
   }, []);
 
@@ -62,7 +62,7 @@ export default function PaymentsPage() {
                     <p className="max-w-[220px] truncate text-xs text-slate-400">{p.spaceTitle}</p>
                   </td>
                   <td className="px-5 py-3.5 text-slate-500">{formatDateTime(p.createdAt)}</td>
-                  <td className="px-5 py-3.5 font-semibold text-slate-900">{formatINR(p.amount)}</td>
+                  <td className="px-5 py-3.5 font-semibold text-brand-600">{formatINR(p.amount)}</td>
                   <td className="px-5 py-3.5 text-slate-500">
                     {p.provider === "MOCK" ? "Mock (dev)" : (p.method ?? "—")}
                   </td>

@@ -29,7 +29,7 @@ export default function HistoryPage() {
 
   const paramString = params.toString();
   React.useEffect(() => {
-    document.title = "Parking history · Parkly";
+    document.title = "Parking history · Place2Park";
     const qs = new URLSearchParams(paramString);
     qs.set("scope", "history");
     setData(null);
@@ -128,7 +128,7 @@ export default function HistoryPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="font-semibold text-slate-900">{formatINR(b.totalAmount)}</span>
+                  <span className="font-semibold text-brand-600">{formatINR(b.totalAmount)}</span>
                   <BookingStatusBadge status={b.status} />
                   {b.status === "COMPLETED" &&
                     (b.reviewed ? (

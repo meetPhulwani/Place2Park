@@ -6,7 +6,7 @@ import { Footer } from "@/components/footer";
 
 export default function SupportPage() {
   React.useEffect(() => {
-    document.title = "Support · Parkly";
+    document.title = "Support · Place2Park";
   }, []);
   return (
     <>
@@ -50,7 +50,7 @@ export default function SupportPage() {
             Safety reminder
           </p>
           <p className="mt-1 text-sm text-brand-800">
-            Parkly is self-parking only. If anyone asks you to hand over your vehicle keys, refuse
+            Place2Park is self-parking only. If anyone asks you to hand over your vehicle keys, refuse
             and report the listing immediately.
           </p>
         </div>

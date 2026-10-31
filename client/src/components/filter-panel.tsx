@@ -136,8 +136,8 @@ export function FilterPanel({
             className={cn(
               "h-9 flex-1 rounded-xl border px-3 text-xs font-medium transition-colors",
               value[key]
-                ? "border-brand-600 bg-brand-600 text-white"
-                : "border-slate-300 bg-white text-slate-600 hover:border-slate-400"
+                ? "border-volt-dark bg-volt text-ink"
+                : "border-line bg-white text-muted hover:border-brand-400 hover:text-brand-700"
             )}
           >
             {label}

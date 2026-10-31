@@ -31,7 +31,7 @@ export default function AdminReportsPage() {
   }, []);
 
   React.useEffect(() => {
-    document.title = "Reports — Admin · Parkly";
+    document.title = "Reports — Admin · Place2Park";
     load();
   }, [load]);
 

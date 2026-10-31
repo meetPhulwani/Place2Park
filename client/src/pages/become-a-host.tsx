@@ -14,7 +14,7 @@ export default function BecomeAHostPage() {
   const [busy, setBusy] = React.useState(false);
 
   React.useEffect(() => {
-    document.title = "Become a host · Parkly";
+    document.title = "Become a host · Place2Park";
   }, []);
 
   React.useEffect(() => {
@@ -43,7 +43,7 @@ export default function BecomeAHostPage() {
         <div className="text-center">
           <p className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-medium text-brand-800">
             <Wallet className="size-3.5" aria-hidden />
-            Host on Parkly
+            Host on Place2Park
           </p>
           <h1 className="font-display text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
             Turn your empty parking spot into income
@@ -73,7 +73,7 @@ export default function BecomeAHostPage() {
             },
           ].map((c) => (
             <div key={c.title} className="rounded-xl border border-line bg-white p-5 shadow-card">
-              <c.icon className="size-6 text-brand-700" aria-hidden />
+              <c.icon className="size-6 text-brand-600" aria-hidden />
               <h2 className="mt-3 text-[15px] font-semibold text-slate-900">{c.title}</h2>
               <p className="mt-1 text-sm text-slate-500">{c.body}</p>
             </div>
@@ -81,7 +81,7 @@ export default function BecomeAHostPage() {
         </div>
 
         <div className="mt-10 text-center">
-          <Button size="lg" onClick={enable} loading={busy}>
+          <Button size="lg" variant="accent" onClick={enable} loading={busy}>
             Enable host tools
             <ArrowRight className="size-4" aria-hidden />
           </Button>

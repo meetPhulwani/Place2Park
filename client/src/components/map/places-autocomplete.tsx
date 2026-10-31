@@ -10,6 +10,7 @@ import {
   type ResolvedLocation,
 } from "@/lib/google-maps";
 import { catalogSuggestions, resolvedFromCatalog } from "@/lib/place-catalog";
+import { resolveDestinationQuery } from "@/lib/destination";
 import { cn } from "@/lib/utils";
 
 export type PlaceSelection = ResolvedLocation;
@@ -80,7 +81,14 @@ export function PlacesAutocomplete({
   const [suggestions, setSuggestions] = React.useState<Suggestion[]>([]);
   const [active, setActive] = React.useState(0);
   const [denied, setDenied] = React.useState(false);
-  const [menuPos, setMenuPos] = React.useState<{ top: number; left: number; width: number } | null>(null);
+  const [focused, setFocused] = React.useState(false);
+  const [menuPos, setMenuPos] = React.useState<{
+    top?: number;
+    bottom?: number;
+    left: number;
+    width: number;
+    maxHeight: number;
+  } | null>(null);
   const apiKey = googleMapsApiKey();
   const session = React.useRef<google.maps.places.AutocompleteSessionToken | null>(null);
   const seq = React.useRef(0);
@@ -90,7 +98,16 @@ export function PlacesAutocomplete({
     const el = inputRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    setMenuPos({ top: rect.bottom + 6, left: rect.left, width: Math.max(rect.width, 260) });
+    const gap = 6;
+    const spaceBelow = window.innerHeight - rect.bottom - gap;
+    const spaceAbove = rect.top - gap;
+    const openUp = spaceBelow < 220 && spaceAbove > spaceBelow;
+    const maxHeight = Math.min(288, Math.max(120, openUp ? spaceAbove : spaceBelow));
+    setMenuPos(
+      openUp
+        ? { bottom: window.innerHeight - rect.top + gap, left: rect.left, width: Math.max(rect.width, 260), maxHeight }
+        : { top: rect.bottom + gap, left: rect.left, width: Math.max(rect.width, 260), maxHeight }
+    );
   }, []);
 
   React.useEffect(() => {
@@ -107,6 +124,14 @@ export function PlacesAutocomplete({
   React.useEffect(() => {
     const q = value.trim();
     if (q.length < MIN_QUERY) {
+      seq.current += 1;
+      setSuggestions([]);
+      setOpen(false);
+      setLoading(false);
+      return;
+    }
+
+    if (!focused) {
       seq.current += 1;
       setSuggestions([]);
       setOpen(false);
@@ -177,7 +202,7 @@ export function PlacesAutocomplete({
     }, DEBOUNCE_MS);
 
     return () => window.clearTimeout(handle);
-  }, [ready, value, placeMenu]);
+  }, [ready, value, placeMenu, focused]);
 
   React.useEffect(() => {
     function onDoc(e: MouseEvent) {
@@ -213,7 +238,19 @@ export function PlacesAutocomplete({
           if (status !== google.maps.places.PlacesServiceStatus.OK || !place) {
             if (item.lat != null && item.lng != null) {
               finish(resolvedFromCatalog({ mainText: item.mainText, secondaryText: item.secondaryText, lat: item.lat, lng: item.lng }));
+              return;
             }
+            void resolveDestinationQuery(item.mainText).then((resolved) => {
+              if (!resolved) return;
+              finish(
+                resolvedFromCatalog({
+                  mainText: resolved.label,
+                  secondaryText: item.secondaryText,
+                  lat: resolved.latitude,
+                  lng: resolved.longitude,
+                })
+              );
+            });
             return;
           }
           const parsed = fromPlace(place);
@@ -251,11 +288,13 @@ export function PlacesAutocomplete({
         role="combobox"
         className={cn(className)}
         onFocus={() => {
+          setFocused(true);
           if (value.trim().length >= MIN_QUERY) {
             setOpen(true);
             placeMenu();
           }
         }}
+        onBlur={() => setFocused(false)}
         onKeyDown={(e) => {
           if (e.key === "Escape") {
             setOpen(false);
@@ -285,8 +324,14 @@ export function PlacesAutocomplete({
             ref={listRef}
             id={listId}
             role="listbox"
-            style={{ top: menuPos.top, left: menuPos.left, width: menuPos.width }}
-            className="glass-strong fixed z-[80] max-h-72 overflow-auto rounded-xl py-1 shadow-pop"
+            style={{
+              top: menuPos.top,
+              bottom: menuPos.bottom,
+              left: menuPos.left,
+              width: menuPos.width,
+              maxHeight: menuPos.maxHeight,
+            }}
+            className="fixed z-[80] overflow-auto rounded-xl border border-line bg-white py-1 shadow-pop"
           >
             {loading && suggestions.length === 0 && (
               <li className="flex items-center gap-2 px-3.5 py-3 text-sm text-slate-500">
@@ -306,7 +351,7 @@ export function PlacesAutocomplete({
                   type="button"
                   className={cn(
                     "flex w-full items-start gap-2.5 px-3.5 py-2.5 text-left text-sm text-slate-800",
-                    i === active ? "bg-brand-50/90" : "hover:bg-white/55"
+                    i === active ? "bg-brand-50" : "hover:bg-brand-50"
                   )}
                   onMouseEnter={() => setActive(i)}
                   onMouseDown={(e) => e.preventDefault()}

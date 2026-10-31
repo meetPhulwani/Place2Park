@@ -108,7 +108,7 @@ export function NearbyParking({
         description="Search a destination to see verified spaces on the map."
         action={
           <Link href="/search">
-            <Button>Find parking</Button>
+            <Button variant="accent">Find parking</Button>
           </Link>
         }
       />
@@ -137,7 +137,7 @@ export function NearbyParking({
         ))}
         <Link
           href={searchHref}
-          className="inline-flex items-center justify-center rounded-lg border border-line bg-white px-3 py-2 text-sm font-medium text-brand-700 hover:bg-page"
+          className="inline-flex items-center justify-center rounded-lg border border-brand-500 bg-white px-3 py-2 text-sm font-medium text-brand-600 transition-colors duration-200 hover:bg-brand-50"
         >
           View {preview.length === PREVIEW_COUNT ? "all nearby" : "more"} spaces
         </Link>

@@ -20,7 +20,7 @@ export default function AdminBookingsPage() {
   const [bookings, setBookings] = React.useState<AdminBooking[] | null>(null);
 
   React.useEffect(() => {
-    document.title = "Bookings — Admin · Parkly";
+    document.title = "Bookings — Admin · Place2Park";
     api.get("/admin/bookings").then(({ data }) => setBookings(data.data.bookings)).catch(() => setBookings([]));
   }, []);
 
@@ -70,7 +70,7 @@ export default function AdminBookingsPage() {
                     {formatTime(b.start)} – {formatTime(b.end)}
                   </span>
                 </td>
-                <td className="px-5 py-3 font-semibold text-slate-900">{formatINR(b.totalAmount)}</td>
+                <td className="px-5 py-3 font-semibold text-brand-600">{formatINR(b.totalAmount)}</td>
                 <td className="px-5 py-3">
                   <Badge
                     variant={

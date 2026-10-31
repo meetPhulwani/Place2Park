@@ -2,6 +2,7 @@ import Link from "@/components/link";
 import type { Booking } from "@/types";
 import { Card } from "@/components/ui/card";
 import { formatINR } from "@/lib/utils";
+import { AnimatedNumber } from "@/components/ui/skiper-ui/skiper37";
 
 export function SpendingOverview({
   completed,
@@ -26,7 +27,9 @@ export function SpendingOverview({
           Payments
         </Link>
       </div>
-      <p className="mt-5 font-display text-3xl font-semibold tracking-tight text-ink">{formatINR(totalSpent)}</p>
+      <p className="mt-5 font-display text-3xl font-semibold tracking-tight text-brand-600">
+        <AnimatedNumber value={totalSpent} format="currency-paise" />
+      </p>
       <dl className="mt-4 grid grid-cols-2 gap-3">
         <div className="rounded-lg bg-page px-3 py-2.5">
           <dt className="text-xs text-muted">Completed</dt>
@@ -44,7 +47,7 @@ export function SpendingOverview({
             return (
               <li key={b.id} className="flex items-center justify-between gap-3 py-2.5">
                 <span className="truncate text-sm text-muted">{space?.title ?? b.code}</span>
-                <span className="shrink-0 text-sm font-medium text-ink">{formatINR(b.totalAmount)}</span>
+                <span className="shrink-0 text-sm font-medium text-brand-600">{formatINR(b.totalAmount)}</span>
               </li>
             );
           })}

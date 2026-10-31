@@ -5,8 +5,8 @@ import { api, errorMessage } from "@/services/api";
 import { useAuth } from "@/context/auth";
 import { Button } from "@/components/ui/button";
 import { Input, Label, FieldError } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { GoogleButton } from "@/components/google-button";
-import { shouldShowDemoAccounts } from "@/lib/demo-accounts";
 
 const googleEnabled = !!import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
@@ -23,7 +23,7 @@ export default function LoginPage() {
   const dest = next && next.startsWith("/") ? next : "/dashboard";
 
   React.useEffect(() => {
-    document.title = "Log in · Parkly";
+    document.title = "Log in · Place2Park";
   }, []);
 
   async function onSubmit(e: React.FormEvent) {
@@ -43,7 +43,7 @@ export default function LoginPage() {
 
   return (
     <div className="animate-fade-in">
-      <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">
+      <h1 className="font-display text-2xl font-bold tracking-tight text-brand-500">
         Welcome back
       </h1>
       <p className="mt-1.5 text-sm text-slate-500">Log in to manage bookings and listings.</p>
@@ -88,9 +88,8 @@ export default function LoginPage() {
                 Forgot password?
               </Link>
             </div>
-            <Input
+            <PasswordInput
               id="password"
-              type="password"
               autoComplete="current-password"
               required
               value={password}
@@ -99,25 +98,18 @@ export default function LoginPage() {
             />
           </div>
           <FieldError error={error ?? undefined} />
-          <Button type="submit" size="lg" className="w-full" loading={loading}>
+          <Button type="submit" variant="accent" size="lg" className="w-full" loading={loading}>
             Log in
           </Button>
         </form>
       </div>
 
       <p className="mt-6 text-center text-sm text-slate-500">
-        New to Parkly?{" "}
+        New to Place2Park?{" "}
         <Link href="/signup" className="font-medium text-brand-700 hover:text-brand-800">
           Create an account
         </Link>
       </p>
-
-      {import.meta.env.DEV && shouldShowDemoAccounts(import.meta.env.DEV) && (
-        <div className="glass-soft mt-8 rounded-xl p-3.5 text-xs leading-relaxed text-slate-500">
-          <p className="font-medium text-slate-600">Demo accounts (password: password123)</p>
-          <p className="mt-1">driver@parkly.dev · host@parkly.dev · admin@parkly.dev</p>
-        </div>
-      )}
     </div>
   );
 }

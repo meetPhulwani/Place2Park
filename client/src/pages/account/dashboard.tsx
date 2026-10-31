@@ -55,7 +55,7 @@ export default function DashboardPage() {
   }, []);
 
   React.useEffect(() => {
-    document.title = "Dashboard · Parkly";
+    document.title = "Dashboard · Place2Park";
     load();
   }, [load]);
 
@@ -88,7 +88,7 @@ export default function DashboardPage() {
         description="Your bookings, nearby parking, and spending in one place."
         actions={
           <Link href="/search">
-            <Button>
+            <Button variant="accent">
               <Search className="size-4" aria-hidden />
               Find parking
             </Button>
@@ -97,18 +97,27 @@ export default function DashboardPage() {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon="CalendarClock" label="Upcoming bookings" value={upcoming.length} />
+        <StatCard icon="CalendarClock" label="Upcoming bookings" value={upcoming.length} format="integer" />
         <StatCard
           icon="History"
           label="Completed"
           value={stats.completed}
+          format="integer"
           hint={`${formatINR(stats.totalSpent)} spent in total`}
         />
-        <StatCard icon="IndianRupee" label="Total spent" value={formatINR(stats.totalSpent)} hint="Completed bookings only" />
+        <StatCard
+          highlight
+          icon="IndianRupee"
+          label="Total spent"
+          value={stats.totalSpent}
+          format="currency-paise"
+          hint="Completed bookings only"
+        />
         <StatCard
           icon="Star"
           label="Pending reviews"
           value={pendingReviews}
+          format="integer"
           hint={pendingReviews > 0 ? "Share your experience" : "All caught up"}
         />
       </div>

@@ -15,7 +15,7 @@ export default function ResetPasswordPage() {
   const [loading, setLoading] = React.useState(false);
 
   React.useEffect(() => {
-    document.title = "Set a new password · Parkly";
+    document.title = "Set a new password · Place2Park";
   }, []);
 
   async function onSubmit(e: React.FormEvent) {

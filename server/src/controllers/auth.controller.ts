@@ -8,6 +8,7 @@ import { signToken, type AuthedRequest } from "../middleware/auth.js";
 import { env, isProd } from "../config/env.js";
 import { deliverPasswordResetLink, isEmailConfigured } from "../services/email.js";
 import { resolveGoogleAccountLink } from "../services/auth-accounts.js";
+import { consumePhoneOtp, issuePhoneOtp } from "../services/phone-otp.js";
 
 function issueToken(user: { _id: unknown; tokenVersion?: number | null }) {
   return signToken(String(user._id), user.tokenVersion ?? 0);
@@ -21,14 +22,28 @@ function publicUser(u: InstanceType<typeof User>) {
   return u.toJSON();
 }
 
+export async function requestPhoneOtp(req: Request, res: Response) {
+  const { phone } = req.body as { phone: string };
+  await issuePhoneOtp(phone);
+  res.json({ success: true, data: {} });
+}
+
 export async function signup(req: Request, res: Response) {
-  const { name, email, password, role } = req.body as {
-    name: string; email: string; password: string; role: "DRIVER" | "HOST" | "BOTH";
+  const { name, email, password, role, phone, otp } = req.body as {
+    name: string;
+    email: string;
+    password: string;
+    role: "DRIVER" | "HOST" | "BOTH";
+    phone: string;
+    otp: string;
   };
   const existing = await User.findOne({ email });
   if (existing) throw new ApiError(409, "An account with this email already exists.");
+  const existingPhone = await User.findOne({ phone });
+  if (existingPhone) throw new ApiError(409, "An account with this phone number already exists.");
+  await consumePhoneOtp(phone, otp);
   const passwordHash = await bcrypt.hash(password, 10);
-  const user = await User.create({ name, email, passwordHash, role });
+  const user = await User.create({ name, email, passwordHash, role, phone, phoneVerified: true });
   res.status(201).json({ success: true, data: { token: issueToken(user), user: publicUser(user) } });
 }
 

@@ -1,4 +1,5 @@
 import * as React from "react";
+import { createPortal } from "react-dom";
 import Link from "@/components/link";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/auth";
@@ -65,7 +66,7 @@ export function UserMenu({
       {open && (
         <div
           role="menu"
-          className="absolute right-0 mt-2 w-60 rounded-xl border border-line bg-white p-1.5 shadow-pop"
+          className="absolute right-0 z-50 mt-2 w-60 rounded-xl border border-line bg-white p-1.5 shadow-pop"
         >
           <div className="border-b border-slate-100 px-3 py-2.5">
             <p className="truncate text-sm font-semibold text-slate-900">{name}</p>
@@ -78,7 +79,7 @@ export function UserMenu({
                 href={it.href}
                 role="menuitem"
                 onClick={() => setOpen(false)}
-                className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-ink transition-colors hover:bg-page"
+                className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-ink transition-colors duration-200 hover:bg-brand-50 hover:text-brand-700"
               >
                 <it.icon className="size-4 text-slate-400" aria-hidden />
                 {it.label}
@@ -114,8 +115,22 @@ export function MobileMenu({
   isAdmin: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
+  const [mounted, setMounted] = React.useState(false);
   const { logout } = useAuth();
   const navigate = useNavigate();
+
+  React.useEffect(() => setMounted(true), []);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [open]);
 
   const links = [
     { href: "/search", label: "Find parking", icon: Search },
@@ -143,70 +158,75 @@ export function MobileMenu({
       >
         <Menu className="size-5" />
       </button>
-      {open && (
-        <div className="fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-ink/40" onClick={() => setOpen(false)} />
-          <div className="absolute inset-y-0 right-0 w-[300px] border-l border-line bg-white p-5 shadow-pop">
-            <div className="mb-4 flex items-center justify-between">
-              <span className="font-display text-lg font-bold text-slate-900">Menu</span>
-              <button
-                onClick={() => setOpen(false)}
-                aria-label="Close menu"
-                className="rounded-xl p-2 text-slate-500 hover:bg-slate-100"
-              >
-                <X className="size-5" />
-              </button>
-            </div>
-            <nav className="space-y-1">
-              {links.map((l) => (
-                <Link
-                  key={l.href + l.label}
-                  href={l.href}
-                  onClick={() => setOpen(false)}
-                  className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] font-medium text-slate-700 transition-colors hover:bg-white/55"
-                >
-                  <l.icon className="size-4.5 text-slate-400" aria-hidden />
-                  {l.label}
-                </Link>
-              ))}
-            </nav>
-            <div className="mt-6 border-t border-slate-100 pt-4">
-              {loggedIn ? (
+      {mounted &&
+        open &&
+        createPortal(
+          <div className="fixed inset-0 z-[100]">
+            <div className="absolute inset-0 bg-ink/50" onClick={() => setOpen(false)} />
+            <div className="absolute inset-y-0 right-0 flex w-[min(100%,20rem)] flex-col border-l border-line bg-white p-5 shadow-pop">
+              <div className="mb-4 flex items-center justify-between">
+                <span className="font-display text-lg font-bold text-ink">Menu</span>
                 <button
-                  onClick={() => {
-                    setOpen(false);
-                    logout();
-                    navigate("/");
-                  }}
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] font-medium text-red-600 hover:bg-red-50"
-                  )}
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  aria-label="Close menu"
+                  className="rounded-lg p-2 text-muted hover:bg-page"
                 >
-                  <LogOut className="size-4.5" aria-hidden />
-                  Log out
+                  <X className="size-5" />
                 </button>
-              ) : (
-                <div className="grid gap-2">
+              </div>
+              <nav className="space-y-1">
+                {links.map((l) => (
                   <Link
-                    href="/login"
+                    key={l.href + l.label}
+                    href={l.href}
                     onClick={() => setOpen(false)}
-                    className="rounded-xl border border-slate-300 px-4 py-2.5 text-center text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] font-medium text-ink transition-colors duration-200 hover:bg-brand-50 hover:text-brand-700"
                   >
-                    Log in
+                    <l.icon className="size-4.5 text-brand-500" aria-hidden />
+                    {l.label}
                   </Link>
-                  <Link
-                    href="/signup"
-                    onClick={() => setOpen(false)}
-                    className="rounded-xl bg-brand-700 px-4 py-2.5 text-center text-sm font-medium text-white hover:bg-brand-800"
+                ))}
+              </nav>
+              <div className="mt-6 border-t border-line pt-4">
+                {loggedIn ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpen(false);
+                      logout();
+                      navigate("/");
+                    }}
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] font-medium text-red-600 hover:bg-red-50"
+                    )}
                   >
-                    Sign up
-                  </Link>
-                </div>
-              )}
+                    <LogOut className="size-4.5" aria-hidden />
+                    Log out
+                  </button>
+                ) : (
+                  <div className="grid gap-2">
+                    <Link
+                      href="/login"
+                      onClick={() => setOpen(false)}
+                      className="rounded-lg border border-brand-500 bg-white px-4 py-2.5 text-center text-sm font-medium text-brand-600 transition-colors duration-200 hover:bg-brand-50"
+                    >
+                      Log in
+                    </Link>
+                    <Link
+                      href="/signup"
+                      onClick={() => setOpen(false)}
+                      className="rounded-lg bg-volt px-4 py-2.5 text-center text-sm font-medium text-ink shadow-sm transition-colors duration-200 hover:bg-volt-dark"
+                    >
+                      Sign up
+                    </Link>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

@@ -1,31 +1,39 @@
 @import "tailwindcss";
 
 @theme {
-  /* Brand — slate blue. Single accent, grey/white support. */
-  --color-brand-50: #f4f6f8;
-  --color-brand-100: #e8ecf0;
-  --color-brand-200: #d0d7de;
-  --color-brand-300: #b0bac5;
-  --color-brand-400: #8a97a5;
-  --color-brand-500: #6c7a89;
-  --color-brand-600: #5a6774;
-  --color-brand-700: #4a5561;
-  --color-brand-800: #3b444d;
-  --color-brand-900: #1f2937;
-  --color-brand-950: #111827;
+  /* Brand — Elite Blue on cool white. Volt Lime is the accent. */
+  --color-brand-50: #e8f0fa;
+  --color-brand-100: #d4e4f6;
+  --color-brand-200: #a9c7ea;
+  --color-brand-300: #6a9dd6;
+  --color-brand-400: #3778c4;
+  --color-brand-500: #0251b0;
+  --color-brand-600: #01408c;
+  --color-brand-700: #013270;
+  --color-brand-800: #012456;
+  --color-brand-900: #111827;
+  --color-brand-950: #0a1220;
 
-  --color-page: #f3f4f6;
-  --color-ink: #1f2937;
+  --color-volt: #d1ff42;
+  --color-volt-dark: #c2f226;
+  --color-volt-darker: #b3e51a;
+
+  --color-mist: #c7d1dd;
+  --color-mist-50: #eef1f5;
+  --color-mist-100: #e4e9ef;
+
+  --color-page: #f3f5f7;
+  --color-ink: #111827;
   --color-muted: #64748b;
-  --color-line: #e5e7eb;
+  --color-line: #e2e8f0;
 
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-display: "Bricolage Grotesque", "Inter", ui-sans-serif, system-ui, sans-serif;
 
-  --shadow-card: 0 1px 2px rgb(31 41 55 / 0.05), 0 1px 3px rgb(31 41 55 / 0.06);
-  --shadow-card-hover: 0 4px 14px rgb(31 41 55 / 0.08);
-  --shadow-pop: 0 10px 28px -12px rgb(31 41 55 / 0.18), 0 2px 8px rgb(31 41 55 / 0.06);
-  --shadow-glass: 0 1px 2px rgb(31 41 55 / 0.05), 0 1px 3px rgb(31 41 55 / 0.06);
+  --shadow-card: 0 1px 2px rgb(17 24 39 / 0.04), 0 1px 3px rgb(17 24 39 / 0.06);
+  --shadow-card-hover: 0 8px 18px rgb(2 81 176 / 0.10), 0 1px 3px rgb(17 24 39 / 0.05);
+  --shadow-pop: 0 12px 28px -12px rgb(17 24 39 / 0.18), 0 2px 8px rgb(17 24 39 / 0.06);
+  --shadow-glass: 0 1px 2px rgb(17 24 39 / 0.04), 0 1px 3px rgb(17 24 39 / 0.06);
 
   --animate-fade-in: fade-in 0.2s ease-out both;
   --animate-slide-up: slide-up 0.22s ease-out both;
@@ -47,11 +55,12 @@
 
 :root {
   --surface: #ffffff;
-  --surface-muted: #f9fafb;
-  --ink: #1f2937;
+  --surface-muted: #eef1f5;
+  --ink: #111827;
   --muted: #64748b;
-  --line: #e5e7eb;
-  --accent: #6c7a89;
+  --line: #e2e8f0;
+  --accent: #0251b0;
+  --volt: #d1ff42;
 }
 
 @layer base {
@@ -66,11 +75,11 @@
     @apply antialiased;
     color: var(--ink);
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-    background-color: #f3f4f6;
+    background-color: #f3f5f7;
   }
   ::selection {
-    background: var(--color-brand-100);
-    color: var(--color-brand-900);
+    background: var(--color-volt);
+    color: var(--color-ink);
   }
   :focus-visible {
     outline: 2px solid var(--color-brand-500);
@@ -88,25 +97,25 @@
   .glass,
   .glass-strong {
     background: #ffffff;
-    border: 1px solid #e5e7eb;
+    border: 1px solid #e2e8f0;
     box-shadow: var(--shadow-card);
   }
 
   .glass-soft {
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
+    background: #eef1f5;
+    border: 1px solid #e2e8f0;
   }
 
   .glass-dark {
-    background: #1f2937;
-    border: 1px solid #374151;
-    color: #f9fafb;
+    background: #111827;
+    border: 1px solid #1f2937;
+    color: #f8fafc;
     box-shadow: var(--shadow-card);
   }
 
   .glass-chip {
-    background: #f3f4f6;
-    border: 1px solid #e5e7eb;
+    background: #e4e9ef;
+    border: 1px solid #e2e8f0;
   }
 }
 
@@ -125,13 +134,13 @@
 
 @utility scrollbar-thin {
   scrollbar-width: thin;
-  scrollbar-color: #d1d5db transparent;
+  scrollbar-color: #c7d1dd transparent;
 }
 
 .pac-container {
   z-index: 80;
   border-radius: 12px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #e2e8f0;
   background: #ffffff;
   box-shadow: var(--shadow-pop);
   margin-top: 4px;

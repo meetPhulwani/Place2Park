@@ -12,7 +12,7 @@ export function AuthLayout() {
           className="absolute inset-0"
           style={{
             backgroundImage:
-              "radial-gradient(ellipse 70% 55% at 30% 10%, rgba(108,122,137,0.35), transparent), radial-gradient(ellipse 50% 45% at 85% 90%, rgba(31,41,55,0.6), transparent)",
+              "radial-gradient(ellipse 70% 55% at 30% 10%, rgba(2,81,176,0.38), transparent), radial-gradient(ellipse 40% 40% at 85% 90%, rgba(209,255,66,0.10), transparent)",
           }}
         />
         <div className="relative flex h-full flex-col justify-between p-10">
@@ -28,13 +28,13 @@ export function AuthLayout() {
                 { icon: KeyRound, text: "Self-parking only. Your keys never leave your hand." },
               ].map((i) => (
                 <li key={i.text} className="flex items-center gap-3">
-                  <i.icon className="size-4.5 shrink-0 text-brand-300" aria-hidden />
+                  <i.icon className="size-4.5 shrink-0 text-volt" aria-hidden />
                   {i.text}
                 </li>
               ))}
             </ul>
           </div>
-          <p className="text-xs text-slate-500">© {new Date().getFullYear()} Parkly</p>
+          <p className="text-xs text-slate-500">© {new Date().getFullYear()} Place2Park</p>
         </div>
       </aside>
       <div className="flex flex-col bg-page px-4 py-8 sm:px-8">

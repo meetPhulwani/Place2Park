@@ -33,7 +33,7 @@ export default function AdminUsersPage() {
   }, []);
 
   React.useEffect(() => {
-    document.title = "Users — Admin · Parkly";
+    document.title = "Users — Admin · Place2Park";
     load();
   }, [load]);
 

@@ -21,7 +21,7 @@ const icons = { success: CheckCircle2, error: AlertCircle, info: Info };
 const styles = {
   success: "border border-emerald-200 bg-white text-emerald-800 shadow-pop [&_svg.icon]:text-emerald-600",
   error: "border border-red-200 bg-white text-red-800 shadow-pop [&_svg.icon]:text-red-600",
-  info: "border border-line bg-white text-ink shadow-pop [&_svg.icon]:text-muted",
+  info: "border border-brand-200 bg-white text-ink shadow-pop [&_svg.icon]:text-brand-600",
 };
 
 export function Toaster() {

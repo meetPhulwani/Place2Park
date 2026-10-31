@@ -27,7 +27,7 @@ export default function AdminPaymentsPage() {
   const [data, setData] = React.useState<PaymentsData | null>(null);
 
   React.useEffect(() => {
-    document.title = "Payments — Admin · Parkly";
+    document.title = "Payments — Admin · Place2Park";
     api.get("/admin/payments").then(({ data: d }) => setData(d.data)).catch(() => undefined);
   }, []);
 
@@ -53,7 +53,7 @@ export default function AdminPaymentsPage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard icon="IndianRupee" label="Collected" value={formatINR(data.collected)} />
+        <StatCard highlight icon="IndianRupee" label="Collected" value={formatINR(data.collected)} />
         <StatCard icon="History" label="Refunded" value={formatINR(data.refunded)} />
         <StatCard icon="Flag" label="Failed payments" value={data.failedCount} />
       </div>
@@ -82,7 +82,7 @@ export default function AdminPaymentsPage() {
                 <td className="px-5 py-3">
                   <Badge variant={p.provider === "MOCK" ? "outline" : "info"}>{p.provider}</Badge>
                 </td>
-                <td className="px-5 py-3 font-semibold text-slate-900">{formatINR(p.amount)}</td>
+                <td className="px-5 py-3 font-semibold text-brand-600">{formatINR(p.amount)}</td>
                 <td className="px-5 py-3">
                   <Badge
                     variant={

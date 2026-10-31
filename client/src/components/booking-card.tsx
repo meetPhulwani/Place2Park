@@ -60,7 +60,7 @@ export function BookingCard({ booking }: { booking: BookingWithSpace }) {
             <Clock className="size-3.5" aria-hidden />
             {formatTime(booking.start)} – {formatTime(booking.end)} ({formatDuration(booking.durationMins)})
           </span>
-          <span className="font-semibold text-slate-900">{formatINR(booking.totalAmount)}</span>
+          <span className="font-semibold text-brand-600">{formatINR(booking.totalAmount)}</span>
         </p>
         <div className="mt-3 flex items-center gap-4">
           <Link

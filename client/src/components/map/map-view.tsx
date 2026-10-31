@@ -8,6 +8,10 @@ export interface MapMarker {
   lng: number;
   label: string; // e.g. "₹60"
   title?: string;
+  /** Straight-line distance or other factual subtitle. Omit when unknown. */
+  detail?: string;
+  /** Parking page for this marker. The map card opens it on click. */
+  href?: string;
 }
 
 export interface MapViewProps {
@@ -15,7 +19,11 @@ export interface MapViewProps {
   center?: { lat: number; lng: number };
   selectedId?: string | null;
   onSelect?: (id: string) => void;
+  /** Called when the open parking card is clicked. Receives the marker href. */
+  onOpen?: (href: string) => void;
   destination?: { lat: number; lng: number; name?: string } | null;
+  /** Pixels of the map covered by the results card. Keeps the destination pin in view. */
+  occlusion?: { left: number; top: number; right: number; bottom: number };
   className?: string;
 }
 

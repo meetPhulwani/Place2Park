@@ -7,7 +7,7 @@ const columns = [
     links: [
       { href: "/search", label: "Find parking" },
       { href: "/signup", label: "Create account" },
-      { href: "/#how-it-works", label: "How it works" },
+      { href: "/search", label: "Find parking" },
       { href: "/#faq", label: "FAQ" },
     ],
   },
@@ -58,12 +58,9 @@ export function Footer() {
             </div>
           ))}
         </div>
-        <div className="mt-10 flex flex-col items-start justify-between gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:items-center">
-          <p className="text-xs text-slate-400">
-            © {new Date().getFullYear()} Parkly. Demo product — listings shown in development are
-            fictional sample data.
-          </p>
-          <p className="text-xs font-medium text-brand-700">Never hand over your vehicle keys.</p>
+        <div className="mt-10 flex flex-col items-center gap-2 border-t border-slate-200 pt-6 text-center">
+          <p className="text-sm font-semibold text-brand-500">Never hand over your vehicle keys.</p>
+          <p className="text-xs text-slate-400">© {new Date().getFullYear()} Place2Park.</p>
         </div>
       </div>
     </footer>

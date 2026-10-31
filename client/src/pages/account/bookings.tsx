@@ -20,7 +20,7 @@ export default function BookingsPage() {
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    document.title = "Your bookings · Parkly";
+    document.title = "Your bookings · Place2Park";
     setBookings(null);
     setError(null);
     api
@@ -46,8 +46,10 @@ export default function BookingsPage() {
             type="button"
             onClick={() => setTab(t.key)}
             aria-current={tab === t.key ? "page" : undefined}
-            className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
-              tab === t.key ? "bg-brand-700 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors duration-200 ${
+              tab === t.key
+                ? "bg-brand-500 text-white"
+                : "border border-line bg-white text-muted hover:bg-brand-50 hover:text-brand-700"
             }`}
           >
             {t.label}
@@ -80,7 +82,7 @@ export default function BookingsPage() {
           action={
             tab === "upcoming" ? (
               <Link href="/search">
-                <Button>Find parking</Button>
+                <Button variant="accent">Find parking</Button>
               </Link>
             ) : undefined
           }

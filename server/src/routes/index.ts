@@ -17,7 +17,7 @@ import { BOOKING_RATE_LIMIT, BOOKING_RATE_WINDOW_MS, rateLimit } from "../utils/
 import {
   blockSlotSchema, bookingRequestSchema, createPaymentOrderSchema, googleLoginSchema,
   listingSchema, loginSchema, payoutNoteSchema, payoutProfileSchema, payoutReferenceSchema,
-  profileSchema, reportSchema, reviewSchema, signupSchema, smtpTestSchema,
+  phoneOtpSchema, profileSchema, reportSchema, reviewSchema, signupSchema, smtpTestSchema,
   vehicleSchema, verifyPaymentSchema,
 } from "../utils/validation.js";
 import { ALLOWED_UPLOAD_TYPES, MAX_UPLOAD_BYTES } from "../services/media.js";
@@ -26,6 +26,7 @@ const r = Router();
 const a = asyncHandler;
 
 // ---- Auth
+r.post("/auth/phone-otp", rateLimit("phone-otp", 5, 10 * 60000), validate(phoneOtpSchema), a(auth.requestPhoneOtp));
 r.post("/auth/signup", rateLimit("signup", 5, 10 * 60000), validate(signupSchema), a(auth.signup));
 r.post("/auth/login", rateLimit("login", 10, 10 * 60000), validate(loginSchema), a(auth.login));
 r.post("/auth/google", rateLimit("google", 10, 10 * 60000), validate(googleLoginSchema), a(auth.googleLogin));
