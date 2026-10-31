@@ -8,7 +8,7 @@ import { MapView } from "@/components/map/map-view";
 import { ParkingCard } from "@/components/parking-card";
 import { SearchBar } from "@/components/search-bar";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Skeleton } from "@/components/ui/skeleton";
+import { ParkingCardSkeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { FilterPanel, type Filters } from "@/components/filter-panel";
 import { formatINR, toDateInputValue, toTimeInputValue, cn } from "@/lib/utils";
@@ -230,9 +230,9 @@ export default function SearchPage() {
               className={cn("scrollbar-thin flex-1 overflow-y-auto p-3 sm:p-4", pending && "opacity-60")}
             >
               {spaces === null ? (
-                <div className="grid gap-4">
+                <div className="grid gap-2.5">
                   {Array.from({ length: 4 }).map((_, i) => (
-                    <Skeleton key={i} className="h-64 rounded-2xl" />
+                    <ParkingCardSkeleton key={i} />
                   ))}
                 </div>
               ) : results.length === 0 ? (
@@ -251,7 +251,7 @@ export default function SearchPage() {
                   }
                 />
               ) : (
-                <ul className="grid gap-3" role="list">
+                <ul className="grid gap-2.5" role="list">
                   {results.map((s) => (
                     <li key={s.id}>
                       <ParkingCard

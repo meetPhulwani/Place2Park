@@ -170,7 +170,7 @@ export default function DashboardPage() {
 
       {saved.length > 0 && (
         <DashboardSection id="saved-h" title="Saved spaces" href="/saved">
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-2.5">
             {saved.map((s) => (
               <ParkingCard key={s.id} space={s} />
             ))}

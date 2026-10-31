@@ -22,6 +22,9 @@ export interface SpaceSummary {
   level: string;
   propertyType: string;
   imageUrl: string | null;
+  /** Extra listing photos when a response already includes them. Search still sends imageUrl. */
+  images?: { url: string; alt?: string }[];
+  securityGuard?: boolean;
   distanceKm: number | null;
   available: boolean | null;
 }

@@ -356,6 +356,8 @@ export function ListingWizard({
     level: data.level,
     propertyType: data.propertyType,
     imageUrl: data.images[0]?.url ?? null,
+    images: data.images.map((image) => ({ url: image.url, alt: image.alt })),
+    securityGuard: data.securityGuard,
     distanceKm: null,
     available: true,
   };
@@ -873,7 +875,7 @@ export function ListingWizard({
         {step === 6 && (
           <div className="space-y-5">
             <StepHeading title="Preview your listing" sub="This is how the listing will appear to a driver." />
-            <div className="pointer-events-none max-w-sm">
+            <div className="pointer-events-none max-w-xl">
               <ParkingCard space={previewCard} />
             </div>
             <div className="rounded-2xl border border-slate-200 p-5">

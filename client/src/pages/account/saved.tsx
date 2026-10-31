@@ -5,7 +5,7 @@ import { api } from "@/services/api";
 import type { SpaceSummary } from "@/types";
 import { ParkingCard } from "@/components/parking-card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Skeleton } from "@/components/ui/skeleton";
+import { ParkingCardSkeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 
 export default function SavedPage() {
@@ -27,9 +27,9 @@ export default function SavedPage() {
         </p>
       </div>
       {spaces === null ? (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          <Skeleton className="h-64 rounded-2xl" />
-          <Skeleton className="h-64 rounded-2xl" />
+        <div className="grid gap-2.5">
+          <ParkingCardSkeleton />
+          <ParkingCardSkeleton />
         </div>
       ) : spaces.length === 0 ? (
         <EmptyState
@@ -43,7 +43,7 @@ export default function SavedPage() {
           }
         />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-2.5">
           {spaces.map((s) => (
             <ParkingCard key={s.id} space={s} />
           ))}

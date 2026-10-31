@@ -76,7 +76,7 @@ export function NearbyParking({
   if (spaces === null) {
     return (
       <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
-        <Skeleton className="h-64 rounded-xl lg:h-80" />
+        <Skeleton className="h-64 rounded-xl lg:h-full lg:min-h-80" />
         <div className="grid gap-3">
           <Skeleton className="h-36 rounded-xl" />
           <Skeleton className="h-36 rounded-xl" />
@@ -116,14 +116,14 @@ export function NearbyParking({
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
-      <div className="overflow-hidden rounded-xl border border-line bg-white">
+    <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr] lg:items-stretch">
+      <div className="relative h-64 overflow-hidden rounded-xl border border-line bg-white lg:h-auto lg:min-h-80">
         <MapView
           markers={markers}
           center={origin ?? undefined}
           selectedId={selectedId}
           onSelect={setSelectedId}
-          className="h-64 w-full lg:h-80"
+          className="absolute inset-0 h-full w-full"
         />
       </div>
       <div className="grid gap-3">
