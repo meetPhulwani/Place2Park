@@ -189,13 +189,13 @@ export default function SearchPage() {
         <div
           ref={sheetRef}
           className={cn(
-            "absolute inset-x-0 bottom-0 z-10 flex min-h-0 max-h-[62%] flex-col overflow-hidden p-3 sm:p-4",
-            "lg:inset-y-3 lg:bottom-auto lg:left-3 lg:right-auto lg:max-h-none lg:w-[400px] lg:overflow-visible lg:p-0 xl:w-[440px]",
+            "absolute inset-x-0 top-[38%] bottom-0 z-10 flex min-h-0 flex-col overflow-hidden p-3 sm:p-4",
+            "lg:inset-y-3 lg:left-3 lg:right-auto lg:w-[400px] lg:p-0 xl:w-[440px]",
             mobileView === "map" && "max-lg:hidden"
           )}
         >
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-line bg-white shadow-card">
-            <div className="relative z-20 space-y-3 overflow-visible border-b border-line p-3 sm:p-4">
+            <div className="relative z-20 shrink-0 space-y-3 overflow-visible border-b border-line p-3 sm:p-4">
               <SearchBar
                 compact
                 defaults={{
@@ -227,7 +227,7 @@ export default function SearchPage() {
             </div>
             <div
               ref={listRef}
-              className={cn("scrollbar-thin flex-1 overflow-y-auto p-3 sm:p-4", pending && "opacity-60")}
+              className={cn("scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4", pending && "opacity-60")}
             >
               {spaces === null ? (
                 <div className="grid gap-2.5">
