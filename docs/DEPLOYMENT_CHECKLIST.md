@@ -15,7 +15,7 @@ Do not run `npx tsx src/scripts/ensure-indexes.ts --apply` as part of this deplo
 | `MONGODB_URI` | Yes | Atlas URI. Boot fails if missing |
 | `MONGODB_DB` | Yes | `parkly` (or the dedicated app DB). Do not use `test` |
 | `JWT_SECRET` | Yes | Unique, ≥ 32 characters. Rotating it signs out every user |
-| `CLIENT_URL` | Yes | Exact Vercel origin. Must not be localhost |
+| `CLIENT_URL` | Yes | `https://www.place2park.me`. Must not be localhost. CORS also allows `https://place2park.me` |
 | `RAZORPAY_KEY_ID` | Yes for checkout | Same mode as the dashboard (live vs test) |
 | `RAZORPAY_KEY_SECRET` | Yes for checkout | Server only. Never log |
 | `RAZORPAY_WEBHOOK_SECRET` | Yes | Boot fails in production if empty. Must match Razorpay dashboard |
@@ -24,7 +24,7 @@ Do not run `npx tsx src/scripts/ensure-indexes.ts --apply` as part of this deplo
 | `CLOUDINARY_API_SECRET` | Yes | |
 | `GOOGLE_CLIENT_ID` | If Google login is offered | Must match the client GIS client id |
 | `GOOGLE_CLIENT_SECRET` | No for GIS ID-token login | Unused by `POST /api/auth/google` |
-| `EMAIL_FROM` | Yes if sending mail | Verified Resend sender, e.g. `Place2Park <hello@your-domain>`. `.test` / `.example` / `parkly.dev` disable sending |
+| `EMAIL_FROM` | Yes if sending mail | Verified domain sender, e.g. `Place2Park <hello@your-domain>`. `onboarding@resend.dev` only delivers to the Resend account address, so signup OTP returns 503 for everyone else. `.test` / `.example` / `parkly.dev` disable sending. Do not wrap the value in quotes |
 | `ADMIN_NOTIFICATION_EMAIL` | Yes for payout-request alerts | Real ops inbox. Never `parkly.test` or other placeholders |
 | `RESEND_API_KEY` | Yes for production mail on Render | Resend HTTPS API key. Preferred over SMTP (Render often times out Gmail SMTP). Never log |
 | `SMTP_TEST_RECIPIENT` | Optional | Allowlisted inbox for the explicit email probe. Defaults to `ADMIN_NOTIFICATION_EMAIL` |
@@ -39,7 +39,7 @@ Never put Razorpay or Cloudinary secrets in the Vercel client env.
 
 | Variable | Required | Notes |
 |---|---|---|
-| `VITE_API_URL` | Yes | `https://<render-api-host>/api` |
+| `VITE_API_URL` | Yes | `https://api.place2park.me/api` (the `/api` prefix is required). Rebuild the SPA after changing it |
 | `VITE_GOOGLE_MAPS_API_KEY` | Yes for maps/search | Browser key, HTTP-referrer restricted |
 | `VITE_GOOGLE_CLIENT_ID` | If Google login is offered | Same GIS client as `GOOGLE_CLIENT_ID` |
 | `VITE_RAZORPAY_KEY_ID` | Yes for checkout | Public key id only. Must match server mode |

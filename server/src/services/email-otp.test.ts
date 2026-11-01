@@ -187,6 +187,91 @@ describe("email OTP signup", () => {
     await assert.rejects(() => completeEmailOtp(started.pendingToken, code));
     assert.equal(await User.countDocuments({}), 0);
   });
+
+  it("returns the public 503 when Resend rejects a signup recipient and logs only the safe category", async () => {
+    const failures: {
+      requestId: string;
+      stage: string;
+      provider: string;
+      providerStatus: number | null;
+      category: string;
+      config: { resendKey: boolean; emailFrom: boolean; sandboxSender: boolean; smtp: boolean };
+    }[] = [];
+    await assert.rejects(
+      () =>
+        startSignupEmailOtp(signup, {
+          isProd: true,
+          requestId: "req-signup-503",
+          cfg: {
+            SMTP_HOST: "",
+            SMTP_PORT: 0,
+            SMTP_USER: "",
+            SMTP_PASS: "",
+            RESEND_API_KEY: "re_test_secret_should_never_appear",
+            EMAIL_FROM: "Place2Park <onboarding@resend.dev>",
+          },
+          logFailure: (event) => failures.push(event),
+          fetch: async () =>
+            ({
+              ok: false,
+              status: 403,
+              json: async () => ({
+                name: "validation_error",
+                message:
+                  "You can only send testing emails to your own email address (owner@gmail.com). To send emails to other recipients, please verify a domain.",
+              }),
+            }) as unknown as globalThis.Response,
+        }),
+      (err: unknown) =>
+        err instanceof ApiError &&
+        err.status === 503 &&
+        err.message === "We couldn't send the verification code. Try again shortly."
+    );
+    assert.equal(await User.countDocuments({ email: signup.email }), 0);
+    assert.equal(await EmailOtpPending.countDocuments({}), 0);
+    assert.equal(failures.length, 1);
+    assert.equal(failures[0]?.requestId, "req-signup-503");
+    assert.equal(failures[0]?.stage, "provider");
+    assert.equal(failures[0]?.provider, "resend");
+    assert.equal(failures[0]?.providerStatus, 403);
+    assert.equal(failures[0]?.category, "sandbox_recipient");
+    assert.deepEqual(failures[0]?.config, {
+      resendKey: true,
+      emailFrom: true,
+      sandboxSender: true,
+      smtp: false,
+    });
+    assert.doesNotMatch(JSON.stringify(failures), /owner@gmail.com|GoodPass1|654321|re_test_secret|aarav\.mehta/);
+  });
+
+  it("delivers a signup code through Resend without putting the code on the challenge", async () => {
+    let posted = "";
+    let url = "";
+    const started = await startSignupEmailOtp(signup, {
+      isProd: true,
+      cfg: {
+        SMTP_HOST: "",
+        SMTP_PORT: 0,
+        SMTP_USER: "",
+        SMTP_PASS: "",
+        RESEND_API_KEY: "re_test_secret_should_never_appear",
+        EMAIL_FROM: "Place2Park <hello@place2park.app>",
+      },
+      fetch: async (target, init) => {
+        url = target;
+        posted = String(init?.body ?? "");
+        return { ok: true, status: 200, json: async () => ({ id: "msg_signup" }) } as unknown as globalThis.Response;
+      },
+    });
+    const code = posted.match(/\b(\d{6})\b/)?.[1];
+    assert.ok(code);
+    assert.equal(url, "https://api.resend.com/emails");
+    assert.match(posted, /hello@place2park.app/);
+    assert.equal(JSON.stringify(started).includes(code!), false);
+    assert.equal(await User.countDocuments({}), 0);
+    const user = await completeEmailOtp(started.pendingToken, code!);
+    assert.equal(user.email, signup.email);
+  });
 });
 
 describe("Google email verification", () => {

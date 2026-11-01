@@ -1,5 +1,6 @@
+import { randomUUID } from "node:crypto";
 import nodemailer from "nodemailer";
-import { env, isProd } from "../config/env.js";
+import { env, isProd, unwrapEnvValue } from "../config/env.js";
 import { withTimeout } from "../utils/async.js";
 
 export type SmtpAuthConfig = {
@@ -93,6 +94,11 @@ export function evaluateEmailDeliveryConfig(cfg: SmtpAuthConfig, production: boo
 
   const from = extractEmailAddress(cfg.EMAIL_FROM || cfg.SMTP_USER || "");
   let sendEnabled = true;
+  if (production && isResendSandboxSender(from)) {
+    warnings.push(
+      "[email] EMAIL_FROM is the Resend sandbox domain. Verification codes can only be delivered to the Resend account address until EMAIL_FROM uses a verified domain."
+    );
+  }
   if (!from || (production && isPlaceholderEmail(from))) {
     sendEnabled = !production;
     if (production) {
@@ -139,6 +145,108 @@ export function describeSmtpError(err: unknown): string {
     (part) => part !== ""
   );
   return parts.length ? `SMTP ${parts.join(" ")}` : "SMTP delivery failed";
+}
+
+/** Resend's onboarding sender (*.resend.dev) delivers only to the account address. */
+export function isResendSandboxSender(value: string): boolean {
+  return emailDomain(value) === "resend.dev";
+}
+
+export type EmailFailureEvent = {
+  requestId: string;
+  stage: "configuration" | "recipient" | "provider";
+  provider: "resend" | "smtp" | "none";
+  providerStatus: number | null;
+  category: string;
+  config: {
+    resendKey: boolean;
+    emailFrom: boolean;
+    sandboxSender: boolean;
+    smtp: boolean;
+  };
+};
+
+export function emailConfigPresence(cfg: SmtpAuthConfig = env): EmailFailureEvent["config"] {
+  const from = cfg.EMAIL_FROM || cfg.SMTP_USER || "";
+  return {
+    resendKey: isResendConfigured(cfg),
+    emailFrom: Boolean(extractEmailAddress(from)),
+    sandboxSender: isResendSandboxSender(from),
+    smtp: isSmtpConfigured(cfg),
+  };
+}
+
+/** Maps a Resend error body to a fixed category. The provider message is not returned. */
+export function resendFailureCategory(status: number, name: string, message: string): string {
+  const label = `${name} ${message}`;
+  if (/only send testing emails/i.test(label)) return "sandbox_recipient";
+  if (/verify a domain|domain is not verified|not verified/i.test(label)) return "domain_not_verified";
+  if (/invalid [`']?from[`']?/i.test(label)) return "invalid_sender";
+  if (/invalid [`']?to[`']?/i.test(label)) return "invalid_recipient";
+  if (status === 401 || (status === 403 && /restricted_api_key|unauthorized|invalid api key/i.test(label))) {
+    return "unauthorized";
+  }
+  if (status === 429) return "rate_limited";
+  if (status >= 500) return "provider_unavailable";
+  if (status === 422) return "validation_error";
+  return "provider_rejected";
+}
+
+export function buildEmailFailureEvent(requestId: string, err: unknown, cfg: SmtpAuthConfig = env): EmailFailureEvent {
+  const e = err as {
+    provider?: string;
+    status?: number;
+    name?: string;
+    code?: string;
+    message?: string;
+    category?: string;
+    responseCode?: number;
+  };
+  const message = e.message ?? "";
+  const config = emailConfigPresence(cfg);
+  if (/not configured/i.test(message)) {
+    return { requestId, stage: "configuration", provider: "none", providerStatus: null, category: "missing_provider", config };
+  }
+  if (/disabled|placeholder/i.test(message)) {
+    return {
+      requestId,
+      stage: "configuration",
+      provider: "none",
+      providerStatus: null,
+      category: /placeholder/i.test(message) ? "placeholder_sender" : "sender_disabled",
+      config,
+    };
+  }
+  if (/Recipient is not/i.test(message)) {
+    return {
+      requestId,
+      stage: "recipient",
+      provider: "none",
+      providerStatus: null,
+      category: "undeliverable_recipient",
+      config,
+    };
+  }
+  const resend = e.provider === "resend" || /resend/i.test(`${e.provider ?? ""} ${message} ${e.name ?? ""}`);
+  if (resend) {
+    const timedOut = /timeout|abort|ETIMEDOUT/i.test(`${message} ${e.code ?? ""} ${e.name ?? ""}`);
+    return {
+      requestId,
+      stage: "provider",
+      provider: "resend",
+      providerStatus: typeof e.status === "number" ? e.status : null,
+      category: timedOut ? "timeout" : e.category || "provider_rejected",
+      config,
+    };
+  }
+  return {
+    requestId,
+    stage: "provider",
+    provider: "smtp",
+    providerStatus: typeof e.responseCode === "number" ? e.responseCode : null,
+    category: "smtp_failure",
+    config,
+  };
 }
 
 /** Safe provider failure summary — status/code only; never keys or message bodies. */
@@ -206,32 +314,58 @@ async function deliverViaResend(
 
   if (!res.ok) {
     let errorName = "";
+    let errorMessage = "";
     try {
-      const body = (await res.json()) as { name?: string };
+      const body = (await res.json()) as { name?: string; message?: string };
       errorName = String(body?.name ?? "").slice(0, 80);
+      errorMessage = String(body?.message ?? "");
     } catch {
       errorName = "";
+      errorMessage = "";
     }
+    const category = resendFailureCategory(res.status, errorName, errorMessage);
     throw Object.assign(new Error(`Resend ${res.status}${errorName ? ` ${errorName}` : ""}`), {
       provider: "resend",
       status: res.status,
       name: errorName,
+      category,
     });
   }
 }
 
-export async function sendMail(
-  message: MailMessage,
-  deps: {
-    send?: (msg: MailMessage & { from: string }) => Promise<unknown>;
-    cfg?: SmtpAuthConfig;
-    isProd?: boolean;
-    log?: (msg: string) => void;
-    fetch?: EmailFetch;
-    timeoutMs?: number;
-  } = {}
-) {
+export type OutboundMailDeps = {
+  send?: (msg: MailMessage & { from: string }) => Promise<unknown>;
+  cfg?: SmtpAuthConfig;
+  isProd?: boolean;
+  log?: (msg: string) => void;
+  logFailure?: (event: EmailFailureEvent) => void;
+  fetch?: EmailFetch;
+  timeoutMs?: number;
+  requestId?: string;
+};
+
+export async function sendMail(message: MailMessage, deps: OutboundMailDeps = {}) {
   const cfg = deps.cfg ?? env;
+  const requestId = deps.requestId ?? randomUUID();
+  const logFailure =
+    deps.logFailure ??
+    ((event: EmailFailureEvent) => {
+      console.error("[email] delivery_failed", event);
+    });
+  try {
+    await deliverOutboundMail(message, { ...deps, cfg, requestId });
+  } catch (err) {
+    try {
+      logFailure(buildEmailFailureEvent(requestId, err, cfg));
+    } catch {
+      /* a logger failure must not hide the delivery error */
+    }
+    throw err;
+  }
+}
+
+async function deliverOutboundMail(message: MailMessage, deps: OutboundMailDeps & { cfg: SmtpAuthConfig; requestId: string }) {
+  const cfg = deps.cfg;
   const production = deps.isProd ?? isProd;
   const log = deps.log ?? ((msg: string) => console.warn(msg));
   if (!deps.send && !isEmailConfigured(cfg)) throw new Error("Email is not configured");
@@ -248,7 +382,7 @@ export async function sendMail(
     throw new Error("Recipient is not a deliverable production address.");
   }
 
-  const from = cfg.EMAIL_FROM || cfg.SMTP_USER;
+  const from = unwrapEnvValue(cfg.EMAIL_FROM || cfg.SMTP_USER || "");
   const payload = { from, ...message };
   if (deps.send) {
     await deps.send(payload);
@@ -347,12 +481,7 @@ export async function notifyAdmin(
 /** Emails a signup or Google verification code. The code is never written to logs. */
 export async function deliverVerificationCode(
   input: { email: string; code: string },
-  deps: {
-    send?: (msg: MailMessage) => Promise<unknown>;
-    isProd?: boolean;
-    log?: (msg: string) => void;
-    cfg?: SmtpAuthConfig;
-  } = {}
+  deps: OutboundMailDeps = {}
 ): Promise<"sent"> {
   await sendMail(
     {

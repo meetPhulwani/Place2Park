@@ -1,3 +1,5 @@
+import { resolveApiBase } from "./api-base.js";
+
 /** Resolve listing media so /uploads and /demo work across hosts. */
 
 export function apiAssetOrigin(apiBase: string): string {
@@ -26,5 +28,5 @@ export function resolveMediaUrl(pathOrUrl: string | null | undefined, apiBase = 
 }
 
 export function mediaUrl(pathOrUrl: string | null | undefined): string {
-  return resolveMediaUrl(pathOrUrl, import.meta.env.VITE_API_URL || "/api");
+  return resolveMediaUrl(pathOrUrl, resolveApiBase(import.meta.env.VITE_API_URL));
 }

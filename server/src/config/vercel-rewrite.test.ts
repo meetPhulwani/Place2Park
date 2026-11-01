@@ -33,6 +33,13 @@ function securityHeaders(config: VercelConfig, label: string) {
   assert.ok(csp.includes("https://checkout.razorpay.com"), `${label} CSP must allow Razorpay checkout`);
   assert.ok(csp.includes("https://api.razorpay.com"), `${label} CSP must allow Razorpay API frames/connect`);
   assert.ok(csp.includes("https://*.onrender.com"), `${label} CSP must allow the Render API origin`);
+  assert.ok(csp.includes("https://api.place2park.me"), `${label} CSP connect-src must allow the API domain`);
+  assert.equal(
+    byKey.get("Cross-Origin-Opener-Policy"),
+    "same-origin-allow-popups",
+    `${label} must keep Google Identity Services popups working`
+  );
+  assert.notEqual(byKey.get("Cross-Origin-Opener-Policy"), "unsafe-none");
   assert.ok(csp.includes("https://res.cloudinary.com"), `${label} CSP must allow Cloudinary images`);
   assert.equal(byKey.get("X-Frame-Options"), "DENY", `${label} must set X-Frame-Options`);
 }

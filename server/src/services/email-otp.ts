@@ -5,7 +5,7 @@ import { User } from "../models/User.js";
 import { ApiError } from "../middleware/error.js";
 import { env } from "../config/env.js";
 import { resolveGoogleAccountLink } from "./auth-accounts.js";
-import { deliverVerificationCode, type MailMessage } from "./email.js";
+import { deliverVerificationCode, type OutboundMailDeps } from "./email.js";
 
 const OTP_TTL_MS = 5 * 60 * 1000;
 const PENDING_TTL_MS = 15 * 60 * 1000;
@@ -17,11 +17,7 @@ const CODE_EXPIRED = "That code has expired.";
 const CODE_INCORRECT = "That code is incorrect.";
 const TOO_MANY = "Too many incorrect attempts. Request a new code.";
 
-export type MailDeps = {
-  send?: (msg: MailMessage) => Promise<unknown>;
-  isProd?: boolean;
-  log?: (msg: string) => void;
-};
+export type MailDeps = OutboundMailDeps;
 
 export type VerifiedGoogleIdentity = {
   sub: string;

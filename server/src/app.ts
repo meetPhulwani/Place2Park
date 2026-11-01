@@ -3,6 +3,7 @@ import cors from "cors";
 import helmet from "helmet";
 import routes from "./routes/index.js";
 import { errorHandler, notFoundHandler } from "./middleware/error.js";
+import { allowedCorsOrigins } from "./config/cors.js";
 import { env, isProd } from "./config/env.js";
 import { DEMO_DIR, UPLOADS_DIR } from "./config/paths.js";
 
@@ -12,11 +13,14 @@ export function createApp() {
   app.disable("x-powered-by");
   app.use(
     helmet({
+      // API responses are not the document that opens the Google popup.
+      // same-origin stays in place. The SPA uses same-origin-allow-popups.
+      crossOriginOpenerPolicy: { policy: "same-origin" },
       crossOriginResourcePolicy: { policy: "cross-origin" },
       referrerPolicy: { policy: "no-referrer" },
     })
   );
-  app.use(cors({ origin: env.CLIENT_URL, credentials: false }));
+  app.use(cors({ origin: allowedCorsOrigins(env.CLIENT_URL, env.NODE_ENV), credentials: false }));
   // Keep the raw body for Razorpay webhook signature verification.
   app.use(
     express.json({

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { assertRazorpayWebhookSecret } from "./env.js";
+import { assertRazorpayWebhookSecret, unwrapEnvValue } from "./env.js";
 
 describe("production webhook secret validation", () => {
   it("allows local development without a webhook secret", () => {
@@ -18,6 +18,14 @@ describe("production webhook secret validation", () => {
         err.message === "RAZORPAY_WEBHOOK_SECRET is required in production."
     );
     assert.throws(() => assertRazorpayWebhookSecret("production", "   "));
+  });
+
+  it("strips quotes pasted around a Render env value", () => {
+    assert.equal(unwrapEnvValue('  "Place2Park <hello@place2park.app>"  '), "Place2Park <hello@place2park.app>");
+    assert.equal(unwrapEnvValue("'re_test_secret'"), "re_test_secret");
+    assert.equal(unwrapEnvValue("plain-value"), "plain-value");
+    assert.equal(unwrapEnvValue(""), "");
+    assert.equal(unwrapEnvValue('"mismatched\''), '"mismatched\'');
   });
 
   it("accepts a configured production webhook secret without echoing it", () => {

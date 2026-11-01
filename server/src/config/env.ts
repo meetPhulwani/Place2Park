@@ -3,6 +3,18 @@ import { ENV_FILE } from "./paths.js";
 
 dotenv.config({ path: ENV_FILE });
 
+/** Render values are sometimes pasted with the quotes from a .env line. */
+export function unwrapEnvValue(value: string | undefined): string {
+  const trimmed = String(value ?? "").trim();
+  if (trimmed.length >= 2) {
+    const quote = trimmed[0];
+    if ((quote === '"' || quote === "'") && trimmed.endsWith(quote)) {
+      return trimmed.slice(1, -1).trim();
+    }
+  }
+  return trimmed;
+}
+
 export const env = {
   PORT: Number(process.env.PORT ?? 5000),
   NODE_ENV: process.env.NODE_ENV ?? "development",
@@ -15,14 +27,14 @@ export const env = {
   RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID ?? "",
   RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET ?? "",
   RAZORPAY_WEBHOOK_SECRET: process.env.RAZORPAY_WEBHOOK_SECRET ?? "",
-  EMAIL_FROM: process.env.EMAIL_FROM ?? "",
-  ADMIN_NOTIFICATION_EMAIL: process.env.ADMIN_NOTIFICATION_EMAIL ?? "",
-  SMTP_TEST_RECIPIENT: process.env.SMTP_TEST_RECIPIENT ?? "",
-  RESEND_API_KEY: process.env.RESEND_API_KEY ?? "",
-  SMTP_HOST: process.env.SMTP_HOST ?? "",
+  EMAIL_FROM: unwrapEnvValue(process.env.EMAIL_FROM),
+  ADMIN_NOTIFICATION_EMAIL: unwrapEnvValue(process.env.ADMIN_NOTIFICATION_EMAIL),
+  SMTP_TEST_RECIPIENT: unwrapEnvValue(process.env.SMTP_TEST_RECIPIENT),
+  RESEND_API_KEY: unwrapEnvValue(process.env.RESEND_API_KEY),
+  SMTP_HOST: unwrapEnvValue(process.env.SMTP_HOST),
   SMTP_PORT: Number(process.env.SMTP_PORT ?? 0),
-  SMTP_USER: process.env.SMTP_USER ?? "",
-  SMTP_PASS: process.env.SMTP_PASS ?? "",
+  SMTP_USER: unwrapEnvValue(process.env.SMTP_USER),
+  SMTP_PASS: unwrapEnvValue(process.env.SMTP_PASS),
   CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME ?? "",
   CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY ?? "",
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET ?? "",

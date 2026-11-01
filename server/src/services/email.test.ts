@@ -10,7 +10,9 @@ import {
   describeEmailError,
   isEmailConfigured,
   isResendConfigured,
+  isResendSandboxSender,
   isSmtpConfigured,
+  resendFailureCategory,
   sendMail,
   sendSmtpTestMessage,
   smtpTransportOptions,
@@ -371,6 +373,7 @@ describe("Resend HTTPS delivery", () => {
 
   it("maps provider errors without logging the API key or message body", async () => {
     const logs: string[] = [];
+    const failures: unknown[] = [];
     await assert.rejects(
       () =>
         sendMail(
@@ -378,11 +381,16 @@ describe("Resend HTTPS delivery", () => {
           {
             cfg: resendOnly,
             isProd: true,
+            requestId: "req-provider-403",
             log: (line) => logs.push(line),
+            logFailure: (event) => failures.push(event),
             fetch: async () => jsonResponse(403, { name: "validation_error", message: "domain not verified NEFT999" }),
           }
         ),
-      /Resend 403/
+      (err: unknown) => {
+        const error = err as { message?: string; category?: string; status?: number };
+        return error.message === "Resend 403 validation_error" && error.category === "domain_not_verified" && error.status === 403;
+      }
     );
     const described = describeEmailError(
       Object.assign(new Error("Resend 403 validation_error"), {
@@ -397,6 +405,88 @@ describe("Resend HTTPS delivery", () => {
     assert.doesNotMatch(described, /NEFT999/);
     assert.equal(logs.some((line) => line.includes("re_test_secret_should_never_appear")), false);
     assert.equal(logs.some((line) => line.includes("NEFT999")), false);
+    assert.equal(failures.length, 1);
+    const event = failures[0] as { requestId: string; stage: string; providerStatus: number; category: string };
+    assert.equal(event.requestId, "req-provider-403");
+    assert.equal(event.stage, "provider");
+    assert.equal(event.providerStatus, 403);
+    assert.equal(event.category, "domain_not_verified");
+    assert.doesNotMatch(JSON.stringify(failures), /NEFT999|re_test_secret_should_never_appear|secret booking body/);
+  });
+
+  it("classifies the Resend sandbox rejection and keeps the account address out of the log", async () => {
+    const failures: unknown[] = [];
+    const providerMessage =
+      "You can only send testing emails to your own email address (owner@gmail.com). To send emails to other recipients, please verify a domain at resend.com/domains.";
+    await assert.rejects(
+      () =>
+        sendMail(
+          { to: "new.driver@gmail.com", subject: "Your Place2Park verification code", text: "Your code is 654321." },
+          {
+            cfg: {
+              ...resendOnly,
+              EMAIL_FROM: "Place2Park <onboarding@resend.dev>",
+            },
+            isProd: true,
+            requestId: "req-sandbox",
+            logFailure: (event) => failures.push(event),
+            fetch: async () => jsonResponse(403, { name: "validation_error", message: providerMessage }),
+          }
+        ),
+      (err: unknown) => (err as { category?: string }).category === "sandbox_recipient"
+    );
+    assert.equal(resendFailureCategory(403, "validation_error", providerMessage), "sandbox_recipient");
+    assert.equal(isResendSandboxSender("Place2Park <onboarding@resend.dev>"), true);
+    const event = failures[0] as {
+      requestId: string;
+      stage: string;
+      provider: string;
+      providerStatus: number;
+      category: string;
+      config: { resendKey: boolean; emailFrom: boolean; sandboxSender: boolean; smtp: boolean };
+    };
+    assert.deepEqual(
+      {
+        requestId: event.requestId,
+        stage: event.stage,
+        provider: event.provider,
+        providerStatus: event.providerStatus,
+        category: event.category,
+        config: event.config,
+      },
+      {
+        requestId: "req-sandbox",
+        stage: "provider",
+        provider: "resend",
+        providerStatus: 403,
+        category: "sandbox_recipient",
+        config: { resendKey: true, emailFrom: true, sandboxSender: true, smtp: false },
+      }
+    );
+    assert.doesNotMatch(JSON.stringify(failures), /owner@gmail.com|654321|re_test_secret_should_never_appear|new\.driver@gmail.com/);
+    const report = evaluateEmailDeliveryConfig(
+      { ...resendOnly, EMAIL_FROM: "Place2Park <onboarding@resend.dev>" },
+      true
+    );
+    assert.equal(report.sendEnabled, true);
+    assert.ok(report.warnings.some((line) => line.includes("sandbox")));
+  });
+
+  it("sends a quoted EMAIL_FROM value without the wrapping quotes", async () => {
+    const calls: { url: string; init: RequestInit }[] = [];
+    await sendMail(
+      { to: "driver@place2park.app", subject: "Code", text: "ok" },
+      {
+        cfg: { ...resendOnly, EMAIL_FROM: '"Place2Park <hello@place2park.app>"' },
+        isProd: true,
+        fetch: async (url, init) => {
+          calls.push({ url, init });
+          return jsonResponse(200, { id: "msg_quoted" });
+        },
+      }
+    );
+    const body = JSON.parse(String(calls[0]?.init.body));
+    assert.equal(body.from, "Place2Park <hello@place2park.app>");
   });
 
   it("times out a hung Resend request without treating it as sent", async () => {

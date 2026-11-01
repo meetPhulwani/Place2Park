@@ -1,8 +1,9 @@
 import axios, { AxiosError } from "axios";
+import { resolveApiBase } from "@/lib/api-base";
 
 /** Axios instance for the Parkly Express API. */
 export const api = axios.create({
-  baseURL: import.meta.env?.VITE_API_URL || "/api",
+  baseURL: resolveApiBase(import.meta.env?.VITE_API_URL),
   timeout: 25_000,
 });
 
