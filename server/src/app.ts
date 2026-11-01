@@ -9,6 +9,8 @@ import { DEMO_DIR, UPLOADS_DIR } from "./config/paths.js";
 
 export function createApp() {
   const app = express();
+  // Trust only Render's immediate proxy. `true` would honor a client-supplied
+  // X-Forwarded-For and let callers pick their own rate-limit address.
   if (isProd) app.set("trust proxy", 1);
   app.disable("x-powered-by");
   app.use(

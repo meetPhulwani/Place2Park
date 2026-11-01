@@ -13,7 +13,26 @@ import * as uploads from "../controllers/uploads.controller.js";
 import { adminOnly, authenticate, hostOnly, maybeAuthenticate } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { asyncHandler } from "../middleware/error.js";
-import { BOOKING_RATE_LIMIT, BOOKING_RATE_WINDOW_MS, rateLimit } from "../utils/rate-limit.js";
+import {
+  BOOKING_RATE_LIMIT,
+  BOOKING_RATE_WINDOW_MS,
+  PAYMENT_ORDER_LIMIT,
+  PAYMENT_ORDER_WINDOW_MS,
+  apiLimiter,
+  googleAuthLimiter,
+  loginAccountLimiter,
+  loginIpLimiter,
+  otpResendAccountLimiter,
+  otpResendIpLimiter,
+  otpVerifyChallengeLimiter,
+  otpVerifyIpLimiter,
+  passwordResetAccountLimiter,
+  passwordResetIpLimiter,
+  passwordResetTokenLimiter,
+  rateLimit,
+  signupAccountLimiter,
+  signupIpLimiter,
+} from "../utils/rate-limit.js";
 import {
   blockSlotSchema, bookingRequestSchema, createPaymentOrderSchema, emailOtpResendSchema,
   emailOtpVerifySchema, googleLoginSchema,
@@ -26,15 +45,17 @@ import { ALLOWED_UPLOAD_TYPES, MAX_UPLOAD_BYTES } from "../services/media.js";
 const r = Router();
 const a = asyncHandler;
 
+r.use(apiLimiter);
+
 // ---- Auth
-r.post("/auth/signup", rateLimit("signup", 5, 10 * 60000), validate(signupSchema), a(auth.signup));
-r.post("/auth/email-otp/resend", rateLimit("email-otp-resend", 5, 10 * 60000), validate(emailOtpResendSchema), a(auth.requestEmailOtpResend));
-r.post("/auth/email-otp/verify", rateLimit("email-otp-verify", 8, 10 * 60000), validate(emailOtpVerifySchema), a(auth.verifyEmailOtp));
-r.post("/auth/login", rateLimit("login", 10, 10 * 60000), validate(loginSchema), a(auth.login));
-r.post("/auth/google", rateLimit("google", 10, 10 * 60000), validate(googleLoginSchema), a(auth.googleLogin));
+r.post("/auth/signup", signupIpLimiter, signupAccountLimiter, validate(signupSchema), a(auth.signup));
+r.post("/auth/email-otp/resend", otpResendIpLimiter, otpResendAccountLimiter, validate(emailOtpResendSchema), a(auth.requestEmailOtpResend));
+r.post("/auth/email-otp/verify", otpVerifyIpLimiter, otpVerifyChallengeLimiter, validate(emailOtpVerifySchema), a(auth.verifyEmailOtp));
+r.post("/auth/login", loginIpLimiter, loginAccountLimiter, validate(loginSchema), a(auth.login));
+r.post("/auth/google", googleAuthLimiter, validate(googleLoginSchema), a(auth.googleLogin));
 r.get("/auth/me", authenticate, a(auth.me));
-r.post("/auth/forgot-password", rateLimit("forgot", 5, 10 * 60000), a(auth.forgotPassword));
-r.post("/auth/reset-password", rateLimit("reset", 5, 10 * 60000), a(auth.resetPassword));
+r.post("/auth/forgot-password", passwordResetIpLimiter, passwordResetAccountLimiter, a(auth.forgotPassword));
+r.post("/auth/reset-password", passwordResetIpLimiter, passwordResetTokenLimiter, a(auth.resetPassword));
 
 // ---- Users
 r.patch("/users/me", authenticate, validate(profileSchema), a(users.updateProfile));
@@ -61,7 +82,7 @@ r.get("/bookings/:id", authenticate, a(bookings.detail));
 r.post("/bookings/:id/cancel", authenticate, a(bookings.cancel));
 
 // ---- Payments
-r.post("/payments/orders", authenticate, rateLimit("pay-order", 10, 10 * 60000), validate(createPaymentOrderSchema), a(payments.createOrder));
+r.post("/payments/orders", authenticate, rateLimit("pay-order", PAYMENT_ORDER_LIMIT, PAYMENT_ORDER_WINDOW_MS), validate(createPaymentOrderSchema), a(payments.createOrder));
 r.post("/payments/verify", authenticate, rateLimit("pay-verify", 20, 10 * 60000), validate(verifyPaymentSchema), a(payments.verify));
 r.post("/payments/mock-confirm", authenticate, a(payments.mockConfirm));
 r.post("/payments/webhook", a(payments.webhook)); // signature-verified, no JWT

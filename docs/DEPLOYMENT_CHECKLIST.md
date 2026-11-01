@@ -35,6 +35,8 @@ Do not run `npx tsx src/scripts/ensure-indexes.ts --apply` as part of this deplo
 
 Never put Razorpay or Cloudinary secrets in the Vercel client env.
 
+Rate limits live in the API process memory. Render should keep a single instance unless a shared store is added later. Do not set Express `trust proxy` to `true`; production trusts one proxy hop so a caller cannot choose the address used for IP limits. Redis is not configured.
+
 ### Vercel SPA (`client/` build-time)
 
 | Variable | Required | Notes |
