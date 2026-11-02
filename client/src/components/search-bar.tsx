@@ -15,10 +15,12 @@ export function SearchBar({
   compact,
   variant = "default",
   defaults,
+  onSearched,
 }: {
   compact?: boolean;
   variant?: "default" | "dock";
   defaults?: { q?: string; date?: string; time?: string; durationMins?: number };
+  onSearched?: () => void;
 }) {
   const dock = variant === "dock";
   const navigate = useNavigate();
@@ -61,6 +63,11 @@ export function SearchBar({
         setResolving(false);
       }
     }
+    if (!fromPlace && query && query === (currentParams.get("q") ?? "").trim()) {
+      const lat = Number(currentParams.get("lat"));
+      const lng = Number(currentParams.get("lng"));
+      if (Number.isFinite(lat) && Number.isFinite(lng)) fromPlace = { lat, lng };
+    }
     if (query) params.set("q", query);
     if (fromPlace) {
       params.set("lat", String(fromPlace.lat));
@@ -77,6 +84,7 @@ export function SearchBar({
         lng: fromPlace?.lng,
       });
     }
+    if (fromPlace) onSearched?.();
     navigate(`/search?${params.toString()}`);
   }
 

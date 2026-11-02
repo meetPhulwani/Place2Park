@@ -1,8 +1,6 @@
 import * as React from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { List, Map as MapIcon, SearchX, SlidersHorizontal, X } from "lucide-react";
-import { api } from "@/services/api";
-import type { SpaceSummary } from "@/types";
 import { Navbar } from "@/components/navbar";
 import { MapView } from "@/components/map/map-view";
 import { ParkingCard } from "@/components/parking-card";
@@ -15,22 +13,38 @@ import { formatINR, toDateInputValue, toTimeInputValue, cn } from "@/lib/utils";
 import { occlusionFromRects, straightLineLabel } from "@/lib/destination";
 import { haversineKm } from "@/lib/geo";
 import { spaceCoordinates } from "@/lib/space-coords";
+import { filterSummary, finiteCoord, hasDestinationCoords, MOBILE_PREVIEW_COUNT } from "@/lib/search-summary";
+import { useParkingSearch, type SearchLocationState } from "@/lib/use-parking-search";
 
-function finiteCoord(value: string | null) {
-  if (value == null || value === "") return null;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
+function useNarrowScreen() {
+  const [narrow, setNarrow] = React.useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches
+  );
+  React.useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const apply = () => setNarrow(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+  return narrow;
 }
 
 export default function SearchPage() {
   const [params, setParams] = useSearchParams();
+  const location = useLocation();
   const navigate = useNavigate();
-  const [spaces, setSpaces] = React.useState<SpaceSummary[] | null>(null);
-  const [apiDestination, setApiDestination] = React.useState<{ lat: number; lng: number; name?: string } | null>(null);
+  const paramString = params.toString();
+  const handoff = location.state as SearchLocationState | null;
+  const seedKey = handoff?.results && handoff.searchKey === paramString ? handoff.searchKey : null;
+  const { spaces, apiDestination, pending } = useParkingSearch(paramString, seedKey, seedKey ? handoff?.results : null);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [mobileView, setMobileView] = React.useState<"list" | "map">("list");
   const [filtersOpen, setFiltersOpen] = React.useState(false);
-  const [pending, setPending] = React.useState(false);
+  const editRequested = Boolean((location.state as SearchLocationState | null)?.editSearch);
+  const destinationKey = `${params.get("q") ?? ""}|${params.get("lat") ?? ""}|${params.get("lng") ?? ""}`;
+  const [editing, setEditing] = React.useState(editRequested);
+  const narrow = useNarrowScreen();
   const [occlusion, setOcclusion] = React.useState({ left: 0, top: 0, right: 0, bottom: 0 });
   const listRef = React.useRef<HTMLDivElement>(null);
   const stageRef = React.useRef<HTMLDivElement>(null);
@@ -53,29 +67,9 @@ export default function SearchPage() {
     document.title = "Find parking · Place2Park";
   }, []);
 
-  const paramString = params.toString();
   React.useEffect(() => {
-    let cancelled = false;
-    setPending(true);
-    setApiDestination(null);
-    const qs = new URLSearchParams(paramString);
-    if (qs.get("start") && !qs.get("durationMins")) qs.set("durationMins", "120");
-    api
-      .get(`/parking/search?${qs.toString()}`)
-      .then(({ data }) => {
-        if (cancelled) return;
-        setSpaces(data.data.results);
-        const center = data.data.center as { lat: number; lng: number } | null;
-        setApiDestination(center ? { ...center, name: data.data.resolvedArea ?? qs.get("q") ?? undefined } : null);
-      })
-      .catch(() => {
-        if (!cancelled) setSpaces([]);
-      })
-      .finally(() => !cancelled && setPending(false));
-    return () => {
-      cancelled = true;
-    };
-  }, [paramString]);
+    setEditing(editRequested);
+  }, [destinationKey, editRequested]);
 
   React.useEffect(() => {
     const stage = stageRef.current;
@@ -147,7 +141,18 @@ export default function SearchPage() {
     ? { ...urlDestination, name: urlDestination.name || apiDestination?.name }
     : apiDestination;
 
+  const hasDestination = hasDestinationCoords(urlLat, urlLng);
+  const mobileExpanded = !hasDestination || editing;
+  const chips = filterSummary(query);
+  const destinationLabel = destination?.name || query.q || "Selected destination";
   const results = spaces ?? [];
+  const listed = narrow && hasDestination ? results.slice(0, MOBILE_PREVIEW_COUNT) : results;
+
+  function openAllResults() {
+    navigate(`/search/results?${paramString}`, {
+      state: spaces ? ({ results: spaces, searchKey: paramString } satisfies SearchLocationState) : undefined,
+    });
+  }
   const markers = results.flatMap((s) => {
     const coords = spaceCoordinates(s);
     if (!coords) return [];
@@ -196,17 +201,37 @@ export default function SearchPage() {
         >
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-line bg-white shadow-card">
             <div className="relative z-20 shrink-0 space-y-3 overflow-visible border-b border-line p-3 sm:p-4">
-              <SearchBar
-                compact
-                defaults={{
-                  q: query.q,
-                  date: start ? toDateInputValue(start) : undefined,
-                  time: start ? toTimeInputValue(start) : undefined,
-                  durationMins: query.durationMins,
-                }}
-              />
+              <div className={cn(!mobileExpanded && "max-lg:hidden")}>
+                <SearchBar
+                  compact
+                  onSearched={() => setEditing(false)}
+                  defaults={{
+                    q: query.q,
+                    date: start ? toDateInputValue(start) : undefined,
+                    time: start ? toTimeInputValue(start) : undefined,
+                    durationMins: query.durationMins,
+                  }}
+                />
+              </div>
+              {hasDestination && (
+                <div className={cn("lg:hidden", mobileExpanded && "hidden")}>
+                  <div className="flex items-center gap-2">
+                    <p className="min-w-0 flex-1 truncate text-sm font-semibold text-ink" title={destinationLabel}>
+                      {destinationLabel}
+                    </p>
+                    <Button type="button" variant="secondary" size="sm" onClick={() => setEditing(true)}>
+                      Edit
+                    </Button>
+                  </div>
+                  {chips ? (
+                    <p className="mt-1 truncate text-xs text-slate-500" title={chips}>
+                      {chips}
+                    </p>
+                  ) : null}
+                </div>
+              )}
               <div className="flex items-center justify-between gap-3">
-                <p className="text-sm text-slate-500" aria-live="polite">
+                <p className="line-clamp-2 text-sm text-slate-500 lg:line-clamp-none" aria-live="polite">
                   {pending || spaces === null
                     ? "Updating…"
                     : `${results.length} space${results.length === 1 ? "" : "s"} found`}
@@ -224,10 +249,23 @@ export default function SearchPage() {
                 </Button>
               </div>
               {filtersOpen && <FilterPanel value={query} onChange={applyFilters} busy={pending} />}
+              {hasDestination && !mobileExpanded && (
+                <div className="space-y-1 lg:hidden">
+                  <Button type="button" className="h-11 w-full" onClick={openAllResults}>
+                    Show all parking spaces
+                  </Button>
+                  <p className="truncate text-center text-xs text-slate-500" title={destinationLabel}>
+                    Explore all available parking spaces near {destinationLabel}
+                  </p>
+                </div>
+              )}
             </div>
             <div
               ref={listRef}
-              className={cn("scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4", pending && "opacity-60")}
+              className={cn(
+                "scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4 max-lg:pb-24",
+                pending && "opacity-60"
+              )}
             >
               {spaces === null ? (
                 <div className="grid gap-2.5">
@@ -252,7 +290,7 @@ export default function SearchPage() {
                 />
               ) : (
                 <ul className="grid gap-2.5" role="list">
-                  {results.map((s) => (
+                  {listed.map((s) => (
                     <li key={s.id}>
                       <ParkingCard
                         space={s}

@@ -14,6 +14,7 @@ import VerifyEmailPage from "@/pages/auth/verify-email";
 import ForgotPasswordPage from "@/pages/auth/forgot-password";
 import ResetPasswordPage from "@/pages/auth/reset-password";
 import SearchPage from "@/pages/search";
+import SearchResultsPage from "@/pages/search-results";
 import ParkingDetailPage from "@/pages/parking-detail";
 import BecomeAHostPage from "@/pages/become-a-host";
 import SupportPage from "@/pages/support";
@@ -53,6 +54,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/search" element={<SearchPage />} />
+        <Route path="/search/results" element={<SearchResultsPage />} />
         <Route path="/parking/:id" element={<ParkingDetailPage />} />
         <Route path="/become-a-host" element={<BecomeAHostPage />} />
         <Route path="/support" element={<SupportPage />} />
