@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, SearchX } from "lucide-react";
+import { ArrowLeft, Calendar, Clock, SearchX } from "lucide-react";
 import type { SpaceSummary } from "@/types";
 import { Navbar } from "@/components/navbar";
 import { ParkingCard } from "@/components/parking-card";
@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ParkingCardSkeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import type { Filters } from "@/components/filter-panel";
-import { filterSummary, RESULTS_PAGE_SIZE } from "@/lib/search-summary";
+import { filterSummary, formatSearchDateLabel, formatSearchTimeLabel, RESULTS_PAGE_SIZE } from "@/lib/search-summary";
 import { useParkingSearch, type SearchLocationState } from "@/lib/use-parking-search";
 
 function readQuery(params: URLSearchParams) {
@@ -51,6 +51,8 @@ export default function SearchResultsPage() {
   const results = spaces ?? [];
   const shown = results.slice(0, visible);
   const chips = filterSummary(query);
+  const dateLabel = formatSearchDateLabel(query.start);
+  const timeLabel = formatSearchTimeLabel(query.start, query.durationMins);
   const bookingParams = new URLSearchParams();
   if (query.start) bookingParams.set("start", query.start);
   if (query.durationMins) bookingParams.set("durationMins", String(query.durationMins));
@@ -87,10 +89,26 @@ export default function SearchResultsPage() {
             Edit
           </Button>
         </div>
-        {chips ? (
-          <p className="mx-auto max-w-3xl truncate px-4 pb-3 text-xs text-slate-500 sm:px-6" title={chips}>
-            {chips}
-          </p>
+        {dateLabel || timeLabel || chips ? (
+          <div className="mx-auto max-w-3xl space-y-1 px-4 pb-3 sm:px-6">
+            {dateLabel ? (
+              <p className="flex min-w-0 items-center gap-1.5 text-xs text-slate-600">
+                <Calendar className="size-3.5 shrink-0 text-brand-500" aria-hidden />
+                <span className="truncate">{dateLabel}</span>
+              </p>
+            ) : null}
+            {timeLabel ? (
+              <p className="flex min-w-0 items-center gap-1.5 text-xs text-slate-600">
+                <Clock className="size-3.5 shrink-0 text-brand-500" aria-hidden />
+                <span className="truncate">{timeLabel}</span>
+              </p>
+            ) : null}
+            {chips ? (
+              <p className="truncate text-xs text-slate-500" title={chips}>
+                {chips}
+              </p>
+            ) : null}
+          </div>
         ) : null}
       </div>
 

@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { MapPin, Search } from "lucide-react";
 import { ALLOWED_DURATIONS_MINS } from "@/lib/constants";
 import { formatDuration, nextHalfHour, toDateInputValue, toTimeInputValue, cn } from "@/lib/utils";
-import { shortSearchQuery } from "@/lib/location";
+import { selectedPlaceLabel } from "@/lib/search-summary";
 import { rememberPlace } from "@/lib/recent-places";
 import { resolveDestinationQuery } from "@/lib/destination";
 import { PlacesAutocomplete } from "@/components/map/places-autocomplete";
@@ -117,7 +117,7 @@ export function SearchBar({
             placeholder={dock ? "Where to?" : "Where are you going? e.g. Bandra, BKC, Powai"}
             className="h-11 border-0 bg-transparent px-0 text-sm shadow-none focus-visible:ring-0"
             onPlace={(p) => {
-              const label = shortSearchQuery(p) || p.formattedAddress;
+              const label = selectedPlaceLabel(p);
               selected.current = { lat: p.latitude, lng: p.longitude, label };
               setQ(label);
               submit(undefined, { lat: p.latitude, lng: p.longitude }, label);

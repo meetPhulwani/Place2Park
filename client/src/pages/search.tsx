@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { List, Map as MapIcon, SearchX, SlidersHorizontal, X } from "lucide-react";
+import { Calendar, Clock, List, Map as MapIcon, SearchX, SlidersHorizontal, X } from "lucide-react";
 import { Navbar } from "@/components/navbar";
 import { MapView } from "@/components/map/map-view";
 import { ParkingCard } from "@/components/parking-card";
@@ -13,7 +13,13 @@ import { formatINR, toDateInputValue, toTimeInputValue, cn } from "@/lib/utils";
 import { occlusionFromRects, straightLineLabel } from "@/lib/destination";
 import { haversineKm } from "@/lib/geo";
 import { spaceCoordinates } from "@/lib/space-coords";
-import { filterSummary, finiteCoord, hasDestinationCoords, MOBILE_PREVIEW_COUNT } from "@/lib/search-summary";
+import {
+  finiteCoord,
+  formatSearchDateLabel,
+  formatSearchTimeLabel,
+  hasDestinationCoords,
+  MOBILE_PREVIEW_COUNT,
+} from "@/lib/search-summary";
 import { useParkingSearch, type SearchLocationState } from "@/lib/use-parking-search";
 
 function useNarrowScreen() {
@@ -143,8 +149,9 @@ export default function SearchPage() {
 
   const hasDestination = hasDestinationCoords(urlLat, urlLng);
   const mobileExpanded = !hasDestination || editing;
-  const chips = filterSummary(query);
-  const destinationLabel = destination?.name || query.q || "Selected destination";
+  const destinationLabel = query.q || destination?.name || "";
+  const dateLabel = formatSearchDateLabel(query.start);
+  const timeLabel = formatSearchTimeLabel(query.start, query.durationMins);
   const results = spaces ?? [];
   const listed = narrow && hasDestination ? results.slice(0, MOBILE_PREVIEW_COUNT) : results;
 
@@ -195,12 +202,13 @@ export default function SearchPage() {
           ref={sheetRef}
           className={cn(
             "absolute inset-x-0 top-[38%] bottom-0 z-10 flex min-h-0 flex-col overflow-hidden p-3 sm:p-4",
+            "max-lg:pb-[max(4.75rem,calc(env(safe-area-inset-bottom)+4rem))]",
             "lg:inset-y-3 lg:left-3 lg:right-auto lg:w-[400px] lg:p-0 xl:w-[440px]",
             mobileView === "map" && "max-lg:hidden"
           )}
         >
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-line bg-white shadow-card">
-            <div className="relative z-20 shrink-0 space-y-3 overflow-visible border-b border-line p-3 sm:p-4">
+            <div className="relative z-20 shrink-0 space-y-2 overflow-visible border-b border-line p-3 sm:p-4 lg:space-y-3">
               <div className={cn(!mobileExpanded && "max-lg:hidden")}>
                 <SearchBar
                   compact
@@ -214,29 +222,38 @@ export default function SearchPage() {
                 />
               </div>
               {hasDestination && (
-                <div className={cn("lg:hidden", mobileExpanded && "hidden")}>
+                <div className={cn("space-y-1 lg:hidden", mobileExpanded && "hidden")}>
                   <div className="flex items-center gap-2">
-                    <p className="min-w-0 flex-1 truncate text-sm font-semibold text-ink" title={destinationLabel}>
+                    <p className="min-w-0 flex-1 truncate text-sm font-semibold text-ink" title={destinationLabel || undefined}>
                       {destinationLabel}
                     </p>
                     <Button type="button" variant="secondary" size="sm" onClick={() => setEditing(true)}>
                       Edit
                     </Button>
                   </div>
-                  {chips ? (
-                    <p className="mt-1 truncate text-xs text-slate-500" title={chips}>
-                      {chips}
+                  {dateLabel ? (
+                    <p className="flex min-w-0 items-center gap-1.5 text-xs text-slate-600">
+                      <Calendar className="size-3.5 shrink-0 text-brand-500" aria-hidden />
+                      <span className="truncate">{dateLabel}</span>
+                    </p>
+                  ) : null}
+                  {timeLabel ? (
+                    <p className="flex min-w-0 items-center gap-1.5 text-xs text-slate-600">
+                      <Clock className="size-3.5 shrink-0 text-brand-500" aria-hidden />
+                      <span className="truncate">{timeLabel}</span>
                     </p>
                   ) : null}
                 </div>
               )}
               <div className="flex items-center justify-between gap-3">
-                <p className="line-clamp-2 text-sm text-slate-500 lg:line-clamp-none" aria-live="polite">
+                <p className="min-w-0 text-sm text-slate-500" aria-live="polite">
                   {pending || spaces === null
                     ? "Updating…"
                     : `${results.length} space${results.length === 1 ? "" : "s"} found`}
-                  {destination?.name ? ` near ${destination.name}` : ""}
-                  {destination ? ". Distances are straight-line." : ""}
+                  <span className={cn(hasDestination && !mobileExpanded && "max-lg:hidden")}>
+                    {destinationLabel ? ` near ${destinationLabel}` : ""}
+                    {destination ? ". Distances are straight-line." : ""}
+                  </span>
                 </p>
                 <Button
                   variant="secondary"
@@ -250,20 +267,17 @@ export default function SearchPage() {
               </div>
               {filtersOpen && <FilterPanel value={query} onChange={applyFilters} busy={pending} />}
               {hasDestination && !mobileExpanded && (
-                <div className="space-y-1 lg:hidden">
+                <div className="lg:hidden">
                   <Button type="button" className="h-11 w-full" onClick={openAllResults}>
                     Show all parking spaces
                   </Button>
-                  <p className="truncate text-center text-xs text-slate-500" title={destinationLabel}>
-                    Explore all available parking spaces near {destinationLabel}
-                  </p>
                 </div>
               )}
             </div>
             <div
               ref={listRef}
               className={cn(
-                "scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4 max-lg:pb-24",
+                "scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4",
                 pending && "opacity-60"
               )}
             >
@@ -306,20 +320,14 @@ export default function SearchPage() {
           </div>
         </div>
 
-        <div className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] left-1/2 z-30 -translate-x-1/2 lg:hidden">
+        <div className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-30 lg:hidden">
           <button
+            type="button"
             onClick={() => setMobileView((v) => (v === "list" ? "map" : "list"))}
-            className="flex items-center gap-2 rounded-full bg-brand-500 px-5 py-3 text-sm font-semibold text-white shadow-pop transition-colors duration-200 hover:bg-brand-600"
+            aria-label={mobileView === "list" ? "Show map" : "Show list"}
+            className="flex size-12 items-center justify-center rounded-full bg-brand-500 text-white shadow-pop transition-colors duration-200 hover:bg-brand-600"
           >
-            {mobileView === "list" ? (
-              <>
-                <MapIcon className="size-4" aria-hidden /> Show map
-              </>
-            ) : (
-              <>
-                <List className="size-4" aria-hidden /> Show list
-              </>
-            )}
+            {mobileView === "list" ? <MapIcon className="size-5" aria-hidden /> : <List className="size-5" aria-hidden />}
           </button>
         </div>
       </div>
