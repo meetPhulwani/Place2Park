@@ -1,11 +1,12 @@
 import { geocodeKnownArea, haversineKm } from "./geo";
-import { googleMapsApiKey, loadGoogleMaps, resolvedLocationFromComponents } from "./google-maps";
+import { resolveIndiaPlace } from "./google-maps";
 import { formatDistance } from "./utils";
 
 export type DestinationFix = {
   latitude: number;
   longitude: number;
   label: string;
+  placeId?: string;
 };
 
 /** Straight-line label. Never invents a number when the distance is unknown. */
@@ -139,37 +140,19 @@ export function frameDestinationView(
 }
 
 async function geocodeWithGoogle(query: string): Promise<DestinationFix | null> {
-  const apiKey = googleMapsApiKey();
-  if (!apiKey || typeof window === "undefined") return null;
-  await loadGoogleMaps(apiKey);
-  const Geocoder = window.google?.maps?.Geocoder;
-  if (!Geocoder) return null;
-  const geocoder = new Geocoder();
-  const { results } = await geocoder.geocode({
-    address: query,
-    componentRestrictions: { country: "IN" },
-  });
-  const first = results?.[0];
-  const loc = first?.geometry?.location;
-  if (!first || !loc) return null;
-  const parsed = resolvedLocationFromComponents({
-    formattedAddress: first.formatted_address,
-    name: first.formatted_address,
-    placeId: first.place_id,
-    addressComponents: first.address_components,
-    latitude: loc.lat(),
-    longitude: loc.lng(),
-  });
+  const place = await resolveIndiaPlace(query);
+  if (!place || !Number.isFinite(place.latitude) || !Number.isFinite(place.longitude)) return null;
   return {
-    latitude: parsed.latitude,
-    longitude: parsed.longitude,
-    label: parsed.formattedAddress || query,
+    latitude: place.latitude,
+    longitude: place.longitude,
+    label: place.formattedAddress || query,
+    placeId: place.placeId || undefined,
   };
 }
 
 /**
- * Resolve a typed destination to real coordinates.
- * Google Geocoding wins when it returns a place; the locality catalog is only a fallback.
+ * Resolve a typed destination through Google Places, restricted to India.
+ * A missing result stays missing. There is no city catalog to snap it to.
  */
 export async function resolveDestinationQuery(
   query: string,
@@ -181,7 +164,7 @@ export async function resolveDestinationQuery(
     const found = await lookup(q);
     if (found && Number.isFinite(found.latitude) && Number.isFinite(found.longitude)) return found;
   } catch {
-    // Fall through to the catalog when the geocoder is unavailable.
+    return null;
   }
-  return knownDestination(q);
+  return null;
 }

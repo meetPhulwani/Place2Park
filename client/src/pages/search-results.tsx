@@ -129,8 +129,14 @@ export default function SearchResultsPage() {
         ) : results.length === 0 ? (
           <EmptyState
             icon={SearchX}
-            title={destinationName ? "No parking near this destination" : "No parking found here"}
-            description="Try widening the distance filter, changing the time window, or searching a nearby area."
+            title={
+              destinationName ? "No parking spaces available near this location yet." : "No parking found here"
+            }
+            description={
+              destinationName
+                ? "Try another area or a different time."
+                : "Try widening the distance filter, changing the time window, or searching a nearby area."
+            }
             action={
               <Button variant="secondary" onClick={() => backToMap(true)}>
                 Edit search

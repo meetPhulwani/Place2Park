@@ -202,13 +202,15 @@ export default function SearchPage() {
           ref={sheetRef}
           className={cn(
             "absolute inset-x-0 top-[38%] bottom-0 z-10 flex min-h-0 flex-col overflow-hidden p-3 sm:p-4",
-            "max-lg:pb-[max(4.75rem,calc(env(safe-area-inset-bottom)+4rem))]",
             "lg:inset-y-3 lg:left-3 lg:right-auto lg:w-[400px] lg:p-0 xl:w-[440px]",
             mobileView === "map" && "max-lg:hidden"
           )}
         >
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-line bg-white shadow-card">
-            <div className="relative z-20 shrink-0 space-y-2 overflow-visible border-b border-line p-3 sm:p-4 lg:space-y-3">
+          <div
+            data-location-dock
+            className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-line bg-white shadow-card"
+          >
+            <div className="relative z-[80] shrink-0 space-y-2 overflow-visible border-b border-line p-3 sm:p-4 lg:space-y-3">
               <div className={cn(!mobileExpanded && "max-lg:hidden")}>
                 <SearchBar
                   compact
@@ -290,10 +292,10 @@ export default function SearchPage() {
               ) : results.length === 0 ? (
                 <EmptyState
                   icon={SearchX}
-                  title={destination ? "No parking near this destination" : "No parking found here"}
+                  title={destination ? "No parking spaces available near this location yet." : "No parking found here"}
                   description={
                     destination
-                      ? `The map stays centred on ${destination.name ?? "this place"}. Try widening the distance filter or searching a nearby area.`
+                      ? `The map stays centred on ${destination.name ?? "this place"}. Try another area or a different time.`
                       : "Try widening the distance filter, changing the time window, or searching a nearby area."
                   }
                   action={
@@ -320,12 +322,12 @@ export default function SearchPage() {
           </div>
         </div>
 
-        <div className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-30 lg:hidden">
+        <div className="pointer-events-none absolute top-3 right-[max(0.75rem,env(safe-area-inset-right))] z-20 lg:hidden">
           <button
             type="button"
             onClick={() => setMobileView((v) => (v === "list" ? "map" : "list"))}
             aria-label={mobileView === "list" ? "Show map" : "Show list"}
-            className="flex size-12 items-center justify-center rounded-full bg-brand-500 text-white shadow-pop transition-colors duration-200 hover:bg-brand-600"
+            className="pointer-events-auto flex size-12 items-center justify-center rounded-full bg-brand-500 text-white shadow-pop transition-colors duration-200 hover:bg-brand-600"
           >
             {mobileView === "list" ? <MapIcon className="size-5" aria-hidden /> : <List className="size-5" aria-hidden />}
           </button>

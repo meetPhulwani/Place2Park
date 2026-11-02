@@ -11,6 +11,7 @@ export type RecentPlace = {
   q: string;
   lat?: number;
   lng?: number;
+  placeId?: string;
   city?: string;
   imageUrl?: string | null;
   at: number;

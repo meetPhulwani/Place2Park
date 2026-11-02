@@ -4,7 +4,7 @@ import { Booking, Favorite, ParkingSpace, Review, User } from "../models/index.j
 import { ApiError } from "../middleware/error.js";
 import type { AuthedRequest } from "../middleware/auth.js";
 import { searchSpaces } from "../services/search.js";
-import { geocodeKnownArea, KNOWN_AREAS } from "../utils/geo.js";
+import { KNOWN_AREAS } from "../utils/geo.js";
 import { getDisplayLocation, locationTextClauses } from "../utils/location.js";
 import {
   AVAILABILITY_ERROR_MESSAGES,
@@ -32,36 +32,28 @@ export async function search(req: Request, res: Response) {
   if (lat != null && (lat < -90 || lat > 90)) lat = undefined;
   if (lng != null && (lng < -180 || lng > 180)) lng = undefined;
   let resolvedArea: string | null = null;
-  // Resolve a search center so geospatial $geoWithin is the primary query.
-  // KNOWN_AREAS is the demo fallback (e.g. Juhu). If that misses, use coordinates
-  // already stored on matching listings — not a hardcoded place list.
+  // Coordinates from the client are the search center. A name-only request
+  // can fall back to coordinates already stored on matching listings.
   if ((lat == null || lng == null) && typeof q.q === "string" && q.q) {
-    const area = geocodeKnownArea(q.q);
-    if (area) {
-      lat = area.lat;
-      lng = area.lng;
-      resolvedArea = area.name;
-    } else {
-      const clauses = locationTextClauses(q.q);
-      if (clauses.length) {
-        const named = await ParkingSpace.find({
-          status: { $in: ["VERIFIED", "ACTIVE"] },
-          $or: clauses,
-        })
-          .select("location")
-          .limit(25);
-        const coords = named
-          .map((s) => s.location?.coordinates as [number, number] | undefined)
-          .filter((c): c is [number, number] => Array.isArray(c) && c.length === 2);
-        if (coords.length) {
-          lng = coords.reduce((sum, c) => sum + c[0], 0) / coords.length;
-          lat = coords.reduce((sum, c) => sum + c[1], 0) / coords.length;
-          resolvedArea = q.q;
-        }
+    const clauses = locationTextClauses(q.q);
+    if (clauses.length) {
+      const named = await ParkingSpace.find({
+        status: { $in: ["VERIFIED", "ACTIVE"] },
+        $or: clauses,
+      })
+        .select("location")
+        .limit(25);
+      const coords = named
+        .map((s) => s.location?.coordinates as [number, number] | undefined)
+        .filter((c): c is [number, number] => Array.isArray(c) && c.length === 2);
+      if (coords.length) {
+        lng = coords.reduce((sum, c) => sum + c[0], 0) / coords.length;
+        lat = coords.reduce((sum, c) => sum + c[1], 0) / coords.length;
+        resolvedArea = q.q;
       }
     }
   } else if (typeof q.q === "string" && q.q) {
-    resolvedArea = geocodeKnownArea(q.q)?.name ?? q.q;
+    resolvedArea = q.q;
   }
   const results = await searchSpaces({
     q: typeof q.q === "string" ? q.q : undefined,
@@ -85,9 +77,9 @@ export function knownAreas(_req: Request, res: Response) {
 }
 
 /**
- * Public place suggestions for driver/host autocomplete.
- * Returns catalog localities plus distinct public-listing areas.
- * Never includes street address, access notes, or coordinates as labels.
+ * Distinct areas that already have public Place2Park listings.
+ * Location autocomplete itself comes from Google Places in the browser.
+ * Never includes street address or access notes.
  */
 export async function suggestPlaces(req: Request, res: Response) {
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
@@ -95,15 +87,6 @@ export async function suggestPlaces(req: Request, res: Response) {
     res.json({ success: true, data: { predictions: [] } });
     return;
   }
-  const needle = q.toLowerCase();
-  const catalog = KNOWN_AREAS.filter((a) => a.name.toLowerCase().includes(needle)).slice(0, 8).map((a) => ({
-    id: `catalog:${a.name}`,
-    mainText: a.name,
-    secondaryText: secondaryForArea(a.name),
-    lat: a.lat,
-    lng: a.lng,
-    source: "catalog" as const,
-  }));
 
   const clauses = locationTextClauses(q).filter((clause) => !("formattedAddress" in clause));
   const listingGroups = clauses.length
@@ -131,7 +114,7 @@ export async function suggestPlaces(req: Request, res: Response) {
       ])
     : [];
 
-  const seen = new Set(catalog.map((p) => p.mainText.toLowerCase()));
+  const seen = new Set<string>();
   const fromListings = listingGroups.flatMap((row) => {
     const mainText = getDisplayLocation(row._id).split(",")[0]?.trim() || "";
     const secondaryText = [row._id.city, row._id.district, row._id.state]
@@ -154,15 +137,7 @@ export async function suggestPlaces(req: Request, res: Response) {
     ];
   });
 
-  res.json({ success: true, data: { predictions: [...catalog, ...fromListings].slice(0, 8) } });
-}
-
-function secondaryForArea(name: string) {
-  if (/shahad/i.test(name)) return "Kalyan, Maharashtra";
-  if (/kalyan/i.test(name)) return "Thane, Maharashtra";
-  if (/thane|vashi|nerul/i.test(name)) return "Navi Mumbai / Thane, Maharashtra";
-  if (/phoenix|kurla/i.test(name)) return "Kurla, Mumbai";
-  return "Mumbai, Maharashtra";
+  res.json({ success: true, data: { predictions: fromListings.slice(0, 8) } });
 }
 
 /** Public landing-page stats. */

@@ -11,17 +11,27 @@ import { Button } from "./ui/button";
 
 const FILTER_KEYS = ["maxPrice", "maxDistanceKm", "covered", "ev", "vehicleType", "minRating", "sort"] as const;
 
-export function SearchBar({
-  compact,
-  variant = "default",
-  defaults,
-  onSearched,
-}: {
-  compact?: boolean;
-  variant?: "default" | "dock";
-  defaults?: { q?: string; date?: string; time?: string; durationMins?: number };
-  onSearched?: () => void;
-}) {
+export type SearchPlaceInput = {
+  q: string;
+  label?: string;
+  lat?: number;
+  lng?: number;
+  placeId?: string;
+};
+
+export type SearchBarHandle = {
+  searchPlace: (place: SearchPlaceInput) => void;
+};
+
+export const SearchBar = React.forwardRef<
+  SearchBarHandle,
+  {
+    compact?: boolean;
+    variant?: "default" | "dock";
+    defaults?: { q?: string; date?: string; time?: string; durationMins?: number };
+    onSearched?: () => void;
+  }
+>(function SearchBar({ compact, variant = "default", defaults, onSearched }, ref) {
   const dock = variant === "dock";
   const navigate = useNavigate();
   const [currentParams] = useSearchParams();
@@ -31,7 +41,7 @@ export function SearchBar({
   const [time, setTime] = React.useState(defaults?.time ?? toTimeInputValue(start));
   const [duration, setDuration] = React.useState(defaults?.durationMins ?? 120);
   const [resolving, setResolving] = React.useState(false);
-  const selected = React.useRef<{ lat: number; lng: number; label: string } | null>(null);
+  const selected = React.useRef<{ lat: number; lng: number; label: string; placeId?: string } | null>(null);
 
   React.useEffect(() => {
     setQ(defaults?.q ?? "");
@@ -57,7 +67,9 @@ export function SearchBar({
         const resolved = await resolveDestinationQuery(query);
         if (resolved) {
           fromPlace = { lat: resolved.latitude, lng: resolved.longitude };
-          selected.current = { ...fromPlace, label: query };
+          query = resolved.label || query;
+          setQ(query);
+          selected.current = { ...fromPlace, label: query, placeId: resolved.placeId };
         }
       } finally {
         setResolving(false);
@@ -73,6 +85,8 @@ export function SearchBar({
       params.set("lat", String(fromPlace.lat));
       params.set("lng", String(fromPlace.lng));
       params.set("radius", "12");
+      const placeId = selected.current?.placeId;
+      if (placeId) params.set("placeId", placeId);
     }
     if (date && time) params.set("start", new Date(`${date}T${time}`).toISOString());
     params.set("durationMins", String(duration));
@@ -82,11 +96,29 @@ export function SearchBar({
         q: query,
         lat: fromPlace?.lat,
         lng: fromPlace?.lng,
+        placeId: selected.current?.placeId,
       });
     }
     if (fromPlace) onSearched?.();
     navigate(`/search?${params.toString()}`);
   }
+
+  const submitRef = React.useRef(submit);
+  submitRef.current = submit;
+
+  React.useImperativeHandle(ref, () => ({
+    searchPlace(place) {
+      const query = (place.label || place.q).trim();
+      if (!query) return;
+      setQ(query);
+      const lat = place.lat;
+      const lng = place.lng;
+      const coords =
+        lat != null && lng != null && Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+      selected.current = coords ? { ...coords, label: query, placeId: place.placeId } : null;
+      void submitRef.current(undefined, coords, query);
+    },
+  }));
 
   return (
     <form
@@ -103,7 +135,7 @@ export function SearchBar({
             )
       )}
     >
-      <div className="relative z-20 min-w-0 flex-1 overflow-visible">
+      <div className="relative z-[80] min-w-0 flex-1 overflow-visible">
         <label htmlFor="search-destination" className="sr-only">
           Destination
         </label>
@@ -114,11 +146,11 @@ export function SearchBar({
             value={q}
             onChange={updateQuery}
             hideDeniedHint
-            placeholder={dock ? "Where to?" : "Where are you going? e.g. Bandra, BKC, Powai"}
+            placeholder={dock ? "Where to?" : "City, locality, street, or landmark"}
             className="h-11 border-0 bg-transparent px-0 text-sm shadow-none focus-visible:ring-0"
             onPlace={(p) => {
               const label = selectedPlaceLabel(p);
-              selected.current = { lat: p.latitude, lng: p.longitude, label };
+              selected.current = { lat: p.latitude, lng: p.longitude, label, placeId: p.placeId || undefined };
               setQ(label);
               submit(undefined, { lat: p.latitude, lng: p.longitude }, label);
             }}
@@ -180,4 +212,4 @@ export function SearchBar({
       </div>
     </form>
   );
-}
+});

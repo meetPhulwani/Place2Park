@@ -53,13 +53,11 @@ describe("resolveDestinationQuery", () => {
     assert.equal(place?.latitude, 19.13632);
   });
 
-  it("falls back to the locality catalog when geocoding finds nothing", async () => {
-    const place = await resolveDestinationQuery("andheri west", async () => null);
-    assert.equal(place?.label, "Andheri West");
-    assert.ok(place);
+  it("returns null when place search finds nothing", async () => {
+    assert.equal(await resolveDestinationQuery("andheri west", async () => null), null);
   });
 
-  it("returns null when neither geocoding nor the catalog can place it", async () => {
+  it("returns null when the lookup cannot place an unknown query", async () => {
     assert.equal(await resolveDestinationQuery("Atlantis Resort", async () => null), null);
   });
 });

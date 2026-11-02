@@ -1,9 +1,8 @@
 import * as React from "react";
-import { useNavigate } from "react-router-dom";
 import Link from "@/components/link";
 import { LocateFixed, MapPin } from "lucide-react";
 import { Navbar } from "@/components/navbar";
-import { SearchBar } from "@/components/search-bar";
+import { SearchBar, type SearchBarHandle } from "@/components/search-bar";
 import { MapView } from "@/components/map/map-view";
 import Image from "@/components/image";
 import { api } from "@/services/api";
@@ -15,14 +14,13 @@ import {
   pickRecentPlaces,
   readRecentPlaces,
   recentPlaceFromBooking,
-  rememberPlace,
   type RecentPlace,
 } from "@/lib/recent-places";
 
 const MUMBAI = { lat: 19.076, lng: 72.8777 };
 
 export default function LandingPage() {
-  const navigate = useNavigate();
+  const searchBarRef = React.useRef<SearchBarHandle>(null);
   const { user } = useAuth();
   const [origin, setOrigin] = React.useState(MUMBAI);
   const [spaces, setSpaces] = React.useState<SpaceSummary[]>([]);
@@ -132,7 +130,10 @@ export default function LandingPage() {
         </button>
       </div>
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex flex-col items-stretch">
+      <div
+        data-location-dock
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex flex-col items-stretch overflow-visible"
+      >
         {selected && (
           <Link
             href={`/parking/${selected.id}`}
@@ -169,24 +170,23 @@ export default function LandingPage() {
             </Link>
           </div>
           <div className="mt-3">
-            <SearchBar variant="dock" />
+            <SearchBar ref={searchBarRef} variant="dock" />
           </div>
           {recent.length > 0 && (
-            <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="relative z-30 mt-3 grid grid-cols-2 gap-2">
               {recent.map((place) => (
                 <button
-                  key={place.q}
+                  key={`${place.q}-${place.label}`}
                   type="button"
-                  onClick={() => {
-                    rememberPlace(place);
-                    const params = new URLSearchParams({ q: place.q });
-                    if (place.lat != null && place.lng != null) {
-                      params.set("lat", String(place.lat));
-                      params.set("lng", String(place.lng));
-                      params.set("radius", "12");
-                    }
-                    navigate(`/search?${params.toString()}`);
-                  }}
+                  onClick={() =>
+                    searchBarRef.current?.searchPlace({
+                      q: place.q || place.label,
+                      label: place.label || place.q,
+                      lat: place.lat,
+                      lng: place.lng,
+                      placeId: place.placeId,
+                    })
+                  }
                   className="flex min-w-0 items-center gap-2.5 rounded-xl border border-line bg-mist-50 px-2.5 py-2 text-left transition-colors hover:border-brand-400 hover:bg-brand-50"
                 >
                   <div className="relative size-10 shrink-0 overflow-hidden rounded-lg bg-white">

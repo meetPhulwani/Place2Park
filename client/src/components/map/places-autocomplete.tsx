@@ -1,56 +1,75 @@
 import * as React from "react";
-import { createPortal } from "react-dom";
 import { Loader2, MapPin, SearchX } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { api } from "@/services/api";
 import {
   googleMapsApiKey,
-  loadGoogleMaps,
-  resolvedLocationFromComponents,
+  indiaPlaceSelection,
+  suggestIndiaPlaces,
+  type IndiaPlaceLookup,
   type ResolvedLocation,
 } from "@/lib/google-maps";
-import { catalogSuggestions, resolvedFromCatalog } from "@/lib/place-catalog";
-import { resolveDestinationQuery } from "@/lib/destination";
 import { cn } from "@/lib/utils";
 
 export type PlaceSelection = ResolvedLocation;
 
 type Suggestion = {
   id: string;
+  placeId: string;
   mainText: string;
   secondaryText: string;
-  source: "google" | "local";
-  placeId?: string;
-  lat?: number;
-  lng?: number;
 };
 
 const MIN_QUERY = 2;
-const DEBOUNCE_MS = 200;
+const DEBOUNCE_MS = 250;
+const MENU_GAP = 6;
+const MENU_MIN = 168;
+const MENU_MAX = 288;
 
-function fromPlace(place: google.maps.places.PlaceResult): PlaceSelection | null {
-  const loc = place.geometry?.location;
-  if (!loc) return null;
-  return resolvedLocationFromComponents({
-    formattedAddress: place.formatted_address,
-    name: place.name,
-    placeId: place.place_id,
-    addressComponents: place.address_components,
-    latitude: loc.lat(),
-    longitude: loc.lng(),
-  });
+function viewFrame() {
+  const viewport = window.visualViewport;
+  return {
+    top: viewport?.offsetTop ?? 0,
+    bottom: viewport ? viewport.offsetTop + viewport.height : window.innerHeight,
+  };
 }
 
-function mergeSuggestions(google: Suggestion[], local: Suggestion[]) {
-  const seen = new Set<string>();
-  const out: Suggestion[] = [];
-  for (const item of [...google, ...local]) {
-    const key = item.mainText.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(item);
+/** Keep the menu below the field. Lift the dock only when the keyboard leaves too little room. */
+function fitMenuBelow(input: HTMLElement) {
+  const dock = input.closest("[data-location-dock]") as HTMLElement | null;
+  const frame = viewFrame();
+  let rect = input.getBoundingClientRect();
+  let room = frame.bottom - rect.bottom - MENU_GAP - 8;
+  const applied = Number(dock?.dataset.menuLift || 0);
+
+  if (dock) {
+    if (room < MENU_MIN) {
+      const maxExtra = Math.max(0, rect.top - (frame.top + 72));
+      const extra = Math.min(maxExtra, MENU_MIN - room);
+      const next = applied + extra;
+      if (extra > 1) {
+        dock.dataset.menuLift = String(Math.round(next));
+        dock.style.transform = `translateY(-${Math.round(next)}px)`;
+        rect = input.getBoundingClientRect();
+        room = frame.bottom - rect.bottom - MENU_GAP - 8;
+      }
+    } else if (applied > 0) {
+      const reduce = Math.min(applied, room - MENU_MIN);
+      const next = Math.max(0, applied - reduce);
+      dock.dataset.menuLift = String(Math.round(next));
+      dock.style.transform = next > 0 ? `translateY(-${Math.round(next)}px)` : "";
+      rect = input.getBoundingClientRect();
+      room = frame.bottom - rect.bottom - MENU_GAP - 8;
+    }
   }
-  return out.slice(0, 8);
+
+  return Math.min(MENU_MAX, Math.max(72, room));
+}
+
+function clearMenuLift(from: HTMLElement | null) {
+  const dock = from?.closest("[data-location-dock]") as HTMLElement | null;
+  if (!dock) return;
+  dock.style.transform = "";
+  delete dock.dataset.menuLift;
 }
 
 export function PlacesAutocomplete({
@@ -75,51 +94,24 @@ export function PlacesAutocomplete({
   const listRef = React.useRef<HTMLUListElement>(null);
   const onPlaceRef = React.useRef(onPlace);
   onPlaceRef.current = onPlace;
-  const [ready, setReady] = React.useState(false);
   const [open, setOpen] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [suggestions, setSuggestions] = React.useState<Suggestion[]>([]);
   const [active, setActive] = React.useState(0);
-  const [denied, setDenied] = React.useState(false);
+  const [unavailable, setUnavailable] = React.useState(false);
   const [focused, setFocused] = React.useState(false);
-  const [menuPos, setMenuPos] = React.useState<{
-    top?: number;
-    bottom?: number;
-    left: number;
-    width: number;
-    maxHeight: number;
-  } | null>(null);
+  const [menuMaxHeight, setMenuMaxHeight] = React.useState(MENU_MAX);
   const apiKey = googleMapsApiKey();
-  const session = React.useRef<google.maps.places.AutocompleteSessionToken | null>(null);
+  const session = React.useRef<object | null>(null);
+  const predictions = React.useRef<IndiaPlaceLookup["predictions"]>(new Map());
   const seq = React.useRef(0);
   const listId = `${id ?? "place"}-listbox`;
 
   const placeMenu = React.useCallback(() => {
     const el = inputRef.current;
     if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const gap = 6;
-    const spaceBelow = window.innerHeight - rect.bottom - gap;
-    const spaceAbove = rect.top - gap;
-    const openUp = spaceBelow < 220 && spaceAbove > spaceBelow;
-    const maxHeight = Math.min(288, Math.max(120, openUp ? spaceAbove : spaceBelow));
-    setMenuPos(
-      openUp
-        ? { bottom: window.innerHeight - rect.top + gap, left: rect.left, width: Math.max(rect.width, 260), maxHeight }
-        : { top: rect.bottom + gap, left: rect.left, width: Math.max(rect.width, 260), maxHeight }
-    );
+    setMenuMaxHeight(fitMenuBelow(el));
   }, []);
-
-  React.useEffect(() => {
-    if (!apiKey) return;
-    let cancelled = false;
-    loadGoogleMaps(apiKey).then(() => {
-      if (!cancelled && window.google?.maps?.places) setReady(true);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [apiKey]);
 
   React.useEffect(() => {
     const q = value.trim();
@@ -145,64 +137,25 @@ export function PlacesAutocomplete({
     placeMenu();
 
     const handle = window.setTimeout(async () => {
-      const local = catalogSuggestions(q);
-      let googleItems: Suggestion[] = [];
-      let googleDenied = false;
-
-      if (ready && window.google?.maps?.places) {
-        if (!session.current) session.current = new google.maps.places.AutocompleteSessionToken();
-        googleItems = await new Promise((resolve) => {
-          const svc = new google.maps.places.AutocompleteService();
-          svc.getPlacePredictions(
-            {
-              input: q,
-              componentRestrictions: { country: "in" },
-              sessionToken: session.current!,
-            },
-            (res, status) => {
-              if (status === google.maps.places.PlacesServiceStatus.REQUEST_DENIED) {
-                googleDenied = true;
-                resolve([]);
-                return;
-              }
-              if (status !== google.maps.places.PlacesServiceStatus.OK || !res) {
-                resolve([]);
-                return;
-              }
-              resolve(
-                res.map((p) => ({
-                  id: `google:${p.place_id}`,
-                  mainText: p.structured_formatting.main_text,
-                  secondaryText: p.structured_formatting.secondary_text ?? "",
-                  source: "google" as const,
-                  placeId: p.place_id,
-                }))
-              );
-            }
-          );
-        });
-      }
-
-      let remote: Suggestion[] = [];
-      try {
-        const { data } = await api.get("/parking/places/suggest", { params: { q } });
-        remote = ((data.data?.predictions ?? []) as Suggestion[]).map((p) => ({
-          ...p,
-          source: "local" as const,
-        }));
-      } catch {
-        remote = [];
-      }
-
+      const found = await suggestIndiaPlaces(q, session.current);
       if (requestId !== seq.current) return;
-      setDenied(googleDenied && googleItems.length === 0);
-      setSuggestions(mergeSuggestions(googleItems, [...local, ...remote]));
+      session.current = found.sessionToken;
+      predictions.current = found.predictions;
+      setUnavailable(found.status === "unavailable" || !apiKey);
+      setSuggestions(
+        found.suggestions.map((item) => ({
+          id: item.placeId,
+          placeId: item.placeId,
+          mainText: item.mainText,
+          secondaryText: item.secondaryText,
+        }))
+      );
       setActive(0);
       setLoading(false);
     }, DEBOUNCE_MS);
 
     return () => window.clearTimeout(handle);
-  }, [ready, value, placeMenu, focused]);
+  }, [apiKey, value, placeMenu, focused]);
 
   React.useEffect(() => {
     function onDoc(e: MouseEvent) {
@@ -216,51 +169,30 @@ export function PlacesAutocomplete({
     document.addEventListener("mousedown", onDoc);
     window.addEventListener("resize", onReposition);
     window.addEventListener("scroll", onReposition, true);
+    window.visualViewport?.addEventListener("resize", onReposition);
+    window.visualViewport?.addEventListener("scroll", onReposition);
     return () => {
       document.removeEventListener("mousedown", onDoc);
       window.removeEventListener("resize", onReposition);
       window.removeEventListener("scroll", onReposition, true);
+      window.visualViewport?.removeEventListener("resize", onReposition);
+      window.visualViewport?.removeEventListener("scroll", onReposition);
     };
   }, [open, placeMenu]);
 
-  function pick(item: Suggestion) {
-    if (item.source === "google" && item.placeId && window.google?.maps?.places) {
-      const attr = document.createElement("div");
-      const svc = new google.maps.places.PlacesService(attr);
-      svc.getDetails(
-        {
-          placeId: item.placeId,
-          fields: ["place_id", "formatted_address", "geometry", "address_components", "name"],
-          sessionToken: session.current ?? undefined,
-        },
-        (place, status) => {
-          session.current = null;
-          if (status !== google.maps.places.PlacesServiceStatus.OK || !place) {
-            if (item.lat != null && item.lng != null) {
-              finish(resolvedFromCatalog({ mainText: item.mainText, secondaryText: item.secondaryText, lat: item.lat, lng: item.lng }));
-              return;
-            }
-            void resolveDestinationQuery(item.mainText).then((resolved) => {
-              if (!resolved) return;
-              finish(
-                resolvedFromCatalog({
-                  mainText: resolved.label,
-                  secondaryText: item.secondaryText,
-                  lat: resolved.latitude,
-                  lng: resolved.longitude,
-                })
-              );
-            });
-            return;
-          }
-          const parsed = fromPlace(place);
-          if (parsed) finish(parsed);
-        }
-      );
+  async function pick(item: Suggestion) {
+    const prediction = predictions.current.get(item.placeId);
+    if (!prediction) return;
+    setLoading(true);
+    const parsed = await indiaPlaceSelection(prediction);
+    session.current = null;
+    predictions.current = new Map();
+    setLoading(false);
+    if (!parsed) {
+      setUnavailable(true);
       return;
     }
-    if (item.lat == null || item.lng == null) return;
-    finish(resolvedFromCatalog({ mainText: item.mainText, secondaryText: item.secondaryText, lat: item.lat, lng: item.lng }));
+    finish(parsed);
   }
 
   function finish(parsed: PlaceSelection) {
@@ -270,10 +202,18 @@ export function PlacesAutocomplete({
     onPlaceRef.current(parsed);
   }
 
-  const showMenu = open && value.trim().length >= MIN_QUERY && menuPos;
+  const showMenu = open && value.trim().length >= MIN_QUERY;
+
+  React.useLayoutEffect(() => {
+    if (!showMenu) {
+      clearMenuLift(boxRef.current);
+      return;
+    }
+    placeMenu();
+  }, [showMenu, suggestions.length, placeMenu]);
 
   return (
-    <div ref={boxRef} className="relative w-full">
+    <div ref={boxRef} className="relative z-[80] w-full">
       <Input
         ref={inputRef}
         id={id}
@@ -313,25 +253,18 @@ export function PlacesAutocomplete({
           }
         }}
       />
-      {denied && !hideDeniedHint && value.trim().length >= MIN_QUERY && suggestions.length === 0 && !loading && (
+      {unavailable && !hideDeniedHint && value.trim().length >= MIN_QUERY && suggestions.length === 0 && !loading && (
         <p className="mt-1.5 text-xs text-slate-500">
-          Google place search isn&apos;t available on this key. Choose a listed locality or pin the map.
+          Place search is unavailable right now. Check your connection and try again.
         </p>
       )}
-      {showMenu &&
-        createPortal(
+      {showMenu && (
           <ul
             ref={listRef}
             id={listId}
             role="listbox"
-            style={{
-              top: menuPos.top,
-              bottom: menuPos.bottom,
-              left: menuPos.left,
-              width: menuPos.width,
-              maxHeight: menuPos.maxHeight,
-            }}
-            className="fixed z-[80] overflow-auto rounded-xl border border-line bg-white py-1 shadow-pop"
+            style={{ maxHeight: menuMaxHeight, marginTop: MENU_GAP }}
+            className="absolute top-full right-0 left-0 z-[80] w-full overflow-y-auto overscroll-contain rounded-xl border border-line bg-white py-1 shadow-pop"
           >
             {loading && suggestions.length === 0 && (
               <li className="flex items-center gap-2 px-3.5 py-3 text-sm text-slate-500">
@@ -342,7 +275,11 @@ export function PlacesAutocomplete({
             {!loading && suggestions.length === 0 && (
               <li className="flex items-start gap-2 px-3.5 py-3 text-sm text-slate-500">
                 <SearchX className="mt-0.5 size-4 shrink-0" aria-hidden />
-                <span>No matching places. Try a locality such as Shahad, Kalyan or Andheri.</span>
+                <span>
+                  {unavailable
+                    ? "Place search is unavailable right now. Check your connection and try again."
+                    : "No matching places in India."}
+                </span>
               </li>
             )}
             {suggestions.map((p, i) => (
@@ -367,8 +304,7 @@ export function PlacesAutocomplete({
                 </button>
               </li>
             ))}
-          </ul>,
-          document.body
+          </ul>
         )}
     </div>
   );
