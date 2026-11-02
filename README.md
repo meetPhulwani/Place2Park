@@ -1,4 +1,4 @@
-# Parkly — parking marketplace (MERN)
+# Place2Park — Parking marketplace
 
 Reserve verified private parking near your destination for a specific time window.
 Hosts list unused spaces and earn. **Self-parking only — no key handover.**
