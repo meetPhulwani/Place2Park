@@ -43,14 +43,6 @@ cd client && npm run dev          # http://localhost:5173
 
 If `MONGODB_URI` is unset in development, the API starts an **in-memory MongoDB** and auto-seeds demo data (resets on restart). With Atlas, set `MONGODB_URI` then run `cd server && npm run seed`.
 
-Demo accounts (password `password123`):
-
-| Email | Role |
-|---|---|
-| `driver@parkly.dev` | Driver |
-| `host@parkly.dev` | Host + driver |
-| `admin@parkly.dev` | Admin |
-
 Seed listings are fictional Mumbai-inspired demo data.
 
 ## Environment variables
