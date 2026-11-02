@@ -128,10 +128,7 @@ export function ParkingCard({
           <span className="inline-flex max-w-full flex-wrap items-center gap-x-1.5 gap-y-1">
             <Rating value={space.ratingAvg} count={space.ratingCount} size={12} />
             {space.verified && (
-              <Badge variant="brand" className="px-1.5 py-0 text-[10px]">
-                <BadgeCheck className="size-3" aria-hidden />
-                Verified
-              </Badge>
+              <BadgeCheck className="size-3.5 shrink-0 fill-brand-500 text-white" aria-label="Verified" />
             )}
           </span>
         </div>
