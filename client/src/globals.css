@@ -86,13 +86,41 @@
     outline-offset: 2px;
     border-radius: 6px;
   }
+  /*
+    WebKit date/time controls use an intrinsic minimum wider than a phone card.
+    min-width: 0 does not override it; -webkit-min-logical-width does.
+    iOS also ignores the field width until the native appearance is removed.
+    The system picker still opens on tap.
+  */
   input[type="date"],
   input[type="time"],
   input[type="datetime-local"] {
+    display: block;
     box-sizing: border-box;
     width: 100%;
     max-width: 100%;
     min-width: 0;
+    -webkit-min-logical-width: 0;
+  }
+  input[type="date"]::-webkit-datetime-edit,
+  input[type="time"]::-webkit-datetime-edit,
+  input[type="datetime-local"]::-webkit-datetime-edit,
+  input[type="date"]::-webkit-date-and-time-value,
+  input[type="time"]::-webkit-date-and-time-value,
+  input[type="datetime-local"]::-webkit-date-and-time-value {
+    display: inline-flex;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    text-align: left;
+  }
+  @supports (-webkit-touch-callout: none) {
+    input[type="date"],
+    input[type="time"],
+    input[type="datetime-local"] {
+      -webkit-appearance: none;
+      appearance: none;
+    }
   }
   input[type="date"]::-webkit-calendar-picker-indicator,
   input[type="time"]::-webkit-calendar-picker-indicator {

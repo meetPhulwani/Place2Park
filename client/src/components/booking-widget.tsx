@@ -148,8 +148,8 @@ export function BookingWidget({
         <span className="text-sm text-slate-500">/hour</span>
       </p>
 
-      <div className="mt-4 grid min-w-0 grid-cols-1 gap-3 @min-[22rem]:grid-cols-2">
-        <div className="min-w-0">
+      <div className="mt-4 grid w-full min-w-0 max-w-full grid-cols-1 gap-3 @min-[22rem]:grid-cols-2">
+        <div className="w-full min-w-0 max-w-full">
           <Label htmlFor="bk-date">Date</Label>
           <Input
             id="bk-date"
@@ -159,11 +159,11 @@ export function BookingWidget({
             onChange={(e) => setDate(e.target.value)}
           />
         </div>
-        <div className="min-w-0">
+        <div className="w-full min-w-0 max-w-full">
           <Label htmlFor="bk-time">Start time</Label>
           <Input id="bk-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
         </div>
-        <div className="min-w-0 @min-[22rem]:col-span-2">
+        <div className="w-full min-w-0 max-w-full @min-[22rem]:col-span-2">
           <Label htmlFor="bk-duration">Duration</Label>
           <Select
             id="bk-duration"
@@ -182,7 +182,7 @@ export function BookingWidget({
           </p>
         </div>
         {vehicleTypes.length > 1 && (
-          <div className="min-w-0">
+          <div className="w-full min-w-0 max-w-full">
             <Label htmlFor="bk-vehicle">Vehicle</Label>
             <Select
               id="bk-vehicle"
@@ -197,7 +197,7 @@ export function BookingWidget({
             </Select>
           </div>
         )}
-        <div className={vehicleTypes.length > 1 ? "min-w-0" : "min-w-0 @min-[22rem]:col-span-2"}>
+        <div className={vehicleTypes.length > 1 ? "w-full min-w-0 max-w-full" : "w-full min-w-0 max-w-full @min-[22rem]:col-span-2"}>
           <Label htmlFor="bk-vehicle-number">Vehicle number</Label>
           <Input
             id="bk-vehicle-number"
