@@ -7,11 +7,13 @@ const field =
   "disabled:cursor-not-allowed disabled:bg-page disabled:text-muted";
 
 export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
-  ({ className, ...props }, ref) => (
+  ({ className, type, ...props }, ref) => (
     <input
       ref={ref}
+      type={type}
       className={cn(
-        "block h-10 w-full min-w-0 max-w-full rounded-lg px-3.5 text-sm text-ink placeholder:text-slate-400 transition-colors duration-200",
+        "block h-10 w-full min-w-0 max-w-full rounded-lg px-3.5 text-ink placeholder:text-slate-400 transition-colors duration-200",
+        type === "date" || type === "time" || type === "datetime-local" ? "py-0 text-sm/10" : "text-sm",
         field,
         className
       )}

@@ -100,18 +100,31 @@
     width: 100%;
     max-width: 100%;
     min-width: 0;
+    height: 2.5rem;
+    min-height: 2.5rem;
+    max-height: 2.5rem;
+    padding-block: 0;
+    line-height: 2.5rem;
     -webkit-min-logical-width: 0;
   }
   input[type="date"]::-webkit-datetime-edit,
   input[type="time"]::-webkit-datetime-edit,
-  input[type="datetime-local"]::-webkit-datetime-edit,
-  input[type="date"]::-webkit-date-and-time-value,
-  input[type="time"]::-webkit-date-and-time-value,
-  input[type="datetime-local"]::-webkit-date-and-time-value {
+  input[type="datetime-local"]::-webkit-datetime-edit {
     display: inline-flex;
+    align-items: center;
+    height: 100%;
     min-width: 0;
     margin: 0;
     padding: 0;
+    line-height: normal;
+  }
+  input[type="date"]::-webkit-date-and-time-value,
+  input[type="time"]::-webkit-date-and-time-value,
+  input[type="datetime-local"]::-webkit-date-and-time-value {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    line-height: normal;
     text-align: left;
   }
   @supports (-webkit-touch-callout: none) {
