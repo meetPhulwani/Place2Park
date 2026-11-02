@@ -2,7 +2,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const field =
-  "border border-line bg-white " +
+  "box-border w-full min-w-0 max-w-full border border-line bg-white " +
   "hover:border-brand-300 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/25 " +
   "disabled:cursor-not-allowed disabled:bg-page disabled:text-muted";
 

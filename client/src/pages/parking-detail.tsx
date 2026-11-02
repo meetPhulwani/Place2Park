@@ -344,7 +344,7 @@ export default function ParkingDetailPage() {
           </div>
 
           {/* Right column: booking widget */}
-          <aside className="lg:sticky lg:top-24 lg:h-fit">
+          <aside className="min-w-0 lg:sticky lg:top-24 lg:h-fit">
             {space.status === "ACTIVE" || space.status === "VERIFIED" ? (
               <BookingWidget
                 spaceId={space.id}

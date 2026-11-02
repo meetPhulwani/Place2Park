@@ -62,24 +62,19 @@ export function ParkingCard({
             {photos.length} photos
           </span>
         )}
-        <div className="absolute left-1.5 top-1.5 flex max-w-[calc(100%-0.75rem)] flex-col items-start gap-1">
-          {space.verified && (
-            <Badge variant="brand" className="px-1.5 py-0 text-[10px]">
-              <BadgeCheck className="size-3" aria-hidden />
-              Verified
-            </Badge>
-          )}
-          {space.available === false && (
-            <Badge variant="danger" className="px-1.5 py-0 text-[10px]" title="Unavailable for this time">
-              Unavailable
-            </Badge>
-          )}
-          {space.available === true && (
-            <Badge variant="volt" className="px-1.5 py-0 text-[10px]">
-              Available
-            </Badge>
-          )}
-        </div>
+        {(space.available === true || space.available === false) && (
+          <div className="absolute left-1.5 top-1.5 max-w-[calc(100%-0.75rem)]">
+            {space.available === false ? (
+              <Badge variant="danger" className="px-1.5 py-0 text-[10px]" title="Unavailable for this time">
+                Unavailable
+              </Badge>
+            ) : (
+              <Badge variant="volt" className="px-1.5 py-0 text-[10px]">
+                Available
+              </Badge>
+            )}
+          </div>
+        )}
         </div>
       </div>
 
@@ -130,7 +125,15 @@ export function ParkingCard({
           )}
           {vehicles.includes("CAR") && <Car className="size-3.5 text-brand-500" aria-label="Cars allowed" />}
           {vehicles.includes("BIKE") && <Bike className="size-3.5 text-brand-500" aria-label="Bikes allowed" />}
-          <Rating value={space.ratingAvg} count={space.ratingCount} size={12} />
+          <span className="inline-flex max-w-full flex-wrap items-center gap-x-1.5 gap-y-1">
+            <Rating value={space.ratingAvg} count={space.ratingCount} size={12} />
+            {space.verified && (
+              <Badge variant="brand" className="px-1.5 py-0 text-[10px]">
+                <BadgeCheck className="size-3" aria-hidden />
+                Verified
+              </Badge>
+            )}
+          </span>
         </div>
 
         <div className="flex items-center justify-between gap-2">
