@@ -63,7 +63,7 @@ export function ParkingCard({
           </span>
         )}
         {(space.available === true || space.available === false) && (
-          <div className="absolute left-1.5 top-1.5 max-w-[calc(100%-0.75rem)]">
+          <div className="absolute left-1.5 top-0.2 max-w-[calc(100%-0.75rem)]">
             {space.available === false ? (
               <Badge variant="danger" className="px-1.5 py-0 text-[10px]" title="Unavailable for this time">
                 Unavailable
