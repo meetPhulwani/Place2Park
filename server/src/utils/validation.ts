@@ -40,6 +40,15 @@ export const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().toLowerCase().email(),
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().trim().min(20).max(200),
+  password: signupPassword,
+});
+
 export const googleLoginSchema = z.object({
   credential: z.string().min(10), // Google ID token from Google Identity Services
 });

@@ -139,6 +139,27 @@ function safeEqualHex(expected: string, received: string) {
   }
 }
 
+/** Captured paise and currency must match the booking payment stored before checkout. */
+export function captureMatchesStored(
+  stored: { amount: number; currency?: string | null },
+  captured: { amount?: unknown; currency?: unknown }
+) {
+  const amount = typeof captured.amount === "number" ? captured.amount : Number(captured.amount);
+  const currency = String(captured.currency ?? "").trim().toUpperCase();
+  const expected = String(stored.currency || "INR").trim().toUpperCase();
+  return Number.isInteger(amount) && amount === stored.amount && currency === expected;
+}
+
+export async function fetchRazorpayPayment(paymentId: string): Promise<{ amount: number; currency: string }> {
+  if (!razorpayConfigured()) {
+    throw new ApiError(503, "We couldn't verify that payment. Try again shortly.");
+  }
+  const Razorpay = (await import("razorpay")).default;
+  const rzp = new Razorpay({ key_id: env.RAZORPAY_KEY_ID, key_secret: env.RAZORPAY_KEY_SECRET });
+  const payment = (await rzp.payments.fetch(paymentId)) as { amount?: number; currency?: string };
+  return { amount: Number(payment.amount), currency: String(payment.currency ?? "") };
+}
+
 /** Verify a Razorpay checkout signature server-side. */
 export function verifyRazorpaySignature(orderId: string, paymentId: string, signature: string) {
   if (!env.RAZORPAY_KEY_SECRET) return false;

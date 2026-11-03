@@ -16,6 +16,7 @@ const EXPIRED = "This verification has expired. Start again.";
 const CODE_EXPIRED = "That code has expired.";
 const CODE_INCORRECT = "That code is incorrect.";
 const TOO_MANY = "Too many incorrect attempts. Request a new code.";
+const SIGNUP_UNAVAILABLE = "We couldn't complete signup. Start again.";
 
 export type MailDeps = OutboundMailDeps;
 
@@ -99,7 +100,8 @@ async function issuePending(
     googleSub?: string;
     image?: string;
   },
-  deps?: MailDeps
+  deps?: MailDeps,
+  options?: { inert?: boolean }
 ) {
   const token = crypto.randomBytes(32).toString("hex");
   const code = generateOtpCode();
@@ -128,12 +130,15 @@ async function issuePending(
     sentAt,
     attempts: 0,
     consumed: false,
+    inert: options?.inert === true,
   });
-  try {
-    await sendCode(fields.email, code, deps);
-  } catch (err) {
-    await EmailOtpPending.deleteOne({ tokenHash: hashPendingToken(token) });
-    throw err;
+  if (!options?.inert) {
+    try {
+      await sendCode(fields.email, code, deps);
+    } catch (err) {
+      await EmailOtpPending.deleteOne({ tokenHash: hashPendingToken(token) });
+      throw err;
+    }
   }
   return challenge(token, fields.email, sentAt, codeExpiresAt);
 }
@@ -156,13 +161,22 @@ export async function startSignupEmailOtp(
   deps?: MailDeps
 ) {
   const email = input.email.toLowerCase();
-  if (await User.findOne({ email }).select("_id")) {
-    throw new ApiError(409, duplicateEmail("signup"));
-  }
-  if (await User.findOne({ phone: input.phone }).select("_id")) {
-    throw new ApiError(409, "An account with this phone number already exists.");
-  }
   const passwordHash = await bcrypt.hash(input.password, 10);
+  const emailTaken = await User.exists({ email });
+  const phoneTaken = await User.exists({ phone: input.phone });
+  if (emailTaken || phoneTaken) {
+    return issuePending(
+      {
+        purpose: "signup",
+        email,
+        name: input.name.slice(0, 80),
+        role: input.role,
+        phone: input.phone,
+      },
+      deps,
+      { inert: true }
+    );
+  }
   return issuePending(
     {
       purpose: "signup",
@@ -226,21 +240,26 @@ export async function resendEmailOtp(pendingToken: string, deps?: MailDeps) {
   const claimedAt = new Date();
   const claimed = await EmailOtpPending.findOneAndUpdate(
     { _id: doc._id, consumed: false, sentAt: doc.sentAt, expiresAt: { $gt: claimedAt } },
-    { $set: { sentAt: claimedAt, attempts: 0 } }
+    { $set: { sentAt: claimedAt } }
   );
   if (!claimed) throw new ApiError(400, EXPIRED);
 
   const codeExpiresAt = new Date(claimedAt.getTime() + OTP_TTL_MS);
-  try {
-    await sendCode(doc.email, code, deps);
-  } catch (err) {
-    await EmailOtpPending.updateOne({ _id: doc._id, sentAt: claimedAt, consumed: false }, { $set: { sentAt: doc.sentAt } });
-    throw err;
+  if (!doc.inert) {
+    try {
+      await sendCode(doc.email, code, deps);
+    } catch (err) {
+      await EmailOtpPending.updateOne(
+        { _id: doc._id, sentAt: claimedAt, consumed: false },
+        { $set: { sentAt: doc.sentAt } }
+      );
+      throw err;
+    }
   }
 
   const saved = await EmailOtpPending.updateOne(
     { _id: doc._id, sentAt: claimedAt, consumed: false },
-    { $set: { codeHash: hashOtp(doc.email, code), codeExpiresAt } }
+    { $set: { codeHash: hashOtp(doc.email, code), codeExpiresAt, attempts: 0 } }
   );
   if (!saved.modifiedCount) throw new ApiError(400, EXPIRED);
   return {
@@ -258,7 +277,7 @@ export async function completeEmailOtp(pendingToken: string, otp: string) {
   const expected = Buffer.from(doc.codeHash, "hex");
   const actual = Buffer.from(hashOtp(doc.email, otp), "hex");
   const matches = expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
-  if (!matches) {
+  if (!matches || doc.inert) {
     const updated = await EmailOtpPending.findOneAndUpdate(
       { _id: doc._id, consumed: false },
       { $inc: { attempts: 1 } },
@@ -281,14 +300,14 @@ export async function completeEmailOtp(pendingToken: string, otp: string) {
 
   const email = doc.email.toLowerCase();
   if (await User.findOne({ email }).select("_id")) {
-    throw new ApiError(409, duplicateEmail(doc.purpose));
+    throw new ApiError(doc.purpose === "signup" ? 400 : 409, doc.purpose === "signup" ? SIGNUP_UNAVAILABLE : duplicateEmail(doc.purpose));
   }
 
   try {
     if (doc.purpose === "signup") {
       if (!doc.passwordHash || !/^\+91[6-9]\d{9}$/.test(doc.phone)) throw new ApiError(400, EXPIRED);
       if (await User.findOne({ phone: doc.phone }).select("_id")) {
-        throw new ApiError(409, "An account with this phone number already exists.");
+        throw new ApiError(400, SIGNUP_UNAVAILABLE);
       }
       return await User.create({
         name: doc.name,
@@ -309,6 +328,7 @@ export async function completeEmailOtp(pendingToken: string, otp: string) {
   } catch (err) {
     if (err instanceof ApiError) throw err;
     if (typeof err === "object" && err !== null && (err as { code?: number }).code === 11000) {
+      if (doc.purpose === "signup") throw new ApiError(400, SIGNUP_UNAVAILABLE);
       throw new ApiError(409, duplicateEmail(doc.purpose));
     }
     throw err;

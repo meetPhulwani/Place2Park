@@ -75,7 +75,13 @@ describe("session revocation after password reset", () => {
       { _id: user._id },
       { $set: { resetToken: hashed, resetTokenExpires: new Date(Date.now() + 10 * 60000) } }
     );
-    await resetPassword({ body: { token: raw, password: "new-password-1" } } as Request, jsonRes());
+    await assert.rejects(
+      () => resetPassword({ body: { token: raw, password: "short" } } as Request, jsonRes()),
+      (err: unknown) => err instanceof ApiError && err.status === 400
+    );
+    const untouched = await User.findById(user._id).select("+resetToken +passwordHash");
+    assert.equal(untouched?.resetToken, hashed);
+    await resetPassword({ body: { token: raw, password: "New-password-1!" } } as Request, jsonRes());
 
     const after = await runAuth(oldToken);
     assert.ok(after.err instanceof ApiError && after.err.status === 401);

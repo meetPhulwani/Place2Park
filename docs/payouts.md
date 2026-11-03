@@ -53,7 +53,18 @@ Confirmed/active bookings appear as **upcoming**, not eligible.
 
 ## Configuration
 
-No extra production env var is required for manual payouts. Existing `JWT_SECRET` derives the account-number encryption key. Never put bank account numbers in `.env`, client env, or logs.
+Set `PAYOUT_ENCRYPTION_KEY` in production to a unique random string of at least 32 characters. New account numbers are encrypted with AES-256-GCM under that key. Do not derive it from `JWT_SECRET`, and do not commit it.
+
+Rows encrypted before this key existed still decrypt. The server tries the dedicated key first, then the previous `JWT_SECRET` derivation. Reading an old payout does not rewrite it.
+
+Re-encryption is a separate manual step. Do not run it until you have a database backup:
+
+1. Deploy with `PAYOUT_ENCRYPTION_KEY` set. Existing reveals keep working through the legacy fallback.
+2. For each host who has `payoutProfile.accountNumberEnc`, an admin reveal decrypts the number.
+3. Save that same number again through the payout-profile path so it is written with the new key.
+4. Confirm a reveal still works, then keep the old `JWT_SECRET` until every row has been rewritten. Rotating `JWT_SECRET` before that makes leftover legacy ciphertext unreadable.
+
+Never put bank account numbers in `.env`, client env, or logs.
 
 ## Tests
 

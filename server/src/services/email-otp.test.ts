@@ -148,19 +148,24 @@ describe("email OTP signup", () => {
     assert.equal(user.email, signup.email);
   });
 
-  it("rejects a duplicate email or phone before sending a code", async () => {
+  it("returns the same challenge shape for an existing email or phone and does not send a code", async () => {
+    const fresh = await startSignupEmailOtp({ ...signup, email: "brand.new.person@gmail.com", phone: "+919000000088" }, mail);
     await User.create({ name: "Taken", email: signup.email, role: "DRIVER", phone: "+919000000099" });
+    const takenEmail = await startSignupEmailOtp(signup, mail);
+    assert.deepEqual(Object.keys(takenEmail).sort(), Object.keys(fresh).sort());
+    assert.equal(takenEmail.kind, "email");
+    assert.equal(mailbox.filter((msg) => msg.to === signup.email).length, 0);
     await assert.rejects(
-      () => startSignupEmailOtp(signup, mail),
-      (err: unknown) => err instanceof ApiError && err.status === 409 && err.message === "Invalid email or password."
+      () => completeEmailOtp(takenEmail.pendingToken, "000000"),
+      (err: unknown) => err instanceof ApiError && err.status === 400 && err.message === "That code is incorrect."
     );
+    assert.equal(await User.countDocuments({ email: signup.email }), 1);
+
     await User.deleteMany({});
     await User.create({ name: "Phone", email: "other.person@gmail.com", role: "DRIVER", phone: signup.phone });
-    await assert.rejects(
-      () => startSignupEmailOtp({ ...signup, email: "fresh.person@gmail.com" }, mail),
-      (err: unknown) => err instanceof ApiError && err.status === 409
-    );
-    assert.equal(mailbox.length, 0);
+    const takenPhone = await startSignupEmailOtp({ ...signup, email: "fresh.person@gmail.com" }, mail);
+    assert.equal(takenPhone.kind, "email");
+    assert.equal(mailbox.filter((msg) => msg.to === "fresh.person@gmail.com").length, 0);
     assert.equal(await User.countDocuments({ email: "fresh.person@gmail.com" }), 0);
   });
 
@@ -169,9 +174,27 @@ describe("email OTP signup", () => {
     await User.create({ name: "Racer", email: "racer@gmail.com", role: "DRIVER", phone: signup.phone });
     await assert.rejects(
       () => completeEmailOtp(started.pendingToken, latestCode()),
-      (err: unknown) => err instanceof ApiError && err.status === 409
+      (err: unknown) => err instanceof ApiError && err.status === 400 && /couldn't complete signup/i.test(err.message)
     );
     assert.equal(await User.countDocuments({ email: signup.email }), 0);
+  });
+
+  it("keeps the wrong-guess count when a resend fails before the new code is stored", async () => {
+    const started = await startSignupEmailOtp(signup, mail);
+    await assert.rejects(() => completeEmailOtp(started.pendingToken, "111111"));
+    await EmailOtpPending.updateMany({}, { $set: { sentAt: new Date(Date.now() - 61_000) } });
+    await assert.rejects(() =>
+      resendEmailOtp(started.pendingToken, {
+        ...mail,
+        send: async () => {
+          throw new Error("down");
+        },
+      })
+    );
+    const pending = await EmailOtpPending.findOne({ email: signup.email });
+    assert.equal(pending?.attempts, 1);
+    const user = await completeEmailOtp(started.pendingToken, latestCode());
+    assert.equal(user.email, signup.email);
   });
 
   it("stops accepting codes after too many attempts", async () => {

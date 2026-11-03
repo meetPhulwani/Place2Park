@@ -1,6 +1,7 @@
 import type { Response } from "express";
 import type { AuthedRequest } from "../middleware/auth.js";
 import { ApiError } from "../middleware/error.js";
+import { PendingUpload } from "../models/index.js";
 import { UPLOAD_ERROR_MESSAGE, storeListingImage } from "../services/media.js";
 
 /** Host listing photo. Cloudinary when configured; local /uploads in development otherwise. */
@@ -15,6 +16,15 @@ export async function uploadImage(req: AuthedRequest, res: Response) {
     },
     { hostId: req.userId }
   );
+  try {
+    await PendingUpload.create({
+      hostId: req.userId,
+      url: stored.url,
+      publicId: stored.publicId ?? "",
+    });
+  } catch (err) {
+    console.error("[media] upload ledger failed", err instanceof Error ? err.name : "Error");
+  }
   res.json({
     success: true,
     data: {

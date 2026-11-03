@@ -202,10 +202,11 @@ describe("payment verify and webhook confirmation paths", () => {
       razorpaySignature: signature,
     };
     const req = { userId: String(ownerId), body } as AuthedRequest;
+    const fetchPayment = async () => ({ amount: 7350, currency: "INR" });
     const first = jsonRes();
-    await verify(req, first);
+    await verify(req, first, { fetchPayment });
     const second = jsonRes();
-    await verify(req, second);
+    await verify(req, second, { fetchPayment });
     assert.equal(first.statusCode, 200);
     assert.equal((first.body as { data?: { alreadyPaid?: boolean } }).data?.alreadyPaid, false);
     assert.equal(second.statusCode, 200);
@@ -219,7 +220,7 @@ describe("payment verify and webhook confirmation paths", () => {
     const { booking, orderId } = await seedPending();
     const raw = JSON.stringify({
       event: "payment.captured",
-      payload: { payment: { entity: { id: "pay_wh_1", order_id: orderId } } },
+      payload: { payment: { entity: { id: "pay_wh_1", order_id: orderId, amount: 7350, currency: "INR" } } },
     });
     const sig = webhookSignature(raw, WEBHOOK_SECRET);
     const makeReq = () =>
@@ -255,7 +256,7 @@ describe("payment verify and webhook confirmation paths", () => {
     } as AuthedRequest;
     const raw = JSON.stringify({
       event: "payment.captured",
-      payload: { payment: { entity: { id: paymentId, order_id: orderId } } },
+      payload: { payment: { entity: { id: paymentId, order_id: orderId, amount: 7350, currency: "INR" } } },
     });
     const webhookReq = {
       headers: { "x-razorpay-signature": webhookSignature(raw, WEBHOOK_SECRET) },
@@ -264,11 +265,58 @@ describe("payment verify and webhook confirmation paths", () => {
 
     const vRes = jsonRes();
     const wRes = jsonRes();
-    await Promise.all([verify(verifyReq, vRes), webhook(webhookReq, wRes)]);
+    await Promise.all([
+      verify(verifyReq, vRes, { fetchPayment: async () => ({ amount: 7350, currency: "INR" }) }),
+      webhook(webhookReq, wRes),
+    ]);
     assert.equal(vRes.statusCode, 200);
     assert.equal(wRes.statusCode, 200);
     assert.equal((await Booking.findById(booking._id))?.status, "CONFIRMED");
     assert.equal((await ParkingSpace.findById(spaceId))?.bookingsCount, 1);
     assert.equal(await Notification.countDocuments({ "data.bookingId": String(booking._id) }), 2);
+  });
+
+  it("does not confirm a captured webhook whose amount does not match the stored payment", async () => {
+    const { booking, orderId } = await seedPending();
+    const raw = JSON.stringify({
+      event: "payment.captured",
+      payload: { payment: { entity: { id: "pay_low", order_id: orderId, amount: 100, currency: "INR" } } },
+    });
+    const res = jsonRes();
+    await webhook(
+      {
+        headers: { "x-razorpay-signature": webhookSignature(raw, WEBHOOK_SECRET) },
+        rawBody: raw,
+      } as unknown as Request,
+      res
+    );
+    assert.equal(res.statusCode, 200);
+    assert.equal((await Booking.findById(booking._id))?.status, "PENDING");
+    assert.equal((await Payment.findOne({ bookingId: booking._id }))?.status, "CREATED");
+  });
+
+  it("does not confirm a checkout verification whose captured amount does not match", async () => {
+    const { booking, orderId } = await seedPending();
+    const paymentId = "pay_mismatch";
+    const signature = checkoutSignature(orderId, paymentId, CHECKOUT_SECRET);
+    await assert.rejects(
+      () =>
+        verify(
+          {
+            userId: String(ownerId),
+            body: {
+              bookingId: String(booking._id),
+              razorpayOrderId: orderId,
+              razorpayPaymentId: paymentId,
+              razorpaySignature: signature,
+            },
+          } as AuthedRequest,
+          jsonRes(),
+          { fetchPayment: async () => ({ amount: 100, currency: "INR" }) }
+        ),
+      (err: unknown) => err instanceof ApiError && err.status === 400
+    );
+    assert.equal((await Booking.findById(booking._id))?.status, "PENDING");
+    assert.equal((await Payment.findOne({ bookingId: booking._id }))?.status, "CREATED");
   });
 });

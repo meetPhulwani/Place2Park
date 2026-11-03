@@ -29,15 +29,19 @@ import {
   passwordResetAccountLimiter,
   passwordResetIpLimiter,
   passwordResetTokenLimiter,
+  positiveIntEnv,
   rateLimit,
   signupAccountLimiter,
   signupIpLimiter,
+  WEBHOOK_RATE_LIMIT,
+  WEBHOOK_RATE_WINDOW_MS,
+  ipKey,
 } from "../utils/rate-limit.js";
 import {
   blockSlotSchema, bookingRequestSchema, createPaymentOrderSchema, emailOtpResendSchema,
-  emailOtpVerifySchema, googleLoginSchema,
+  emailOtpVerifySchema, forgotPasswordSchema, googleLoginSchema,
   listingSchema, loginSchema, payoutNoteSchema, payoutProfileSchema, payoutReferenceSchema,
-  profileSchema, reportSchema, reviewSchema, signupSchema, smtpTestSchema,
+  profileSchema, reportSchema, resetPasswordSchema, reviewSchema, signupSchema, smtpTestSchema,
   vehicleSchema, verifyPaymentSchema,
 } from "../utils/validation.js";
 import { ALLOWED_UPLOAD_TYPES, MAX_UPLOAD_BYTES } from "../services/media.js";
@@ -54,8 +58,8 @@ r.post("/auth/email-otp/verify", otpVerifyIpLimiter, otpVerifyChallengeLimiter, 
 r.post("/auth/login", loginIpLimiter, loginAccountLimiter, validate(loginSchema), a(auth.login));
 r.post("/auth/google", googleAuthLimiter, validate(googleLoginSchema), a(auth.googleLogin));
 r.get("/auth/me", authenticate, a(auth.me));
-r.post("/auth/forgot-password", passwordResetIpLimiter, passwordResetAccountLimiter, a(auth.forgotPassword));
-r.post("/auth/reset-password", passwordResetIpLimiter, passwordResetTokenLimiter, a(auth.resetPassword));
+r.post("/auth/forgot-password", passwordResetIpLimiter, passwordResetAccountLimiter, validate(forgotPasswordSchema), a(auth.forgotPassword));
+r.post("/auth/reset-password", passwordResetIpLimiter, passwordResetTokenLimiter, validate(resetPasswordSchema), a(auth.resetPassword));
 
 // ---- Users
 r.patch("/users/me", authenticate, validate(profileSchema), a(users.updateProfile));
@@ -76,31 +80,31 @@ r.get("/parking/:id/quote", a(parking.quote));
 r.get("/parking/:id", maybeAuthenticate, a(parking.detail));
 
 // ---- Bookings
-r.post("/bookings", authenticate, rateLimit("booking", BOOKING_RATE_LIMIT, BOOKING_RATE_WINDOW_MS), validate(bookingRequestSchema), a(bookings.create));
+r.post("/bookings", authenticate, rateLimit("booking", positiveIntEnv("RATE_LIMIT_BOOKING", BOOKING_RATE_LIMIT), positiveIntEnv("RATE_LIMIT_BOOKING_WINDOW_MS", BOOKING_RATE_WINDOW_MS, 86_400_000)), validate(bookingRequestSchema), a(bookings.create));
 r.get("/bookings", authenticate, a(bookings.listMine));
 r.get("/bookings/:id", authenticate, a(bookings.detail));
-r.post("/bookings/:id/cancel", authenticate, a(bookings.cancel));
+r.post("/bookings/:id/cancel", authenticate, rateLimit("booking-cancel", positiveIntEnv("RATE_LIMIT_BOOKING_CANCEL", 10), positiveIntEnv("RATE_LIMIT_BOOKING_CANCEL_WINDOW_MS", 10 * 60_000, 86_400_000)), a(bookings.cancel));
 
 // ---- Payments
-r.post("/payments/orders", authenticate, rateLimit("pay-order", PAYMENT_ORDER_LIMIT, PAYMENT_ORDER_WINDOW_MS), validate(createPaymentOrderSchema), a(payments.createOrder));
-r.post("/payments/verify", authenticate, rateLimit("pay-verify", 20, 10 * 60000), validate(verifyPaymentSchema), a(payments.verify));
+r.post("/payments/orders", authenticate, rateLimit("pay-order", positiveIntEnv("RATE_LIMIT_PAYMENT_ORDER", PAYMENT_ORDER_LIMIT), positiveIntEnv("RATE_LIMIT_PAYMENT_ORDER_WINDOW_MS", PAYMENT_ORDER_WINDOW_MS, 86_400_000)), validate(createPaymentOrderSchema), a(payments.createOrder));
+r.post("/payments/verify", authenticate, rateLimit("pay-verify", positiveIntEnv("RATE_LIMIT_PAYMENT_VERIFY", 20), positiveIntEnv("RATE_LIMIT_PAYMENT_VERIFY_WINDOW_MS", 10 * 60_000, 86_400_000)), validate(verifyPaymentSchema), a(payments.verify));
 r.post("/payments/mock-confirm", authenticate, a(payments.mockConfirm));
-r.post("/payments/webhook", a(payments.webhook)); // signature-verified, no JWT
+r.post("/payments/webhook", rateLimit("webhook", positiveIntEnv("RATE_LIMIT_WEBHOOK", WEBHOOK_RATE_LIMIT), positiveIntEnv("RATE_LIMIT_WEBHOOK_WINDOW_MS", WEBHOOK_RATE_WINDOW_MS, 86_400_000), { key: ipKey, audit: "payment" }), a(payments.webhook));
 r.get("/payments", authenticate, a(payments.listMine));
 
 // ---- Reviews / favorites / reports / notifications
-r.post("/reviews", authenticate, validate(reviewSchema), a(engagement.createReview));
+r.post("/reviews", authenticate, rateLimit("review", positiveIntEnv("RATE_LIMIT_REVIEW", 10), positiveIntEnv("RATE_LIMIT_REVIEW_WINDOW_MS", 60 * 60_000, 86_400_000)), validate(reviewSchema), a(engagement.createReview));
 r.get("/favorites", authenticate, a(engagement.listFavorites));
-r.post("/favorites/toggle", authenticate, a(engagement.toggleFavorite));
-r.post("/reports", authenticate, rateLimit("report", 5, 60 * 60000), validate(reportSchema), a(engagement.createReport));
+r.post("/favorites/toggle", authenticate, rateLimit("favorite", positiveIntEnv("RATE_LIMIT_FAVORITE", 60), positiveIntEnv("RATE_LIMIT_FAVORITE_WINDOW_MS", 10 * 60_000, 86_400_000)), a(engagement.toggleFavorite));
+r.post("/reports", authenticate, rateLimit("report", positiveIntEnv("RATE_LIMIT_REPORT", 5), positiveIntEnv("RATE_LIMIT_REPORT_WINDOW_MS", 60 * 60_000, 86_400_000)), validate(reportSchema), a(engagement.createReport));
 r.get("/notifications", authenticate, a(users.listNotifications));
 
 // ---- Host
 r.get("/host/overview", authenticate, hostOnly, a(host.overview));
 r.get("/host/listings", authenticate, hostOnly, a(host.listListings));
-r.post("/host/listings", authenticate, hostOnly, validate(listingSchema), a(host.createListing));
+r.post("/host/listings", authenticate, hostOnly, rateLimit("listing-create", positiveIntEnv("RATE_LIMIT_LISTING_CREATE", 10), positiveIntEnv("RATE_LIMIT_LISTING_CREATE_WINDOW_MS", 60 * 60_000, 86_400_000)), validate(listingSchema), a(host.createListing));
 r.get("/host/listings/:id", authenticate, hostOnly, a(host.getListing));
-r.put("/host/listings/:id", authenticate, hostOnly, validate(listingSchema), a(host.updateListing));
+r.put("/host/listings/:id", authenticate, hostOnly, rateLimit("listing-update", positiveIntEnv("RATE_LIMIT_LISTING_UPDATE", 30), positiveIntEnv("RATE_LIMIT_LISTING_UPDATE_WINDOW_MS", 10 * 60_000, 86_400_000)), validate(listingSchema), a(host.updateListing));
 r.post("/host/listings/:id/status", authenticate, hostOnly, a(host.setListingStatus));
 r.patch("/host/listings/:id/status", authenticate, hostOnly, a(host.setListingStatus));
 r.get("/host/calendar", authenticate, hostOnly, a(host.calendar));
@@ -110,7 +114,7 @@ r.get("/host/bookings", authenticate, hostOnly, a(host.listBookings));
 r.get("/host/earnings", authenticate, hostOnly, a(host.earnings));
 r.get("/host/payout-profile", authenticate, hostOnly, a(payouts.getPayoutProfile));
 r.put("/host/payout-profile", authenticate, hostOnly, validate(payoutProfileSchema), a(payouts.updatePayoutProfile));
-r.post("/host/payouts/request", authenticate, hostOnly, rateLimit("payout-request", 8, 10 * 60000), a(payouts.requestPayout));
+r.post("/host/payouts/request", authenticate, hostOnly, rateLimit("payout-request", positiveIntEnv("RATE_LIMIT_PAYOUT_REQUEST", 8), positiveIntEnv("RATE_LIMIT_PAYOUT_REQUEST_WINDOW_MS", 10 * 60_000, 86_400_000)), a(payouts.requestPayout));
 r.get("/host/reviews", authenticate, hostOnly, a(host.listReviews));
 
 // ---- Admin
@@ -145,6 +149,6 @@ const upload = multer({
     else cb(null, false);
   },
 });
-r.post("/upload", authenticate, hostOnly, rateLimit("upload", 30, 10 * 60000), upload.single("file"), a(uploads.uploadImage));
+r.post("/upload", authenticate, hostOnly, rateLimit("upload", positiveIntEnv("RATE_LIMIT_UPLOAD", 30), positiveIntEnv("RATE_LIMIT_UPLOAD_WINDOW_MS", 10 * 60_000, 86_400_000)), upload.single("file"), a(uploads.uploadImage));
 
 export default r;

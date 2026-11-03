@@ -8,6 +8,7 @@ import { signToken, type AuthedRequest } from "../middleware/auth.js";
 import { env, isProd } from "../config/env.js";
 import { deliverPasswordResetLink, isEmailConfigured } from "../services/email.js";
 import { beginGoogleSignIn, completeEmailOtp, resendEmailOtp, startSignupEmailOtp } from "../services/email-otp.js";
+import { passwordIssue } from "../utils/password.js";
 
 function issueToken(user: { _id: unknown; tokenVersion?: number | null }) {
   return signToken(String(user._id), user.tokenVersion ?? 0);
@@ -124,14 +125,15 @@ export async function forgotPassword(req: Request, res: Response) {
 
 export async function resetPassword(req: Request, res: Response) {
   const { token, password } = req.body as { token?: string; password?: string };
-  if (!token || !password || password.length < 8)
-    throw new ApiError(400, "Use a password with at least 8 characters.");
+  const nextPassword = typeof password === "string" ? password : "";
+  const issue = passwordIssue(nextPassword);
+  if (!token || issue) throw new ApiError(400, issue ?? "This reset link is invalid or has expired.");
   const user = await User.findOne({
     resetToken: hashResetToken(token),
     resetTokenExpires: { $gt: new Date() },
   }).select("+resetToken +resetTokenExpires");
   if (!user) throw new ApiError(400, "This reset link is invalid or has expired.");
-  const passwordHash = await bcrypt.hash(password, 10);
+  const passwordHash = await bcrypt.hash(nextPassword, 10);
   const updated = await User.updateOne(
     { _id: user._id, resetToken: hashResetToken(token), resetTokenExpires: { $gt: new Date() } },
     {

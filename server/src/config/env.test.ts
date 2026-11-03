@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { assertRazorpayWebhookSecret, unwrapEnvValue } from "./env.js";
+import { assertPayoutEncryptionKey, assertRazorpayWebhookSecret, unwrapEnvValue } from "./env.js";
 
 describe("production webhook secret validation", () => {
   it("allows local development without a webhook secret", () => {
@@ -26,6 +26,15 @@ describe("production webhook secret validation", () => {
     assert.equal(unwrapEnvValue("plain-value"), "plain-value");
     assert.equal(unwrapEnvValue(""), "");
     assert.equal(unwrapEnvValue('"mismatched\''), '"mismatched\'');
+  });
+
+  it("requires a dedicated payout encryption key only in production", () => {
+    assert.doesNotThrow(() => assertPayoutEncryptionKey("development", ""));
+    assert.throws(
+      () => assertPayoutEncryptionKey("production", "short"),
+      (err: unknown) => err instanceof Error && err.message === "PAYOUT_ENCRYPTION_KEY must be at least 32 characters in production."
+    );
+    assert.doesNotThrow(() => assertPayoutEncryptionKey("production", "x".repeat(32)));
   });
 
   it("accepts a configured production webhook secret without echoing it", () => {

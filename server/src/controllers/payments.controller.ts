@@ -5,13 +5,19 @@ import { ApiError } from "../middleware/error.js";
 import { failBookingPayment, settleCapturedPayment, type CaptureSettlementDeps } from "../services/bookings.js";
 import {
   applyRefundEvent,
+  captureMatchesStored,
   createOrReusePaymentOrder,
+  fetchRazorpayPayment,
   verifyRazorpaySignature,
   verifyWebhookSignature,
 } from "../services/payments.js";
 import { applyRouteTransferEvent } from "../services/payouts.js";
 
-function settlementDeps(value: CaptureSettlementDeps | NextFunction | undefined): CaptureSettlementDeps {
+type PaymentRequestDeps = CaptureSettlementDeps & {
+  fetchPayment?: (paymentId: string) => Promise<{ amount?: unknown; currency?: unknown }>;
+};
+
+function settlementDeps(value: PaymentRequestDeps | NextFunction | undefined): PaymentRequestDeps {
   return value && typeof value === "object" ? value : {};
 }
 
@@ -46,7 +52,7 @@ export async function createOrder(req: AuthedRequest, res: Response) {
 export async function verify(
   req: AuthedRequest,
   res: Response,
-  deps: CaptureSettlementDeps | NextFunction = {}
+  deps: PaymentRequestDeps | NextFunction = {}
 ) {
   const { bookingId, razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body as Record<string, string>;
   if (!bookingId || !razorpayOrderId || !razorpayPaymentId || !razorpaySignature)
@@ -59,16 +65,26 @@ export async function verify(
   if (!payment || !payment.orderId || payment.orderId !== razorpayOrderId)
     throw new ApiError(400, "Order mismatch.");
 
-  if (payment.status !== "PAID" && payment.status !== "REFUNDED") {
+  const requestDeps = settlementDeps(deps);
+  const alreadySettled = payment.status === "PAID" || payment.status === "REFUNDED";
+  if (!alreadySettled) {
     if (!verifyRazorpaySignature(razorpayOrderId, razorpayPaymentId, razorpaySignature))
       throw new ApiError(400, "Payment verification failed.");
+    let captured: { amount?: unknown; currency?: unknown };
+    try {
+      captured = await (requestDeps.fetchPayment ?? fetchRazorpayPayment)(razorpayPaymentId);
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      throw new ApiError(503, "We couldn't verify that payment. Try again shortly.");
+    }
+    if (!captureMatchesStored(payment, captured)) throw new ApiError(400, "Payment verification failed.");
   }
 
   const settled = await settleCapturedPayment(
     bookingId,
     payment.paymentId || razorpayPaymentId,
     razorpaySignature,
-    settlementDeps(deps)
+    requestDeps
   );
   res.json({
     success: true,
@@ -87,7 +103,7 @@ export async function mockConfirm(_req: AuthedRequest, _res: Response) {
 }
 
 /** Razorpay webhook (payment.captured / payment.failed). Verifies the raw body. */
-export async function webhook(req: Request, res: Response, deps: CaptureSettlementDeps | NextFunction = {}) {
+export async function webhook(req: Request, res: Response, deps: PaymentRequestDeps | NextFunction = {}) {
   const signature = req.headers["x-razorpay-signature"];
   const raw = (req as Request & { rawBody?: string }).rawBody;
   if (typeof signature !== "string" || typeof raw !== "string" || !verifyWebhookSignature(raw, signature)) {
@@ -98,7 +114,7 @@ export async function webhook(req: Request, res: Response, deps: CaptureSettleme
   let event: {
     event?: string;
     payload?: {
-      payment?: { entity?: { id?: string; order_id?: string } };
+      payment?: { entity?: { id?: string; order_id?: string; amount?: number; currency?: string } };
       refund?: { entity?: { id?: string; payment_id?: string; status?: string } };
       transfer?: { entity?: { id?: string; status?: string } };
     };
@@ -128,9 +144,13 @@ export async function webhook(req: Request, res: Response, deps: CaptureSettleme
   if (entity?.order_id) {
     const payment = await Payment.findOne({ orderId: entity.order_id });
     if (payment) {
-      if ((event.event === "payment.captured" || event.event === "order.paid") && entity.id)
-        await settleCapturedPayment(String(payment.bookingId), entity.id, undefined, settlementDeps(deps));
-      else if (event.event === "payment.failed" && payment.status !== "PAID" && payment.status !== "REFUNDED")
+      if ((event.event === "payment.captured" || event.event === "order.paid") && entity.id) {
+        if (!captureMatchesStored(payment, entity)) {
+          console.warn(JSON.stringify({ event: "payment_amount_mismatch", bookingId: String(payment.bookingId) }));
+        } else {
+          await settleCapturedPayment(String(payment.bookingId), entity.id, undefined, settlementDeps(deps));
+        }
+      } else if (event.event === "payment.failed" && payment.status !== "PAID" && payment.status !== "REFUNDED")
         await failBookingPayment(String(payment.bookingId));
     }
   }

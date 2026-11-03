@@ -17,6 +17,8 @@ const emailOtpPendingSchema = new Schema(
     sentAt: { type: Date, required: true },
     attempts: { type: Number, default: 0 },
     consumed: { type: Boolean, default: false },
+    /** Stored so a taken email or phone returns the same payload without creating an account. */
+    inert: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

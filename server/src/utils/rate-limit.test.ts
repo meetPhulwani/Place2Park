@@ -12,6 +12,7 @@ import {
   UnavailableRateLimitStore,
   clientAddress,
   emailKey,
+  positiveIntEnv,
   rateLimit,
   rateLimitHit,
   resetRateLimitStore,
@@ -56,10 +57,24 @@ describe("booking rate limiter", () => {
 
   it("wires the production booking route to the production limit constants", () => {
     const src = readFileSync(new URL("../routes/index.ts", import.meta.url), "utf8");
-    assert.match(src, /rateLimit\(\s*"booking"\s*,\s*BOOKING_RATE_LIMIT\s*,\s*BOOKING_RATE_WINDOW_MS\s*\)/);
-    assert.match(src, /rateLimit\(\s*"pay-order"\s*,\s*PAYMENT_ORDER_LIMIT\s*,\s*PAYMENT_ORDER_WINDOW_MS\s*\)/);
+    assert.match(src, /rateLimit\(\s*"booking"\s*,\s*positiveIntEnv\(\s*"RATE_LIMIT_BOOKING"\s*,\s*BOOKING_RATE_LIMIT\s*\)/);
+    assert.match(src, /rateLimit\(\s*"pay-order"\s*,\s*positiveIntEnv\(\s*"RATE_LIMIT_PAYMENT_ORDER"\s*,\s*PAYMENT_ORDER_LIMIT\s*\)/);
+    assert.match(src, /RATE_LIMIT_WEBHOOK/);
     assert.equal(PAYMENT_ORDER_LIMIT, 10);
     assert.equal(PAYMENT_ORDER_WINDOW_MS, 10 * 60_000);
+  });
+
+  it("ignores empty or invalid limit overrides and accepts a positive integer", () => {
+    const name = "RATE_LIMIT_BOOKING_TEST_ONLY";
+    const previous = process.env[name];
+    delete process.env[name];
+    assert.equal(positiveIntEnv(name, 10), 10);
+    process.env[name] = "0";
+    assert.equal(positiveIntEnv(name, 10), 10);
+    process.env[name] = "15";
+    assert.equal(positiveIntEnv(name, 10), 15);
+    if (previous == null) delete process.env[name];
+    else process.env[name] = previous;
   });
 });
 

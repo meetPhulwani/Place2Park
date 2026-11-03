@@ -2,6 +2,7 @@ import { env, isProd } from "./config/env.js";
 import { connectDb } from "./config/db.js";
 import { createApp } from "./app.js";
 import { ParkingSpace } from "./models/ParkingSpace.js";
+import { startBackgroundMaintenance } from "./services/maintenance.js";
 
 async function main() {
   const { inMemory } = await connectDb();
@@ -17,6 +18,7 @@ async function main() {
     }
   }
   const app = createApp();
+  startBackgroundMaintenance();
   app.listen(env.PORT, () => console.info(`[server] Parkly API on http://localhost:${env.PORT}`));
 }
 

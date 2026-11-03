@@ -97,11 +97,6 @@ export default function SignupPage() {
       saveEmailOtpChallenge(data.data);
       navigate("/signup/verify-email");
     } catch (e2) {
-      const status = e2 instanceof AxiosError ? e2.response?.status : null;
-      if (status === 409 && /email or password/i.test(errorMessage(e2, ""))) {
-        setFormError("Invalid email or password.");
-        return;
-      }
       const flat = fieldErrorsFrom(e2);
       if (flat && Object.keys(flat).length) setErrors(flat);
       else setFormError(errorMessage(e2, "Couldn't create your account."));

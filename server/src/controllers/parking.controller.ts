@@ -9,12 +9,10 @@ import { getDisplayLocation, locationTextClauses } from "../utils/location.js";
 import {
   AVAILABILITY_ERROR_MESSAGES,
   checkAvailability,
-  expireStalePendingBookings,
   progressSpaceBookings,
 } from "../services/availability.js";
-import { reconcileExpiredPaymentHolds } from "../services/payments.js";
 import { computeQuote } from "../utils/pricing.js";
-import { ALLOWED_DURATIONS_MINS } from "../utils/constants.js";
+import { ALLOWED_DURATIONS_MINS, isBookableStatus } from "../utils/constants.js";
 
 function finiteNumber(...candidates: unknown[]): number | undefined {
   for (const c of candidates) {
@@ -160,12 +158,11 @@ export async function detail(req: Request, res: Response) {
   const userId = (req as AuthedRequest).userId as string | undefined;
   const isOwner = userId != null && String(space.hostId) === userId;
   const isAdmin = (req as AuthedRequest).userRole === "ADMIN";
-  // Hidden/draft listings are only visible to their owner or admins.
-  if (!["VERIFIED", "ACTIVE", "PAUSED"].includes(space.status) && !isOwner && !isAdmin)
+  // Paused, hidden, and draft listings stay visible only to the owner or an admin.
+  if (!["VERIFIED", "ACTIVE"].includes(space.status) && !isOwner && !isAdmin)
     throw new ApiError(404, "Listing not found.");
 
   const spaceId = String(space._id);
-  await reconcileExpiredPaymentHolds({}, await expireStalePendingBookings(spaceId));
   await progressSpaceBookings(spaceId);
 
   const [host, reviews, favorite, hasConfirmedBooking] = await Promise.all([
@@ -223,10 +220,10 @@ export async function quote(req: Request, res: Response) {
     "status pricePerHour minDurationMins maxDurationMins availability overnightAllowed blockedDates"
   );
   if (!space) throw new ApiError(404, "Listing not found.");
+  if (!isBookableStatus(space.status)) throw new ApiError(404, "Listing not found.");
 
   const end = new Date(start.getTime() + durationMins * 60000);
   const spaceId = String(space._id);
-  await reconcileExpiredPaymentHolds({}, await expireStalePendingBookings(spaceId));
   await progressSpaceBookings(spaceId);
   const check = await checkAvailability(spaceId, start, end);
   const q = computeQuote(space.pricePerHour, durationMins);

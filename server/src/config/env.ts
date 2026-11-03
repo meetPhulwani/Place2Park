@@ -38,6 +38,7 @@ export const env = {
   CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME ?? "",
   CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY ?? "",
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET ?? "",
+  PAYOUT_ENCRYPTION_KEY: unwrapEnvValue(process.env.PAYOUT_ENCRYPTION_KEY),
 };
 
 export const isProd = env.NODE_ENV === "production";
@@ -68,3 +69,13 @@ if (isProd && (!env.CLOUDINARY_CLOUD_NAME || !env.CLOUDINARY_API_KEY || !env.CLO
   throw new Error("CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET are required in production.");
 }
 assertRazorpayWebhookSecret(env.NODE_ENV, env.RAZORPAY_WEBHOOK_SECRET);
+
+/** Production bank-account encryption. Development may keep using the legacy key. Never log the value. */
+export function assertPayoutEncryptionKey(nodeEnv: string, key: string) {
+  if (nodeEnv !== "production") return;
+  if (String(key ?? "").trim().length < 32) {
+    throw new Error("PAYOUT_ENCRYPTION_KEY must be at least 32 characters in production.");
+  }
+}
+
+assertPayoutEncryptionKey(env.NODE_ENV, env.PAYOUT_ENCRYPTION_KEY);

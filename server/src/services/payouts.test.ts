@@ -19,6 +19,8 @@ import {
   publicPayoutProfile,
   reconcileRefundedBooking,
   requestHostPayout,
+  decryptAccountNumber,
+  encryptAccountNumber,
   saveHostPayoutProfile,
   summarizeHostEarnings,
   verifyHostPayoutProfile,
@@ -372,5 +374,24 @@ describe("route transfer ignore leftover", () => {
     const payout = await HostPayout.findById(requested.id);
     assert.equal(payout?.status, "REQUESTED");
     assert.equal(payout?.transferId, undefined);
+  });
+});
+
+describe("payout encryption key separation", () => {
+  const previous = env.PAYOUT_ENCRYPTION_KEY;
+
+  after(() => {
+    env.PAYOUT_ENCRYPTION_KEY = previous;
+  });
+
+  it("still decrypts rows written with the legacy key after a dedicated key is set", () => {
+    env.PAYOUT_ENCRYPTION_KEY = "";
+    const legacy = encryptAccountNumber("123456789012");
+    env.PAYOUT_ENCRYPTION_KEY = "dedicated-payout-key-at-least-32";
+    assert.equal(decryptAccountNumber(legacy), "123456789012");
+    const current = encryptAccountNumber("123456789012");
+    assert.notEqual(current, legacy);
+    env.PAYOUT_ENCRYPTION_KEY = "";
+    assert.throws(() => decryptAccountNumber(current));
   });
 });

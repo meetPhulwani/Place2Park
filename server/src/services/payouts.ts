@@ -59,23 +59,51 @@ export function publicPayoutProfile(profile?: {
   };
 }
 
-function payoutKey() {
-  return crypto.createHash("sha256").update(`${env.JWT_SECRET}:payout-pii`).digest();
+function keyFromMaterial(material: string) {
+  return crypto.createHash("sha256").update(material).digest();
+}
+
+/** Rows written before PAYOUT_ENCRYPTION_KEY existed. Decrypt-only. */
+function legacyPayoutMaterial() {
+  return `${env.JWT_SECRET}:payout-pii`;
+}
+
+function dedicatedPayoutMaterial() {
+  const dedicated = String(env.PAYOUT_ENCRYPTION_KEY ?? "").trim();
+  return dedicated ? `payout:${dedicated}` : "";
+}
+
+function encryptMaterial() {
+  return dedicatedPayoutMaterial() || legacyPayoutMaterial();
 }
 
 export function encryptAccountNumber(accountNumber: string) {
   const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv("aes-256-gcm", payoutKey(), iv);
+  const cipher = crypto.createCipheriv("aes-256-gcm", keyFromMaterial(encryptMaterial()), iv);
   const enc = Buffer.concat([cipher.update(accountNumber, "utf8"), cipher.final()]);
   return `${iv.toString("hex")}:${cipher.getAuthTag().toString("hex")}:${enc.toString("hex")}`;
 }
 
-export function decryptAccountNumber(payload: string) {
+function decryptWith(payload: string, key: Buffer) {
   const [ivHex, tagHex, dataHex] = String(payload ?? "").split(":");
   if (!ivHex || !tagHex || !dataHex) throw new ApiError(500, "Payout account could not be read.");
-  const decipher = crypto.createDecipheriv("aes-256-gcm", payoutKey(), Buffer.from(ivHex, "hex"));
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key, Buffer.from(ivHex, "hex"));
   decipher.setAuthTag(Buffer.from(tagHex, "hex"));
   return Buffer.concat([decipher.update(Buffer.from(dataHex, "hex")), decipher.final()]).toString("utf8");
+}
+
+export function decryptAccountNumber(payload: string) {
+  const materials = [dedicatedPayoutMaterial(), legacyPayoutMaterial()].filter(Boolean);
+  let last: unknown;
+  for (const material of materials) {
+    try {
+      return decryptWith(payload, keyFromMaterial(material));
+    } catch (err) {
+      last = err;
+    }
+  }
+  if (last instanceof ApiError) throw last;
+  throw new ApiError(500, "Payout account could not be read.");
 }
 
 export function accountFingerprint(accountNumber: string, ifsc: string) {

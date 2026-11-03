@@ -99,10 +99,10 @@ async function occupySlot(start: Date, end: Date) {
   });
 }
 
-function captureWebhook(orderId: string, paymentId: string) {
+function captureWebhook(orderId: string, paymentId: string, amount = 7350) {
   const raw = JSON.stringify({
     event: "payment.captured",
-    payload: { payment: { entity: { id: paymentId, order_id: orderId } } },
+    payload: { payment: { entity: { id: paymentId, order_id: orderId, amount, currency: "INR" } } },
   });
   return {
     raw,
@@ -348,6 +348,7 @@ describe("captured payment after expiry or cancel", () => {
     await verify(req, res, {
       notify: async () => undefined,
       refundPayment: async () => ({ refundId: "rfnd_verify", processed: true }),
+      fetchPayment: async () => ({ amount: 7350, currency: "INR" }),
     });
     assert.equal(res.statusCode, 200);
     const body = res.body as { data?: { refunded?: boolean; refundStatus?: string } };

@@ -1,9 +1,11 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
+import mongoose from "mongoose";
 import { env } from "../config/env.js";
 import { UPLOADS_DIR } from "../config/paths.js";
 import { ApiError } from "../middleware/error.js";
+import { ParkingSpace, PendingUpload } from "../models/index.js";
 
 export const ALLOWED_UPLOAD_TYPES: Record<string, string> = {
   "image/jpeg": ".jpg",
@@ -16,6 +18,8 @@ const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0
 const CLOUDINARY_HOST = "res.cloudinary.com";
 
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+/** Unattached listing photos are removed after this, and only when no listing references them. */
+export const UPLOAD_RETENTION_MS = 24 * 60 * 60 * 1000;
 export const CLOUDINARY_FOLDER = "place2park/listings";
 export const UPLOAD_ERROR_MESSAGE = "Upload a JPEG, PNG or WebP image up to 5 MB.";
 
@@ -254,6 +258,7 @@ export async function persistListingImages(
     }
   }
   await save();
+  await markListingImagesAttached(images);
   const ids = removedCloudinaryPublicIds(previous, images).filter((id) => canDestroyPublicId(deps.hostId, id));
   for (const publicId of ids) {
     try {
@@ -262,5 +267,65 @@ export async function persistListingImages(
       console.error("[media] failed to destroy listing image");
       void err;
     }
+  }
+}
+
+export async function markListingImagesAttached(images: { url?: string; publicId?: string }[]) {
+  const urls = images.map((img) => img.url).filter((url): url is string => Boolean(url));
+  const publicIds = images.map((img) => img.publicId).filter((id): id is string => Boolean(id));
+  if (!urls.length && !publicIds.length) return;
+  // Listing saves are tested and served without a ledger connection. A missing
+  // ledger must not block the save or the Cloudinary cleanup that follows it.
+  if (mongoose.connection.readyState !== 1) return;
+  try {
+    await PendingUpload.updateMany(
+      {
+        attached: false,
+        $or: [
+          ...(urls.length ? [{ url: { $in: urls } }] : []),
+          ...(publicIds.length ? [{ publicId: { $in: publicIds } }] : []),
+        ],
+      },
+      { $set: { attached: true } }
+    );
+  } catch (err) {
+    console.error("[media] attach ledger failed", { name: err instanceof Error ? err.name : "Error" });
+  }
+}
+
+const LOCAL_UPLOAD_NAME = /^[a-f0-9]{16}\.(jpg|png|webp)$/;
+
+/** Deletes ledger rows older than the retention window that no listing references. */
+export async function sweepUnattachedUploads(
+  deps: { destroy?: DestroyListingImageFn; now?: Date; retentionMs?: number } = {}
+) {
+  const cutoff = new Date((deps.now ?? new Date()).getTime() - (deps.retentionMs ?? UPLOAD_RETENTION_MS));
+  const stale = await PendingUpload.find({ attached: false, createdAt: { $lt: cutoff } }).limit(50);
+  for (const row of stale) {
+    const referenced = await ParkingSpace.exists({
+      $or: [
+        { "images.url": row.url },
+        ...(row.publicId ? [{ "images.publicId": row.publicId }] : []),
+      ],
+    });
+    if (referenced) {
+      row.attached = true;
+      await row.save();
+      continue;
+    }
+    try {
+      if (row.publicId && isManagedPublicId(row.publicId)) {
+        await destroyListingImage(row.publicId, { destroy: deps.destroy });
+      } else if (row.url.startsWith("/uploads/")) {
+        const name = row.url.slice("/uploads/".length);
+        if (LOCAL_UPLOAD_NAME.test(name)) {
+          await fs.rm(path.join(UPLOADS_DIR, name), { force: true });
+        }
+      }
+    } catch (err) {
+      console.error("[media] upload cleanup failed", err instanceof Error ? err.name : "Error");
+      continue;
+    }
+    await row.deleteOne();
   }
 }

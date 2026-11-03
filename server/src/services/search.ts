@@ -1,9 +1,17 @@
 import { Booking, BlockedSlot, ParkingSpace } from "../models/index.js";
 import { haversineKm } from "../utils/geo.js";
 import { getDisplayLocation, locationTextClauses } from "../utils/location.js";
-import { coversWindow, expireStalePendingBookings, occupyingOverlapFilter } from "./availability.js";
-import { reconcileExpiredPaymentHolds } from "./payments.js";
+import { coversWindow, occupyingOverlapFilter } from "./availability.js";
 import { isProd } from "../config/env.js";
+
+/** Product maximum. Client input cannot widen the geo query past this. */
+export const MAX_SEARCH_RADIUS_KM = 12;
+const DEFAULT_SEARCH_RADIUS_KM = 8;
+
+export function clampSearchRadiusKm(requested: number | undefined) {
+  if (requested == null || !Number.isFinite(requested) || requested <= 0) return DEFAULT_SEARCH_RADIUS_KM;
+  return Math.min(requested, MAX_SEARCH_RADIUS_KM);
+}
 
 export interface SpaceSummary {
   id: string;
@@ -89,11 +97,9 @@ function geoWithin(lng: number, lat: number, radiusKm: number) {
 }
 
 export async function searchSpaces(q: SearchQuery): Promise<SpaceSummary[]> {
-  await reconcileExpiredPaymentHolds({}, await expireStalePendingBookings());
-
   const lat = q.lat != null && Number.isFinite(q.lat) ? q.lat : undefined;
   const lng = q.lng != null && Number.isFinite(q.lng) ? q.lng : undefined;
-  const radiusKm = q.maxDistanceKm && q.maxDistanceKm > 0 ? q.maxDistanceKm : 8;
+  const radiusKm = clampSearchRadiusKm(q.maxDistanceKm);
   const textQuery = q.q?.trim() ?? "";
   const textClauses = locationTextClauses(textQuery);
   const hasGeo = lat != null && lng != null;

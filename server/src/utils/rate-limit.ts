@@ -31,6 +31,24 @@ export const PASSWORD_RESET_WINDOW_MS = 15 * 60_000;
 export const GOOGLE_AUTH_LIMIT = 10;
 export const GOOGLE_AUTH_WINDOW_MS = 15 * 60_000;
 
+/** High ceiling so Razorpay retries are not cut off with the public API budget. */
+export const WEBHOOK_RATE_LIMIT = 300;
+export const WEBHOOK_RATE_WINDOW_MS = 60_000;
+
+const WINDOW_MAX_MS = 24 * 60 * 60_000;
+
+/**
+ * Optional override. Empty, zero, and non-integers keep the coded default.
+ * Counters stay in this process. Add a shared store before running more than one API instance.
+ */
+export function positiveIntEnv(name: string, fallback: number, max = 1_000_000) {
+  const raw = process.env[name];
+  if (raw == null || String(raw).trim() === "") return fallback;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1 || n > max) return fallback;
+  return n;
+}
+
 const RATE_LIMIT_MESSAGE = "Too many requests. Try again shortly.";
 
 type AuditCategory = "api" | "auth" | "otp" | "booking" | "payment";
@@ -242,49 +260,93 @@ export function rateLimit(name: string, limit: number, windowMs: number, options
   });
 }
 
-export const apiLimiter = rateLimit("api", API_LIMIT, API_WINDOW_MS, {
-  key: ipKey,
-  skip: (req) => req.path === "/payments/webhook",
-});
+export const apiLimiter = rateLimit(
+  "api",
+  positiveIntEnv("RATE_LIMIT_API", API_LIMIT),
+  positiveIntEnv("RATE_LIMIT_API_WINDOW_MS", API_WINDOW_MS, WINDOW_MAX_MS),
+  {
+    key: ipKey,
+    skip: (req) => req.path === "/payments/webhook",
+  }
+);
 
-export const loginIpLimiter = rateLimit("login-ip", LOGIN_LIMIT, LOGIN_WINDOW_MS, { key: ipKey, audit: "auth" });
-export const loginAccountLimiter = rateLimit("login-account", LOGIN_LIMIT, LOGIN_WINDOW_MS, { key: emailKey, audit: "auth" });
+export const loginIpLimiter = rateLimit(
+  "login-ip",
+  positiveIntEnv("RATE_LIMIT_LOGIN", LOGIN_LIMIT),
+  positiveIntEnv("RATE_LIMIT_LOGIN_WINDOW_MS", LOGIN_WINDOW_MS, WINDOW_MAX_MS),
+  { key: ipKey, audit: "auth" }
+);
+export const loginAccountLimiter = rateLimit(
+  "login-account",
+  positiveIntEnv("RATE_LIMIT_LOGIN", LOGIN_LIMIT),
+  positiveIntEnv("RATE_LIMIT_LOGIN_WINDOW_MS", LOGIN_WINDOW_MS, WINDOW_MAX_MS),
+  { key: emailKey, audit: "auth" }
+);
 
-export const signupIpLimiter = rateLimit("signup-ip", SIGNUP_LIMIT, SIGNUP_WINDOW_MS, { key: ipKey, audit: "auth" });
-export const signupAccountLimiter = rateLimit("signup-account", SIGNUP_LIMIT, SIGNUP_WINDOW_MS, { key: emailKey, audit: "auth" });
+export const signupIpLimiter = rateLimit(
+  "signup-ip",
+  positiveIntEnv("RATE_LIMIT_SIGNUP", SIGNUP_LIMIT),
+  positiveIntEnv("RATE_LIMIT_SIGNUP_WINDOW_MS", SIGNUP_WINDOW_MS, WINDOW_MAX_MS),
+  { key: ipKey, audit: "auth" }
+);
+export const signupAccountLimiter = rateLimit(
+  "signup-account",
+  positiveIntEnv("RATE_LIMIT_SIGNUP", SIGNUP_LIMIT),
+  positiveIntEnv("RATE_LIMIT_SIGNUP_WINDOW_MS", SIGNUP_WINDOW_MS, WINDOW_MAX_MS),
+  { key: emailKey, audit: "auth" }
+);
 
-export const googleAuthLimiter = rateLimit("google", GOOGLE_AUTH_LIMIT, GOOGLE_AUTH_WINDOW_MS, { key: ipKey, audit: "auth" });
+export const googleAuthLimiter = rateLimit(
+  "google",
+  positiveIntEnv("RATE_LIMIT_GOOGLE", GOOGLE_AUTH_LIMIT),
+  positiveIntEnv("RATE_LIMIT_GOOGLE_WINDOW_MS", GOOGLE_AUTH_WINDOW_MS, WINDOW_MAX_MS),
+  { key: ipKey, audit: "auth" }
+);
 
-export const otpVerifyChallengeLimiter = rateLimit("otp-verify-challenge", OTP_VERIFY_LIMIT, OTP_VERIFY_WINDOW_MS, {
-  key: challengeKey,
-  audit: "otp",
-});
-export const otpVerifyIpLimiter = rateLimit("otp-verify-ip", 20, OTP_VERIFY_WINDOW_MS, {
-  key: ipKey,
-  audit: "otp",
-});
+export const otpVerifyChallengeLimiter = rateLimit(
+  "otp-verify-challenge",
+  positiveIntEnv("RATE_LIMIT_OTP_VERIFY", OTP_VERIFY_LIMIT),
+  positiveIntEnv("RATE_LIMIT_OTP_VERIFY_WINDOW_MS", OTP_VERIFY_WINDOW_MS, WINDOW_MAX_MS),
+  { key: challengeKey, audit: "otp" }
+);
+export const otpVerifyIpLimiter = rateLimit(
+  "otp-verify-ip",
+  positiveIntEnv("RATE_LIMIT_OTP_VERIFY_IP", 20),
+  positiveIntEnv("RATE_LIMIT_OTP_VERIFY_WINDOW_MS", OTP_VERIFY_WINDOW_MS, WINDOW_MAX_MS),
+  { key: ipKey, audit: "otp" }
+);
 
-export const otpResendAccountLimiter = rateLimit("otp-resend-account", OTP_RESEND_LIMIT, OTP_RESEND_WINDOW_MS, {
-  key: challengeKey,
-  audit: "otp",
-});
-export const otpResendIpLimiter = rateLimit("otp-resend-ip", 10, OTP_RESEND_WINDOW_MS, {
-  key: ipKey,
-  audit: "otp",
-});
+export const otpResendAccountLimiter = rateLimit(
+  "otp-resend-account",
+  positiveIntEnv("RATE_LIMIT_OTP_RESEND", OTP_RESEND_LIMIT),
+  positiveIntEnv("RATE_LIMIT_OTP_RESEND_WINDOW_MS", OTP_RESEND_WINDOW_MS, WINDOW_MAX_MS),
+  { key: challengeKey, audit: "otp" }
+);
+export const otpResendIpLimiter = rateLimit(
+  "otp-resend-ip",
+  positiveIntEnv("RATE_LIMIT_OTP_RESEND_IP", 10),
+  positiveIntEnv("RATE_LIMIT_OTP_RESEND_WINDOW_MS", OTP_RESEND_WINDOW_MS, WINDOW_MAX_MS),
+  { key: ipKey, audit: "otp" }
+);
 
-export const passwordResetIpLimiter = rateLimit("password-reset-ip", PASSWORD_RESET_LIMIT, PASSWORD_RESET_WINDOW_MS, {
-  key: ipKey,
-  audit: "auth",
-});
-export const passwordResetAccountLimiter = rateLimit("password-reset-account", PASSWORD_RESET_LIMIT, PASSWORD_RESET_WINDOW_MS, {
-  key: emailKey,
-  audit: "auth",
-});
-export const passwordResetTokenLimiter = rateLimit("password-reset-token", PASSWORD_RESET_LIMIT, PASSWORD_RESET_WINDOW_MS, {
-  key: resetTokenKey,
-  audit: "auth",
-});
+export const passwordResetIpLimiter = rateLimit(
+  "password-reset-ip",
+  positiveIntEnv("RATE_LIMIT_PASSWORD_RESET", PASSWORD_RESET_LIMIT),
+  positiveIntEnv("RATE_LIMIT_PASSWORD_RESET_WINDOW_MS", PASSWORD_RESET_WINDOW_MS, WINDOW_MAX_MS),
+  { key: ipKey, audit: "auth" }
+);
+export const passwordResetAccountLimiter = rateLimit(
+  "password-reset-account",
+  positiveIntEnv("RATE_LIMIT_PASSWORD_RESET", PASSWORD_RESET_LIMIT),
+  positiveIntEnv("RATE_LIMIT_PASSWORD_RESET_WINDOW_MS", PASSWORD_RESET_WINDOW_MS, WINDOW_MAX_MS),
+  { key: emailKey, audit: "auth" }
+);
+export const passwordResetTokenLimiter = rateLimit(
+  "password-reset-token",
+  positiveIntEnv("RATE_LIMIT_PASSWORD_RESET", PASSWORD_RESET_LIMIT),
+  positiveIntEnv("RATE_LIMIT_PASSWORD_RESET_WINDOW_MS", PASSWORD_RESET_WINDOW_MS, WINDOW_MAX_MS),
+  { key: resetTokenKey, audit: "auth" }
+);
 
 const cleanup = setInterval(() => {
   const now = Date.now();
