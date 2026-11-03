@@ -3,6 +3,7 @@ import type { MapViewProps } from "./map-view";
 import { cn } from "@/lib/utils";
 import { loadGoogleMaps } from "@/lib/google-maps";
 import { destinationPan, frameDestinationView, viewportPoints } from "@/lib/destination";
+import { FALLBACK_MAP_CENTER, FALLBACK_MAP_ZOOM, shouldHoldMapCamera } from "@/lib/map-camera";
 
 const DESTINATION_PIN =
   "M0,0 C-2,-18 -10,-20 -10,-30 A10,10 0 1 1 10,-30 C10,-20 2,-18 0,0 z";
@@ -85,12 +86,14 @@ export function GoogleMapView({
   const markersRef = React.useRef(markers);
   const destinationRef = React.useRef(destination);
   const occlusionRef = React.useRef(occlusion);
+  const centerRef = React.useRef(center);
   const panToken = React.useRef(0);
   const onOpenRef = React.useRef(onOpen);
   onOpenRef.current = onOpen;
   markersRef.current = markers;
   destinationRef.current = destination;
   occlusionRef.current = occlusion;
+  centerRef.current = center;
   const occlusionKey = occlusion
     ? `${Math.round(occlusion.left)}:${Math.round(occlusion.top)}:${Math.round(occlusion.right)}:${Math.round(occlusion.bottom)}`
     : "";
@@ -102,10 +105,11 @@ export function GoogleMapView({
         if (cancelled || !containerRef.current) return;
         if (!mapRef.current) {
           mapRef.current = new google.maps.Map(containerRef.current, {
-            center: center ?? { lat: 19.076, lng: 72.8777 },
-            zoom: 13,
+            center: center ?? FALLBACK_MAP_CENTER,
+            zoom: FALLBACK_MAP_ZOOM,
             disableDefaultUI: true,
             zoomControl: true,
+            zoomControlOptions: { position: google.maps.ControlPosition.LEFT_TOP },
             clickableIcons: false,
           });
           infoRef.current = new google.maps.InfoWindow();
@@ -225,6 +229,7 @@ export function GoogleMapView({
     const map = mapRef.current;
     if (!map) return;
     google.maps.event.trigger(map, "resize");
+    if (shouldHoldMapCamera(Boolean(destinationRef.current), Boolean(centerRef.current))) return;
     const destination = destinationRef.current;
     const rect = containerRef.current?.getBoundingClientRect();
     const pan = destinationPan(rect?.width ?? 0, rect?.height ?? 0, occlusionRef.current);
@@ -288,5 +293,5 @@ export function GoogleMapView({
       </div>
     );
   }
-  return <div ref={containerRef} className={className} role="application" aria-label="Map of parking spaces" />;
+  return <div ref={containerRef} className={cn("map-canvas", className)} role="application" aria-label="Map of parking spaces" />;
 }

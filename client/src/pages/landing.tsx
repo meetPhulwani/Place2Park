@@ -16,13 +16,12 @@ import {
   recentPlaceFromBooking,
   type RecentPlace,
 } from "@/lib/recent-places";
-
-const MUMBAI = { lat: 19.076, lng: 72.8777 };
+import { resolveInitialMapCenter, type MapCenter } from "@/lib/map-camera";
 
 export default function LandingPage() {
   const searchBarRef = React.useRef<SearchBarHandle>(null);
   const { user } = useAuth();
-  const [origin, setOrigin] = React.useState(MUMBAI);
+  const [origin, setOrigin] = React.useState<MapCenter | null>(null);
   const [spaces, setSpaces] = React.useState<SpaceSummary[]>([]);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [recent, setRecent] = React.useState<RecentPlace[]>(() => pickRecentPlaces([], readRecentPlaces()));
@@ -56,20 +55,22 @@ export default function LandingPage() {
   }, [user]);
 
   React.useEffect(() => {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      (pos) => setOrigin({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => undefined,
-      { enableHighAccuracy: false, timeout: 4000, maximumAge: 300000 }
-    );
+    let cancelled = false;
+    resolveInitialMapCenter().then((center) => {
+      if (!cancelled) setOrigin(center);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   React.useEffect(() => {
+    if (!origin) return;
     let cancelled = false;
     const qs = new URLSearchParams({
       lat: String(origin.lat),
       lng: String(origin.lng),
-      radius: "14",
+      radius: "12",
       sort: "closest",
     });
     api
@@ -113,17 +114,21 @@ export default function LandingPage() {
       </div>
 
       <div className="absolute inset-0 z-0">
-        <MapView
-          markers={markers}
-          center={origin}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-          className="h-full w-full"
-        />
+        {origin ? (
+          <MapView
+            markers={markers}
+            center={origin}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            className="h-full w-full"
+          />
+        ) : (
+          <div className="h-full w-full bg-page" />
+        )}
         <button
           type="button"
           onClick={locate}
-          className="absolute right-3 top-[4.75rem] z-20 flex size-10 items-center justify-center rounded-full border border-line bg-white text-brand-600 shadow-card transition-colors hover:bg-brand-50 sm:right-4"
+          className="absolute top-[max(4.75rem,calc(env(safe-area-inset-top)+3.5rem))] right-[max(0.75rem,env(safe-area-inset-right))] z-20 flex size-10 items-center justify-center rounded-full border border-line bg-white text-brand-600 shadow-card transition-colors hover:bg-brand-50"
           aria-label="Use my location"
         >
           <LocateFixed className="size-4" aria-hidden />
@@ -154,7 +159,7 @@ export default function LandingPage() {
             </div>
           </Link>
         )}
-        <section className="pointer-events-auto w-full rounded-t-2xl border border-b-0 border-line bg-white px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-pop sm:rounded-t-3xl sm:px-6 sm:pt-5">
+        <section className="pointer-events-auto w-full rounded-t-2xl border border-b-0 border-line bg-white pt-4 pr-[max(1rem,env(safe-area-inset-right))] pb-[max(1rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] shadow-pop sm:rounded-t-3xl sm:px-6 sm:pt-5">
           <div className="flex items-end justify-between gap-3">
             <div>
               <h1 className="font-display text-lg font-semibold tracking-tight text-ink sm:text-xl">

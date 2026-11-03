@@ -8,6 +8,7 @@ import {
   type IndiaPlaceLookup,
   type ResolvedLocation,
 } from "@/lib/google-maps";
+import { SUGGESTION_MENU_GAP, SUGGESTION_MENU_MAX, suggestionMenuFrame } from "@/lib/suggestion-menu";
 import { cn } from "@/lib/utils";
 
 export type PlaceSelection = ResolvedLocation;
@@ -21,9 +22,7 @@ type Suggestion = {
 
 const MIN_QUERY = 2;
 const DEBOUNCE_MS = 250;
-const MENU_GAP = 6;
-const MENU_MIN = 168;
-const MENU_MAX = 288;
+const MENU_GAP = SUGGESTION_MENU_GAP;
 
 function viewFrame() {
   const viewport = window.visualViewport;
@@ -33,36 +32,48 @@ function viewFrame() {
   };
 }
 
-/** Keep the menu below the field. Lift the dock only when the keyboard leaves too little room. */
+function overflowClipBottom(el: HTMLElement) {
+  let bottom = Number.POSITIVE_INFINITY;
+  let node: HTMLElement | null = el.parentElement;
+  while (node) {
+    const style = getComputedStyle(node);
+    if (/(auto|hidden|clip|scroll)/.test(`${style.overflow}${style.overflowY}`)) {
+      bottom = Math.min(bottom, node.getBoundingClientRect().bottom);
+    }
+    node = node.parentElement;
+  }
+  return bottom;
+}
+
+function safeAreaBottom() {
+  const probe = document.createElement("div");
+  probe.style.cssText = "position:absolute;visibility:hidden;padding-bottom:env(safe-area-inset-bottom)";
+  document.body.appendChild(probe);
+  const value = Number.parseFloat(getComputedStyle(probe).paddingBottom) || 0;
+  probe.remove();
+  return value;
+}
+
+/** Keep the menu below the field and inside the clipped, safe viewport. */
 function fitMenuBelow(input: HTMLElement) {
   const dock = input.closest("[data-location-dock]") as HTMLElement | null;
   const frame = viewFrame();
-  let rect = input.getBoundingClientRect();
-  let room = frame.bottom - rect.bottom - MENU_GAP - 8;
-  const applied = Number(dock?.dataset.menuLift || 0);
-
+  const rect = input.getBoundingClientRect();
+  const next = suggestionMenuFrame({
+    inputTop: rect.top,
+    inputBottom: rect.bottom,
+    viewportTop: frame.top,
+    viewportBottom: frame.bottom,
+    clipBottom: overflowClipBottom(input),
+    safeBottom: safeAreaBottom(),
+    appliedLift: Number(dock?.dataset.menuLift || 0),
+    chromeTop: 76,
+  });
   if (dock) {
-    if (room < MENU_MIN) {
-      const maxExtra = Math.max(0, rect.top - (frame.top + 72));
-      const extra = Math.min(maxExtra, MENU_MIN - room);
-      const next = applied + extra;
-      if (extra > 1) {
-        dock.dataset.menuLift = String(Math.round(next));
-        dock.style.transform = `translateY(-${Math.round(next)}px)`;
-        rect = input.getBoundingClientRect();
-        room = frame.bottom - rect.bottom - MENU_GAP - 8;
-      }
-    } else if (applied > 0) {
-      const reduce = Math.min(applied, room - MENU_MIN);
-      const next = Math.max(0, applied - reduce);
-      dock.dataset.menuLift = String(Math.round(next));
-      dock.style.transform = next > 0 ? `translateY(-${Math.round(next)}px)` : "";
-      rect = input.getBoundingClientRect();
-      room = frame.bottom - rect.bottom - MENU_GAP - 8;
-    }
+    dock.dataset.menuLift = String(next.lift);
+    dock.style.transform = next.lift > 0 ? `translateY(-${next.lift}px)` : "";
   }
-
-  return Math.min(MENU_MAX, Math.max(72, room));
+  return next.maxHeight;
 }
 
 function clearMenuLift(from: HTMLElement | null) {
@@ -100,7 +111,7 @@ export function PlacesAutocomplete({
   const [active, setActive] = React.useState(0);
   const [unavailable, setUnavailable] = React.useState(false);
   const [focused, setFocused] = React.useState(false);
-  const [menuMaxHeight, setMenuMaxHeight] = React.useState(MENU_MAX);
+  const [menuMaxHeight, setMenuMaxHeight] = React.useState(SUGGESTION_MENU_MAX);
   const apiKey = googleMapsApiKey();
   const session = React.useRef<object | null>(null);
   const predictions = React.useRef<IndiaPlaceLookup["predictions"]>(new Map());

@@ -106,6 +106,8 @@
     padding-block: 0;
     line-height: 2.5rem;
     -webkit-min-logical-width: 0;
+    -webkit-appearance: none;
+    appearance: none;
   }
   input[type="date"]::-webkit-datetime-edit,
   input[type="time"]::-webkit-datetime-edit,
@@ -127,18 +129,20 @@
     line-height: normal;
     text-align: left;
   }
-  @supports (-webkit-touch-callout: none) {
-    input[type="date"],
-    input[type="time"],
-    input[type="datetime-local"] {
-      -webkit-appearance: none;
-      appearance: none;
-    }
-  }
   input[type="date"]::-webkit-calendar-picker-indicator,
   input[type="time"]::-webkit-calendar-picker-indicator {
     cursor: pointer;
     opacity: 0.55;
+  }
+  /*
+    Google's zoom control defaults to the bottom-right, under the mobile search
+    sheet. Keep it at the top-left, clear of the navbar and the home indicator.
+  */
+  .map-canvas .gm-bundled-control {
+    top: max(4.75rem, calc(env(safe-area-inset-top) + 3.5rem)) !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: max(0.75rem, env(safe-area-inset-left)) !important;
   }
 }
 

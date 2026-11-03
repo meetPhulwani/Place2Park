@@ -168,7 +168,7 @@ export const SearchBar = React.forwardRef<
           value={date}
           min={toDateInputValue(new Date())}
           onChange={(e) => setDate(e.target.value)}
-          className="h-11 w-full rounded-lg bg-page px-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+          className="h-11 max-h-11 min-h-11 w-full rounded-lg bg-page px-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand-500/30"
         />
       </div>
       <div>
@@ -180,7 +180,7 @@ export const SearchBar = React.forwardRef<
           type="time"
           value={time}
           onChange={(e) => setTime(e.target.value)}
-          className="h-11 w-full rounded-lg bg-page px-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+          className="h-11 max-h-11 min-h-11 w-full rounded-lg bg-page px-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand-500/30"
         />
       </div>
       <div>
