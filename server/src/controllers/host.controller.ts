@@ -10,6 +10,7 @@ import { env } from "../config/env.js";
 import type { ListingInput } from "../utils/validation.js";
 import { persistListingImages } from "../services/media.js";
 import { listingCreateState, statusOnPublish } from "../services/listings.js";
+import { bookingStatus, calendarMonth } from "../utils/request-input.js";
 
 function fmtMin(m: number) {
   const h = Math.floor(m / 60) % 24;
@@ -207,14 +208,13 @@ export async function setListingStatus(req: AuthedRequest, res: Response) {
 export async function calendar(req: AuthedRequest, res: Response) {
   const allSpaces = await ParkingSpace.find({ hostId: req.userId, status: { $in: ["VERIFIED", "ACTIVE", "PAUSED"] } })
     .sort({ createdAt: 1 }).select("title status");
-  const requested = String(req.query.spaceId ?? "");
+  const requested = typeof req.query.spaceId === "string" && /^[a-fA-F0-9]{24}$/.test(req.query.spaceId) ? req.query.spaceId : "";
   const space = allSpaces.find((s) => String(s._id) === requested) ?? allSpaces[0];
   if (!space) {
     res.json({ success: true, data: { bookings: [], blocked: [], spaces: [], spaceId: null } });
     return;
   }
-  const year = Number(req.query.year ?? new Date().getFullYear());
-  const month = Number(req.query.month ?? new Date().getMonth()); // 0-based
+  const { year, month } = calendarMonth(req.query.year, req.query.month);
   const from = new Date(year, month, 1);
   const to = new Date(year, month + 1, 1);
   const [bookings, blocked] = await Promise.all([
@@ -254,7 +254,7 @@ export async function unblockSlot(req: AuthedRequest, res: Response) {
 export async function listBookings(req: AuthedRequest, res: Response) {
   await expireStalePendingBookings();
   await progressBookingStatuses(undefined, req.userId);
-  const status = typeof req.query.status === "string" && req.query.status !== "ALL" ? req.query.status : undefined;
+  const status = bookingStatus(req.query.status);
   const bookings = await Booking.find({ hostId: req.userId, ...(status ? { status } : {}) })
     .sort({ start: -1 }).limit(100)
     .populate("spaceId", "title area").populate("userId", "name");

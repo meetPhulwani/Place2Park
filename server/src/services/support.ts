@@ -10,9 +10,12 @@ import {
   HOST_REPORT_CATEGORIES,
   canTransitionTicket,
   statusNeedsNote,
+  SUPPORT_CATEGORIES,
   TICKET_PRIORITIES,
+  TICKET_STATUSES,
   type TicketStatus,
 } from "../utils/support-constants.js";
+import { boundedText, dayQuery } from "../utils/request-input.js";
 
 const ELIGIBLE_BOOKING = ["PENDING", "CONFIRMED", "ACTIVE", "COMPLETED", "CANCELLED"];
 const MAX_EVIDENCE = 4;
@@ -388,16 +391,19 @@ export async function listForAdmin(query: {
   to?: string;
 }) {
   const filter: Record<string, unknown> = {};
-  if (query.status) filter.status = query.status;
-  if (query.category) filter.category = query.category;
-  if (query.from || query.to) {
-    const createdAt: Record<string, Date> = {};
-    if (query.from) createdAt.$gte = new Date(query.from);
-    if (query.to) createdAt.$lte = new Date(query.to);
-    filter.createdAt = createdAt;
+  const categories = new Set<string>([...DRIVER_REPORT_CATEGORIES, ...HOST_REPORT_CATEGORIES, ...SUPPORT_CATEGORIES]);
+  if (query.status && (TICKET_STATUSES as readonly string[]).includes(query.status)) filter.status = query.status;
+  if (query.category && categories.has(query.category)) filter.category = query.category;
+  const from = dayQuery(query.from);
+  const to = dayQuery(query.to, true);
+  if (from || to) {
+    filter.createdAt = {
+      ...(from ? { $gte: from } : {}),
+      ...(to ? { $lte: to } : {}),
+    };
   }
-  if (query.q) {
-    const q = query.q.trim();
+  const q = boundedText(query.q, 120);
+  if (q) {
     if (/^(UR|ST)-/i.test(q)) filter.reference = q.toUpperCase();
     else if (q.startsWith("PK-")) {
       const booking = await Booking.findOne({ code: q.toUpperCase() }).select("_id");

@@ -22,52 +22,56 @@ const signupPassword = z.string().max(100).superRefine((value, ctx) => {
 
 export const signupSchema = z.object({
   name: z.string().trim().min(2, "Enter your name").max(80),
-  email: z.string().trim().toLowerCase().email("Enter a valid email"),
+  email: z.string().trim().toLowerCase().email("Enter a valid email").max(254),
   password: signupPassword,
   role: z.enum(["DRIVER", "HOST", "BOTH"]).default("DRIVER"),
   phone: indianMobile,
-});
+}).strict();
 
 export const emailOtpResendSchema = z.object({
-  pendingToken: z.string().trim().min(20),
-});
+  pendingToken: z.string().trim().min(20).max(500),
+}).strict();
 
 export const emailOtpVerifySchema = z.object({
-  pendingToken: z.string().trim().min(20),
+  pendingToken: z.string().trim().min(20).max(500),
   otp: z.string().regex(/^\d{6}$/, "Enter the 6-digit code"),
-});
+}).strict();
 
 export const loginSchema = z.object({
-  email: z.string().trim().toLowerCase().email(),
-  password: z.string().min(1),
-});
+  email: z.string().trim().toLowerCase().email().max(254),
+  password: z.string().min(1).max(100),
+}).strict();
 
 export const forgotPasswordSchema = z.object({
-  email: z.string().trim().toLowerCase().email(),
-});
+  email: z.string().trim().toLowerCase().email().max(254),
+}).strict();
 
 export const resetPasswordSchema = z.object({
   token: z.string().trim().min(20).max(200),
   password: signupPassword,
-});
+}).strict();
 
 export const googleLoginSchema = z.object({
-  credential: z.string().min(10), // Google ID token from Google Identity Services
-});
+  credential: z.string().min(10).max(8000),
+}).strict();
+
+export const emptyBodySchema = z.object({}).strict();
+
+export const objectIdSchema = z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid id.");
 
 export const createPaymentOrderSchema = z.object({
-  bookingId: z.string().min(1),
-});
+  bookingId: objectIdSchema,
+}).strict();
 
 export const verifyPaymentSchema = z.object({
-  bookingId: z.string().min(1),
-  razorpayOrderId: z.string().min(1),
-  razorpayPaymentId: z.string().min(1),
-  razorpaySignature: z.string().min(1),
-});
+  bookingId: objectIdSchema,
+  razorpayOrderId: z.string().trim().min(1).max(80),
+  razorpayPaymentId: z.string().trim().min(1).max(80),
+  razorpaySignature: z.string().trim().min(1).max(256),
+}).strict();
 
 export const bookingRequestSchema = z.object({
-  spaceId: z.string().min(1),
+  spaceId: objectIdSchema,
   start: z.coerce.date(),
   durationMins: z
     .number()
@@ -75,45 +79,45 @@ export const bookingRequestSchema = z.object({
     .refine((v) => (ALLOWED_DURATIONS_MINS as readonly number[]).includes(v), "Invalid duration"),
   vehicleType: z.enum(VEHICLE_TYPES).default("CAR"),
   vehiclePlate: z.string().trim().min(4, "Enter the vehicle number").max(15),
-});
+}).strict();
 
 export const reviewSchema = z.object({
-  bookingId: z.string().min(1),
+  bookingId: objectIdSchema,
   rating: z.number().int().min(1).max(5),
   comment: z.string().trim().max(1000).default(""),
-});
+}).strict();
 
 const userReportCategories = [...new Set([...DRIVER_REPORT_CATEGORIES, ...HOST_REPORT_CATEGORIES])] as [string, ...string[]];
 
 export const userReportSchema = z.object({
-  bookingId: z.string().trim().min(1),
-  reportedUserId: z.string().trim().optional(),
+  bookingId: objectIdSchema,
+  reportedUserId: objectIdSchema.optional(),
   category: z.enum(userReportCategories),
   description: z.string().trim().min(20).max(2000),
   incidentAt: z.union([z.string().datetime(), z.literal("")]).optional(),
-  evidenceIds: z.array(z.string().trim().min(1)).max(4).optional(),
-});
+  evidenceIds: z.array(objectIdSchema).max(4).optional(),
+}).strict();
 
 export const supportTicketSchema = z.object({
   category: z.enum(SUPPORT_CATEGORIES),
   subject: z.string().trim().min(4).max(120),
   description: z.string().trim().min(20).max(2000),
-  bookingId: z.union([z.string().trim().min(1), z.literal("")]).optional(),
-  paymentId: z.union([z.string().trim().min(1), z.literal("")]).optional(),
-  evidenceIds: z.array(z.string().trim().min(1)).max(4).optional(),
-});
+  bookingId: z.union([objectIdSchema, z.literal("")]).optional(),
+  paymentId: z.union([objectIdSchema, z.literal("")]).optional(),
+  evidenceIds: z.array(objectIdSchema).max(4).optional(),
+}).strict();
 
 export const ticketReplySchema = z.object({
   body: z.string().trim().min(2).max(2000),
   visibility: z.enum(["PUBLIC", "INTERNAL"]).optional(),
-});
+}).strict();
 
 export const ticketUpdateSchema = z.object({
   status: z.enum(TICKET_STATUSES).optional(),
   priority: z.enum(TICKET_PRIORITIES).optional(),
-  assigneeId: z.string().trim().nullable().optional(),
+  assigneeId: objectIdSchema.nullable().optional(),
   note: z.string().trim().max(2000).optional(),
-});
+}).strict();
 
 export const faqSchema = z.object({
   category: z.enum(FAQ_CATEGORIES),
@@ -132,34 +136,52 @@ export const faqFeedbackSchema = z.object({
 });
 
 export const faqReorderSchema = z.object({
-  ids: z.array(z.string().trim().min(1)).min(1).max(200),
+  ids: z.array(objectIdSchema).min(1).max(200),
 });
 
+export const favoriteSchema = z.object({ spaceId: objectIdSchema }).strict();
+
+export const listingStatusSchema = z.object({
+  action: z.enum(["pause", "activate", "submit", "delete"]),
+}).strict();
+
+export const userStatusSchema = z.object({
+  status: z.enum(["ACTIVE", "SUSPENDED"]),
+}).strict();
+
+export const verifiedFlagSchema = z.object({
+  verified: z.boolean(),
+}).strict();
+
+export const moderationSchema = z.object({
+  action: z.enum(["approve", "reject", "hide", "unhide"]),
+}).strict();
+
+export const resolveReportSchema = z.object({
+  action: z.enum(["resolve", "dismiss"]),
+  note: z.string().trim().max(500).optional(),
+}).strict();
+
 export const reportSchema = z.object({
-  spaceId: z.string().min(1),
+  spaceId: objectIdSchema,
   reason: z.enum(REPORT_REASONS),
   details: z.string().trim().max(2000).default(""),
-});
+}).strict();
 
 export const profileSchema = z.object({
   name: z.string().trim().min(2).max(80),
-  phone: z
-    .string()
-    .trim()
-    .regex(/^[+\d][\d\s-]{6,14}$/, "Enter a valid phone number")
-    .optional()
-    .or(z.literal("")),
+  phone: z.union([z.literal(""), indianMobile]).optional(),
   preferredVehicleType: z.enum(VEHICLE_TYPES),
   notifyEmail: z.boolean(),
   notifyReminders: z.boolean(),
-});
+}).strict();
 
 export const vehicleSchema = z.object({
   type: z.enum(VEHICLE_TYPES),
   make: z.string().trim().max(40).default(""),
   model: z.string().trim().max(40).default(""),
   plate: z.string().trim().min(4, "Enter the vehicle number").max(15),
-});
+}).strict();
 
 export const listingSchema = z
   .object({
@@ -264,7 +286,7 @@ export type ListingInput = z.infer<typeof listingSchema>;
 
 export const blockSlotSchema = z
   .object({
-    spaceId: z.string().min(1),
+    spaceId: objectIdSchema,
     start: z.coerce.date(),
     end: z.coerce.date(),
     reason: z.string().trim().max(160).default(""),

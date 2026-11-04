@@ -67,7 +67,8 @@ export async function adminListPayoutDestinationAudits(req: AuthedRequest, res: 
 }
 
 export async function adminVerifyPayoutProfile(req: AuthedRequest, res: Response) {
-  const verified = !!(req.body as { verified?: boolean }).verified;
+  const verified = (req.body as { verified?: boolean }).verified;
+  if (typeof verified !== "boolean") throw new ApiError(400, "Invalid input.");
   const profile = await verifyHostPayoutProfile(req.userId, req.params.id, verified);
   res.json({ success: true, data: { payoutProfile: profile } });
 }

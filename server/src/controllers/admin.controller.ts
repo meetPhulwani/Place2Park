@@ -6,6 +6,7 @@ import { ApiError } from "../middleware/error.js";
 import { notify } from "../services/notify.js";
 import { sendSmtpTestMessage } from "../services/email.js";
 import { applyListingModeration } from "../services/listings.js";
+import { listingStatus } from "../utils/request-input.js";
 
 export async function metrics(_req: AuthedRequest, res: Response) {
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
@@ -75,13 +76,14 @@ export async function setUserStatus(req: AuthedRequest, res: Response) {
 
 export async function setHostVerified(req: AuthedRequest, res: Response) {
   const { verified } = req.body as { verified: boolean };
-  const target = await User.findByIdAndUpdate(req.params.id, { $set: { hostVerified: !!verified } });
+  if (typeof verified !== "boolean") throw new ApiError(400, "Invalid input.");
+  const target = await User.findByIdAndUpdate(req.params.id, { $set: { hostVerified: verified } });
   if (!target) throw new ApiError(404, "User not found.");
   res.json({ success: true, data: {} });
 }
 
 export async function listListings(req: AuthedRequest, res: Response) {
-  const status = typeof req.query.status === "string" && req.query.status !== "ALL" ? req.query.status : undefined;
+  const status = listingStatus(req.query.status);
   const listings = await ParkingSpace.find(status ? { status } : {})
     .sort({ updatedAt: -1 }).limit(100).populate("hostId", "name email");
   const openReports = await Report.aggregate([
@@ -162,6 +164,7 @@ export async function listReports(_req: AuthedRequest, res: Response) {
 
 export async function resolveReport(req: AuthedRequest, res: Response) {
   const { action, note } = req.body as { action: "resolve" | "dismiss"; note?: string };
+  if (action !== "resolve" && action !== "dismiss") throw new ApiError(400, "Invalid action.");
   const report = await Report.findById(req.params.id);
   if (!report) throw new ApiError(404, "Report not found.");
   report.status = action === "resolve" ? "RESOLVED" : "DISMISSED";

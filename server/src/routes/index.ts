@@ -41,17 +41,32 @@ import {
 } from "../utils/rate-limit.js";
 import {
   blockSlotSchema, bookingRequestSchema, createPaymentOrderSchema, emailOtpResendSchema,
-  emailOtpVerifySchema, forgotPasswordSchema, googleLoginSchema,
-  listingSchema, loginSchema, payoutNoteSchema, payoutProfileSchema, payoutReferenceSchema,
-  profileSchema, reportSchema, resetPasswordSchema, reviewSchema, signupSchema, smtpTestSchema,
+  emailOtpVerifySchema, emptyBodySchema, favoriteSchema, forgotPasswordSchema, googleLoginSchema,
+  listingSchema, listingStatusSchema, loginSchema, moderationSchema, payoutNoteSchema, payoutProfileSchema, payoutReferenceSchema,
+  profileSchema, reportSchema, resetPasswordSchema, resolveReportSchema, reviewSchema, signupSchema, smtpTestSchema,
   faqFeedbackSchema, faqReorderSchema, faqSchema, faqUpdateSchema,
-  supportTicketSchema, ticketReplySchema, ticketUpdateSchema, userReportSchema,
-  vehicleSchema, verifyPaymentSchema,
+  supportTicketSchema, ticketReplySchema, ticketUpdateSchema, userReportSchema, userStatusSchema,
+  vehicleSchema, verifiedFlagSchema, verifyPaymentSchema,
 } from "../utils/validation.js";
 import { ALLOWED_UPLOAD_TYPES, MAX_UPLOAD_BYTES } from "../services/media.js";
 
 const r = Router();
 const a = asyncHandler;
+
+r.param("id", (_req, res, next, value) => {
+  if (!/^[a-fA-F0-9]{24}$/.test(String(value))) {
+    res.status(400).json({ success: false, message: "Invalid id." });
+    return;
+  }
+  next();
+});
+r.param("kind", (_req, res, next, value) => {
+  if (value !== "USER_REPORT" && value !== "SUPPORT") {
+    res.status(404).json({ success: false, message: "Not found." });
+    return;
+  }
+  next();
+});
 
 r.use(apiLimiter);
 
@@ -69,7 +84,7 @@ r.post("/auth/reset-password", passwordResetIpLimiter, passwordResetTokenLimiter
 r.patch("/users/me", authenticate, validate(profileSchema), a(users.updateProfile));
 r.get("/users/me/profile", authenticate, a(users.getProfile));
 r.put("/users/me/profile", authenticate, validate(profileSchema), a(users.updateProfile));
-r.post("/users/me/become-host", authenticate, a(users.becomeHost));
+r.post("/users/me/become-host", authenticate, validate(emptyBodySchema), a(users.becomeHost));
 r.get("/users/me/dashboard", authenticate, a(users.dashboard));
 r.get("/users/me/vehicles", authenticate, a(users.listVehicles));
 r.post("/users/me/vehicles", authenticate, validate(vehicleSchema), a(users.addVehicle));
@@ -99,7 +114,7 @@ r.get("/payments", authenticate, a(payments.listMine));
 // ---- Reviews / favorites / reports / notifications
 r.post("/reviews", authenticate, rateLimit("review", positiveIntEnv("RATE_LIMIT_REVIEW", 10), positiveIntEnv("RATE_LIMIT_REVIEW_WINDOW_MS", 60 * 60_000, 86_400_000)), validate(reviewSchema), a(engagement.createReview));
 r.get("/favorites", authenticate, a(engagement.listFavorites));
-r.post("/favorites/toggle", authenticate, rateLimit("favorite", positiveIntEnv("RATE_LIMIT_FAVORITE", 60), positiveIntEnv("RATE_LIMIT_FAVORITE_WINDOW_MS", 10 * 60_000, 86_400_000)), a(engagement.toggleFavorite));
+r.post("/favorites/toggle", authenticate, rateLimit("favorite", positiveIntEnv("RATE_LIMIT_FAVORITE", 60), positiveIntEnv("RATE_LIMIT_FAVORITE_WINDOW_MS", 10 * 60_000, 86_400_000)), validate(favoriteSchema), a(engagement.toggleFavorite));
 r.post("/reports", authenticate, rateLimit("report", positiveIntEnv("RATE_LIMIT_REPORT", 5), positiveIntEnv("RATE_LIMIT_REPORT_WINDOW_MS", 60 * 60_000, 86_400_000)), validate(reportSchema), a(engagement.createReport));
 r.get("/faqs", a(faqs.list));
 r.post("/faqs/:id/feedback", maybeAuthenticate, rateLimit("faq-feedback", positiveIntEnv("RATE_LIMIT_FAQ_FEEDBACK", 30), positiveIntEnv("RATE_LIMIT_FAQ_FEEDBACK_WINDOW_MS", 60 * 60_000, 86_400_000)), validate(faqFeedbackSchema), a(faqs.feedback));
@@ -117,8 +132,8 @@ r.get("/host/listings", authenticate, hostOnly, a(host.listListings));
 r.post("/host/listings", authenticate, hostOnly, rateLimit("listing-create", positiveIntEnv("RATE_LIMIT_LISTING_CREATE", 10), positiveIntEnv("RATE_LIMIT_LISTING_CREATE_WINDOW_MS", 60 * 60_000, 86_400_000)), validate(listingSchema), a(host.createListing));
 r.get("/host/listings/:id", authenticate, hostOnly, a(host.getListing));
 r.put("/host/listings/:id", authenticate, hostOnly, rateLimit("listing-update", positiveIntEnv("RATE_LIMIT_LISTING_UPDATE", 30), positiveIntEnv("RATE_LIMIT_LISTING_UPDATE_WINDOW_MS", 10 * 60_000, 86_400_000)), validate(listingSchema), a(host.updateListing));
-r.post("/host/listings/:id/status", authenticate, hostOnly, a(host.setListingStatus));
-r.patch("/host/listings/:id/status", authenticate, hostOnly, a(host.setListingStatus));
+r.post("/host/listings/:id/status", authenticate, hostOnly, validate(listingStatusSchema), a(host.setListingStatus));
+r.patch("/host/listings/:id/status", authenticate, hostOnly, validate(listingStatusSchema), a(host.setListingStatus));
 r.get("/host/calendar", authenticate, hostOnly, a(host.calendar));
 r.post("/host/calendar/block", authenticate, hostOnly, validate(blockSlotSchema), a(host.blockSlot));
 r.delete("/host/calendar/block/:id", authenticate, hostOnly, a(host.unblockSlot));
@@ -126,16 +141,16 @@ r.get("/host/bookings", authenticate, hostOnly, a(host.listBookings));
 r.get("/host/earnings", authenticate, hostOnly, a(host.earnings));
 r.get("/host/payout-profile", authenticate, hostOnly, a(payouts.getPayoutProfile));
 r.put("/host/payout-profile", authenticate, hostOnly, validate(payoutProfileSchema), a(payouts.updatePayoutProfile));
-r.post("/host/payouts/request", authenticate, hostOnly, rateLimit("payout-request", positiveIntEnv("RATE_LIMIT_PAYOUT_REQUEST", 8), positiveIntEnv("RATE_LIMIT_PAYOUT_REQUEST_WINDOW_MS", 10 * 60_000, 86_400_000)), a(payouts.requestPayout));
+r.post("/host/payouts/request", authenticate, hostOnly, rateLimit("payout-request", positiveIntEnv("RATE_LIMIT_PAYOUT_REQUEST", 8), positiveIntEnv("RATE_LIMIT_PAYOUT_REQUEST_WINDOW_MS", 10 * 60_000, 86_400_000)), validate(emptyBodySchema), a(payouts.requestPayout));
 r.get("/host/reviews", authenticate, hostOnly, a(host.listReviews));
 
 // ---- Admin
 r.get("/admin/metrics", authenticate, adminOnly, a(admin.metrics));
 r.get("/admin/users", authenticate, adminOnly, a(admin.listUsers));
-r.post("/admin/users/:id/status", authenticate, adminOnly, a(admin.setUserStatus));
-r.post("/admin/users/:id/verify-host", authenticate, adminOnly, a(admin.setHostVerified));
+r.post("/admin/users/:id/status", authenticate, adminOnly, validate(userStatusSchema), a(admin.setUserStatus));
+r.post("/admin/users/:id/verify-host", authenticate, adminOnly, validate(verifiedFlagSchema), a(admin.setHostVerified));
 r.get("/admin/listings", authenticate, adminOnly, a(admin.listListings));
-r.post("/admin/listings/:id/moderate", authenticate, adminOnly, a(admin.moderateListing));
+r.post("/admin/listings/:id/moderate", authenticate, adminOnly, validate(moderationSchema), a(admin.moderateListing));
 r.get("/admin/bookings", authenticate, adminOnly, a(admin.listBookings));
 r.get("/admin/payments", authenticate, adminOnly, a(admin.listPayments));
 r.get("/admin/payouts", authenticate, adminOnly, a(payouts.adminListPayouts));
@@ -146,7 +161,7 @@ r.post("/admin/payouts/:id/reject", authenticate, adminOnly, validate(payoutNote
 r.post("/admin/payouts/:id/mark-paid", authenticate, adminOnly, validate(payoutReferenceSchema), a(payouts.adminMarkPayoutPaid));
 r.post("/admin/payouts/:id/fail", authenticate, adminOnly, validate(payoutNoteSchema), a(payouts.adminFailPayout));
 r.post("/admin/payouts/:id/reverse", authenticate, adminOnly, validate(payoutNoteSchema), a(payouts.adminReversePayout));
-r.post("/admin/users/:id/verify-payout", authenticate, adminOnly, a(payouts.adminVerifyPayoutProfile));
+r.post("/admin/users/:id/verify-payout", authenticate, adminOnly, validate(verifiedFlagSchema), a(payouts.adminVerifyPayoutProfile));
 r.get("/admin/faqs", authenticate, adminOnly, a(faqs.adminList));
 r.post("/admin/faqs", authenticate, adminOnly, validate(faqSchema), a(faqs.adminCreate));
 r.post("/admin/faqs/reorder", authenticate, adminOnly, validate(faqReorderSchema), a(faqs.adminReorder));
@@ -157,14 +172,14 @@ r.get("/admin/support/:kind/:id", authenticate, adminOnly, a(support.adminDetail
 r.post("/admin/support/:kind/:id/messages", authenticate, adminOnly, rateLimit("support-admin-message", positiveIntEnv("RATE_LIMIT_SUPPORT_ADMIN_MESSAGE", 60), positiveIntEnv("RATE_LIMIT_SUPPORT_ADMIN_MESSAGE_WINDOW_MS", 60 * 60_000, 86_400_000)), validate(ticketReplySchema), a(support.adminReply));
 r.post("/admin/support/:kind/:id", authenticate, adminOnly, validate(ticketUpdateSchema), a(support.adminPatch));
 r.get("/admin/reports", authenticate, adminOnly, a(admin.listReports));
-r.post("/admin/reports/:id/resolve", authenticate, adminOnly, a(admin.resolveReport));
+r.post("/admin/reports/:id/resolve", authenticate, adminOnly, validate(resolveReportSchema), a(admin.resolveReport));
 r.get("/admin/reviews", authenticate, adminOnly, a(admin.listReviews));
 r.post("/admin/email/test", authenticate, adminOnly, rateLimit("smtp-test", 3, 10 * 60000), validate(smtpTestSchema), a(admin.sendEmailTest));
 
 // ---- Uploads (Cloudinary in production; local /uploads when Cloudinary is unset in development)
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: MAX_UPLOAD_BYTES },
+  limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 },
   fileFilter: (_req, file, cb) => {
     if (ALLOWED_UPLOAD_TYPES[file.mimetype]) cb(null, true);
     else cb(null, false);

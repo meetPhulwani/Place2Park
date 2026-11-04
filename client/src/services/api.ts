@@ -40,7 +40,7 @@ export function errorStatus(err: unknown): number | null {
   return err instanceof AxiosError ? err.response?.status ?? null : null;
 }
 
-/** Zod field errors from a 422 validation response, flattened to one message per field. */
+/** Zod field errors from a validation response, flattened to one message per field. */
 export function fieldErrors(err: unknown): Record<string, string> {
   if (err instanceof AxiosError) {
     const errors = (err.response?.data as { errors?: Record<string, string[]> } | undefined)?.errors;

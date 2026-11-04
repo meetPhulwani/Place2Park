@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { api, errorMessage } from "@/services/api";
 import { useAuth, type AuthUser } from "@/context/auth";
 import { googleSignInResult, saveEmailOtpChallenge } from "@/lib/google-auth";
+import { safeNextPath } from "@/lib/safe-next";
 import { toast } from "./ui/toaster";
 
 interface GsiButtonConfig {
@@ -97,13 +98,13 @@ export function GoogleButton({ next }: { next?: string }) {
       const { data } = await api.post("/auth/google", { credential });
       const result = googleSignInResult<AuthUser>(data.data);
       if (result.kind === "email") {
-        const dest = next && next.startsWith("/") ? next : "/dashboard";
+        const dest = safeNextPath(next);
         saveEmailOtpChallenge(result.challenge, dest);
         navigate("/signup/verify-email");
         return;
       }
       login(result.token, result.user);
-      navigate(next ?? "/dashboard");
+      navigate(safeNextPath(next));
     } catch (e) {
       toast.error(errorMessage(e, "Google sign-in failed."));
     }

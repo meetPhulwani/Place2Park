@@ -7,6 +7,7 @@ import { cancelBooking, createBooking } from "../services/bookings.js";
 import { expireStalePendingBookings, progressBookingStatuses, progressOneBooking } from "../services/availability.js";
 import { razorpayConfigured } from "../services/payments.js";
 import { redactBooking, revealBookingSecrets } from "../utils/privacy.js";
+import { boundedText, dayQuery, historyBookingStatus, pageQuery } from "../utils/request-input.js";
 
 const withSpace = {
   path: "spaceId",
@@ -88,17 +89,19 @@ export async function listMine(req: AuthedRequest, res: Response) {
     filter.status = { $in: ["CANCELLED", "EXPIRED"] };
   } else {
     filter.status = { $in: ["COMPLETED", "CANCELLED", "EXPIRED"] };
-    if (req.query.status && typeof req.query.status === "string" && req.query.status !== "ALL")
-      filter.status = req.query.status;
-    if (req.query.from || req.query.to) {
+    const status = historyBookingStatus(req.query.status);
+    if (status) filter.status = status;
+    const from = dayQuery(req.query.from);
+    const to = dayQuery(req.query.to, true);
+    if (from || to) {
       filter.start = {
-        ...(req.query.from ? { $gte: new Date(String(req.query.from)) } : {}),
-        ...(req.query.to ? { $lte: new Date(`${req.query.to}T23:59:59`) } : {}),
+        ...(from ? { $gte: from } : {}),
+        ...(to ? { $lte: to } : {}),
       };
     }
   }
 
-  const page = Math.max(1, Number(req.query.page ?? 1));
+  const page = pageQuery(req.query.page);
   const pageSize = 10;
   const total = await Booking.countDocuments(filter);
   let query = Booking.find(filter).populate(withSpace);
@@ -106,8 +109,9 @@ export async function listMine(req: AuthedRequest, res: Response) {
 
   let bookings = await query.skip((page - 1) * pageSize).limit(pageSize + 1);
   // Text search on populated space title/area (small page — filter in memory).
-  if (typeof req.query.q === "string" && req.query.q) {
-    const q = req.query.q.toLowerCase();
+  const searchText = boundedText(req.query.q, 80);
+  if (searchText) {
+    const q = searchText.toLowerCase();
     bookings = bookings.filter((b) => {
       const s = b.spaceId as unknown as { title?: string; area?: string } | null;
       return (

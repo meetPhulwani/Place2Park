@@ -4,7 +4,7 @@ import { env } from "../config/env.js";
 import { ApiError } from "../middleware/error.js";
 import { AdminAudit, Booking, HostPayout, Payment, User } from "../models/index.js";
 import { computeQuote } from "../utils/pricing.js";
-import { OPEN_PAYOUT_STATUSES } from "../utils/constants.js";
+import { OPEN_PAYOUT_STATUSES, PAYOUT_STATUSES } from "../utils/constants.js";
 import { notify } from "./notify.js";
 import { notifyAdmin } from "./email.js";
 import { progressOneBooking } from "./availability.js";
@@ -522,7 +522,7 @@ export async function applyRouteTransferEvent(input: { event?: string; transferI
 export type PayoutAuditLog = (line: string) => void;
 
 export async function listAdminPayouts(status?: string, _deps?: { log?: PayoutAuditLog }) {
-  const filter = status && status !== "ALL" ? { status } : {};
+  const filter = status && status !== "ALL" && (PAYOUT_STATUSES as readonly string[]).includes(status) ? { status } : {};
   const payouts = await HostPayout.find(filter).sort({ createdAt: -1 }).limit(100).populate("hostId", "name email payoutProfile");
   return payouts.map((p) => {
     const host = p.hostId as unknown as { _id?: unknown; name?: string; email?: string; payoutProfile?: { accountHolder?: string; ifsc?: string; accountLast4?: string; verified?: boolean } };

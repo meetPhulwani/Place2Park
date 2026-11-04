@@ -138,13 +138,71 @@ export function canDestroyPublicId(hostId: string | undefined, publicId: string)
   return isOwnedPublicId(hostId, publicId);
 }
 
-export function validateUploadFile(file: { mimetype?: string; size?: number; buffer?: Buffer }) {
+const MAX_IMAGE_EDGE = 8000;
+
+function pngSize(buffer: Buffer): { width: number; height: number } | null {
+  if (buffer.length < 24 || buffer.toString("ascii", 12, 16) !== "IHDR") return null;
+  return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
+}
+
+function jpegSize(buffer: Buffer): { width: number; height: number } | null {
+  let i = 2;
+  while (i + 8 < buffer.length) {
+    if (buffer[i] !== 0xff) return null;
+    const marker = buffer[i + 1];
+    if (marker === 0xd8 || marker === 0xd9) {
+      i += 2;
+      continue;
+    }
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
+      i += 2;
+      continue;
+    }
+    const length = buffer.readUInt16BE(i + 2);
+    if (length < 2 || i + 2 + length > buffer.length) return null;
+    const sof =
+      (marker >= 0xc0 && marker <= 0xc3) ||
+      (marker >= 0xc5 && marker <= 0xc7) ||
+      (marker >= 0xc9 && marker <= 0xcb) ||
+      (marker >= 0xcd && marker <= 0xcf);
+    if (sof) return { height: buffer.readUInt16BE(i + 5), width: buffer.readUInt16BE(i + 7) };
+    i += 2 + length;
+  }
+  return null;
+}
+
+function webpSize(buffer: Buffer): { width: number; height: number } | null {
+  if (buffer.length < 30 || buffer.toString("ascii", 12, 16) !== "VP8X") return null;
+  const width = 1 + buffer.readUIntLE(24, 3);
+  const height = 1 + buffer.readUIntLE(27, 3);
+  return { width, height };
+}
+
+export function imageEdgeTooLarge(mimetype: string | undefined, buffer: Buffer | undefined): boolean {
+  if (!buffer || !mimetype) return false;
+  const size =
+    mimetype === "image/png" ? pngSize(buffer) : mimetype === "image/jpeg" ? jpegSize(buffer) : mimetype === "image/webp" ? webpSize(buffer) : null;
+  if (!size) return false;
+  return size.width < 1 || size.height < 1 || size.width > MAX_IMAGE_EDGE || size.height > MAX_IMAGE_EDGE;
+}
+
+function allowedUploadName(originalname: string | undefined): boolean {
+  if (!originalname) return true;
+  const base = originalname.split(/[/\\]/).pop() ?? "";
+  const dot = base.lastIndexOf(".");
+  if (dot <= 0) return false;
+  return [".jpg", ".jpeg", ".png", ".webp"].includes(base.slice(dot).toLowerCase());
+}
+
+export function validateUploadFile(file: { mimetype?: string; size?: number; buffer?: Buffer; originalname?: string }) {
   const size = file.size ?? file.buffer?.length ?? 0;
   if (
     !isAllowedUploadMime(file.mimetype) ||
     size <= 0 ||
     size > MAX_UPLOAD_BYTES ||
-    !matchesUploadSignature(file.mimetype, file.buffer)
+    !matchesUploadSignature(file.mimetype, file.buffer) ||
+    !allowedUploadName(file.originalname) ||
+    imageEdgeTooLarge(file.mimetype, file.buffer)
   ) {
     throw new ApiError(400, UPLOAD_ERROR_MESSAGE);
   }
@@ -164,6 +222,9 @@ async function defaultCloudinaryUpload(input: { buffer: Buffer; mimetype: string
         folder: listingImageFolder(hostId),
         resource_type: "image",
         allowed_formats: ["jpg", "jpeg", "png", "webp"],
+        use_filename: false,
+        unique_filename: true,
+        overwrite: false,
       },
       (err, result) => {
         if (err || !result?.secure_url || !result.public_id) {
@@ -220,7 +281,7 @@ export async function saveLocalListingImage(file: { buffer: Buffer; mimetype: st
 }
 
 export async function storeListingImage(
-  file: { buffer?: Buffer; mimetype: string; size?: number },
+  file: { buffer?: Buffer; mimetype: string; size?: number; originalname?: string },
   deps: { upload?: UploadListingImageFn; configured?: boolean; hostId?: string } = {}
 ): Promise<StoredListingImage> {
   validateUploadFile(file);

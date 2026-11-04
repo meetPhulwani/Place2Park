@@ -175,6 +175,22 @@ describe("upload magic-byte validation", () => {
       (err: unknown) => err instanceof ApiError && err.status === 400
     );
   });
+
+  it("rejects an oversized PNG and a disguised extension", () => {
+    const huge = Buffer.alloc(24);
+    png.copy(huge, 0, 0, 8);
+    huge.write("IHDR", 12, "ascii");
+    huge.writeUInt32BE(20000, 16);
+    huge.writeUInt32BE(10, 20);
+    assert.throws(
+      () => validateUploadFile({ buffer: huge, mimetype: "image/png", size: huge.length, originalname: "photo.png" }),
+      (err: unknown) => err instanceof ApiError && err.status === 400
+    );
+    assert.throws(
+      () => validateUploadFile({ ...jpeg, originalname: "photo.jpg.exe" }),
+      (err: unknown) => err instanceof ApiError && err.status === 400
+    );
+  });
 });
 
 describe("listing image URL allowlist", () => {

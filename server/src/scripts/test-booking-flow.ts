@@ -142,7 +142,7 @@ async function main() {
   const badDuration = await req(
     `/parking/${spaceId}/quote?start=${encodeURIComponent(atHour(4, 10).toISOString())}&durationMins=17`
   );
-  record("rejects invalid duration", badDuration.status === 422, badDuration.json.message);
+  record("rejects invalid duration", badDuration.status === 400, badDuration.json.message);
 
   const overnight = await req(
     `/parking/${spaceId}/quote?start=${encodeURIComponent(atHour(4, 23).toISOString())}&durationMins=120`
@@ -171,17 +171,17 @@ async function main() {
     token: otherDriverToken,
     body: { spaceId, start: "not-a-date", durationMins: 120, vehicleType: "CAR" },
   });
-  record("rejects malformed start date", badDate.status === 422, badDate.json.message);
+  record("rejects malformed start date", badDate.status === 400, badDate.json.message);
 
   const missingFields = await req("/bookings", {
     method: "POST",
     token: otherDriverToken,
     body: { spaceId },
   });
-  record("rejects missing booking fields", missingFields.status === 422, missingFields.json.message);
+  record("rejects missing booking fields", missingFields.status === 400, missingFields.json.message);
 
   const badBookingId = await req("/bookings/not-an-id", { token: driverToken });
-  record("rejects malformed booking id", badBookingId.status === 404, String(badBookingId.status));
+  record("rejects malformed booking id", badBookingId.status === 400, String(badBookingId.status));
 
   const badCancel = await req("/bookings/not-an-id/cancel", { method: "POST", token: driverToken });
   record("rejects cancel with malformed id", [400, 404].includes(badCancel.status), String(badCancel.status));

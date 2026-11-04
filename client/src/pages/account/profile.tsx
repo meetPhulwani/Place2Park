@@ -63,6 +63,15 @@ export default function ProfilePage() {
   );
 }
 
+function profilePhoneError(phone: string) {
+  if (!phone.trim()) return null;
+  const digits = phone.replace(/\D/g, "");
+  let local = digits;
+  if (digits.length === 12 && digits.startsWith("91")) local = digits.slice(2);
+  else if (digits.length === 11 && digits.startsWith("0")) local = digits.slice(1);
+  return /^[6-9]\d{9}$/.test(local) ? null : "Enter a valid 10-digit mobile number.";
+}
+
 function ProfileForm({ data, onSaved }: { data: ProfileData; onSaved: (d: ProfileData) => void }) {
   const { user, profile, vehicles } = data;
   const [form, setForm] = React.useState({
@@ -86,6 +95,14 @@ function ProfileForm({ data, onSaved }: { data: ProfileData; onSaved: (d: Profil
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
+    const next: Record<string, string> = {};
+    if (form.name.trim().length < 2 || form.name.trim().length > 80) next.name = "Enter your name.";
+    const phoneError = profilePhoneError(form.phone);
+    if (phoneError) next.phone = phoneError;
+    if (Object.keys(next).length) {
+      setErrors(next);
+      return;
+    }
     setErrors({});
     setSaving(true);
     try {
@@ -102,6 +119,16 @@ function ProfileForm({ data, onSaved }: { data: ProfileData; onSaved: (d: Profil
 
   async function saveVehicle(e: React.FormEvent) {
     e.preventDefault();
+    const plate = vehicleForm.plate.trim();
+    if (plate.length < 4 || plate.length > 15) {
+      setErrors({ plate: "Enter the vehicle number." });
+      return;
+    }
+    if (vehicleForm.make.trim().length > 40 || vehicleForm.model.trim().length > 40) {
+      setErrors({ plate: "Make and model must be 40 characters or fewer." });
+      return;
+    }
+    setErrors({});
     setVehicleBusy(true);
     try {
       await api.post("/users/me/vehicles", vehicleForm);
@@ -150,6 +177,7 @@ function ProfileForm({ data, onSaved }: { data: ProfileData; onSaved: (d: Profil
                 <Input
                   id="p-name"
                   value={form.name}
+                  maxLength={80}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                   required
                 />
@@ -162,6 +190,7 @@ function ProfileForm({ data, onSaved }: { data: ProfileData; onSaved: (d: Profil
                 <Input
                   id="p-phone"
                   type="tel"
+                  maxLength={16}
                   value={form.phone}
                   onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
                   placeholder="+91 98765 43210"
@@ -278,7 +307,9 @@ function ProfileForm({ data, onSaved }: { data: ProfileData; onSaved: (d: Profil
                       setVehicleForm((f) => ({ ...f, plate: e.target.value.toUpperCase() }))
                     }
                     placeholder="MH02AB1234"
+                    maxLength={15}
                   />
+                  <FieldError error={errors.plate} />
                 </div>
                 <div>
                   <Label htmlFor="v-make" hint="(optional)">Make</Label>

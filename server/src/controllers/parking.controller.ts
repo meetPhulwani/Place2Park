@@ -13,27 +13,16 @@ import {
 } from "../services/availability.js";
 import { computeQuote } from "../utils/pricing.js";
 import { ALLOWED_DURATIONS_MINS, isBookableStatus } from "../utils/constants.js";
-
-function finiteNumber(...candidates: unknown[]): number | undefined {
-  for (const c of candidates) {
-    if (c == null || c === "") continue;
-    const n = Number(c);
-    if (Number.isFinite(n)) return n;
-  }
-  return undefined;
-}
+import { boundedText, publicSearchInput } from "../utils/request-input.js";
 
 export async function search(req: Request, res: Response) {
-  const q = req.query;
-  let lat = finiteNumber(q.lat, q.latitude);
-  let lng = finiteNumber(q.lng, q.longitude);
-  if (lat != null && (lat < -90 || lat > 90)) lat = undefined;
-  if (lng != null && (lng < -180 || lng > 180)) lng = undefined;
+  const input = publicSearchInput(req.query as Record<string, unknown>);
+  let { lat, lng } = input;
   let resolvedArea: string | null = null;
   // Coordinates from the client are the search center. A name-only request
   // can fall back to coordinates already stored on matching listings.
-  if ((lat == null || lng == null) && typeof q.q === "string" && q.q) {
-    const clauses = locationTextClauses(q.q);
+  if ((lat == null || lng == null) && input.q) {
+    const clauses = locationTextClauses(input.q);
     if (clauses.length) {
       const named = await ParkingSpace.find({
         status: { $in: ["VERIFIED", "ACTIVE"] },
@@ -47,26 +36,13 @@ export async function search(req: Request, res: Response) {
       if (coords.length) {
         lng = coords.reduce((sum, c) => sum + c[0], 0) / coords.length;
         lat = coords.reduce((sum, c) => sum + c[1], 0) / coords.length;
-        resolvedArea = q.q;
+        resolvedArea = input.q;
       }
     }
-  } else if (typeof q.q === "string" && q.q) {
-    resolvedArea = q.q;
+  } else if (input.q) {
+    resolvedArea = input.q;
   }
-  const results = await searchSpaces({
-    q: typeof q.q === "string" ? q.q : undefined,
-    lat,
-    lng,
-    start: typeof q.start === "string" && q.start ? new Date(q.start) : undefined,
-    durationMins: q.durationMins ? Number(q.durationMins) : undefined,
-    maxPriceRupees: q.maxPrice ? Number(q.maxPrice) : undefined,
-    maxDistanceKm: finiteNumber(q.maxDistanceKm, q.radius, q.radiusKm),
-    covered: q.covered === "true" || q.covered === "1",
-    ev: q.ev === "true" || q.ev === "1",
-    vehicleType: q.vehicleType === "CAR" || q.vehicleType === "BIKE" ? q.vehicleType : undefined,
-    minRating: q.minRating ? Number(q.minRating) : undefined,
-    sort: q.sort === "cheapest" || q.sort === "rating" ? q.sort : "closest",
-  });
+  const results = await searchSpaces({ ...input, lat, lng });
   res.json({ success: true, data: { results, resolvedArea, center: lat != null && lng != null ? { lat, lng } : null } });
 }
 
@@ -80,7 +56,7 @@ export function knownAreas(_req: Request, res: Response) {
  * Never includes street address or access notes.
  */
 export async function suggestPlaces(req: Request, res: Response) {
-  const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  const q = boundedText(req.query.q, 120);
   if (q.length < 2) {
     res.json({ success: true, data: { predictions: [] } });
     return;
@@ -210,11 +186,11 @@ export async function quote(req: Request, res: Response) {
   if (!mongoose.isValidObjectId(req.params.id)) throw new ApiError(404, "Listing not found.");
   const startRaw = req.query.start;
   const durationMins = Number(req.query.durationMins);
-  if (typeof startRaw !== "string" || !startRaw) throw new ApiError(422, "Start time is required.");
+  if (typeof startRaw !== "string" || !startRaw) throw new ApiError(400, "Start time is required.");
   const start = new Date(startRaw);
-  if (Number.isNaN(start.getTime())) throw new ApiError(422, "Invalid start time.");
+  if (Number.isNaN(start.getTime())) throw new ApiError(400, "Invalid start time.");
   if (!Number.isInteger(durationMins) || !(ALLOWED_DURATIONS_MINS as readonly number[]).includes(durationMins))
-    throw new ApiError(422, "Choose a valid duration.");
+    throw new ApiError(400, "Choose a valid duration.");
 
   const space = await ParkingSpace.findById(req.params.id).select(
     "status pricePerHour minDurationMins maxDurationMins availability overnightAllowed blockedDates"

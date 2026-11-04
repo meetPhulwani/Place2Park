@@ -13,6 +13,7 @@ export async function uploadImage(req: AuthedRequest, res: Response) {
       buffer: file.buffer,
       mimetype: file.mimetype,
       size: file.size,
+      originalname: file.originalname,
     },
     { hostId: req.userId }
   );

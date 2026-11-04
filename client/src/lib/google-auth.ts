@@ -1,3 +1,5 @@
+import { safeNextPath } from "./safe-next";
+
 export const EMAIL_OTP_PENDING_KEY = "parkly_email_otp_pending";
 export const EMAIL_OTP_META_KEY = "parkly_email_otp_meta";
 
@@ -48,7 +50,7 @@ export function saveEmailOtpChallenge(challenge: EmailOtpChallenge, next?: strin
     maskedEmail: challenge.maskedEmail,
     expiresAt: challenge.expiresAt,
     resendAvailableAt: challenge.resendAvailableAt,
-    next: next && next.startsWith("/") ? next : "/dashboard",
+    next: safeNextPath(next),
   };
   sessionStorage.setItem(EMAIL_OTP_PENDING_KEY, challenge.pendingToken);
   sessionStorage.setItem(EMAIL_OTP_META_KEY, JSON.stringify(meta));
@@ -61,7 +63,7 @@ export function readEmailOtpChallenge(): { pendingToken: string; meta: EmailOtpM
   try {
     const meta = JSON.parse(raw) as EmailOtpMeta;
     if (!meta.maskedEmail || !meta.expiresAt || !meta.resendAvailableAt) return null;
-    return { pendingToken, meta: { ...meta, next: meta.next?.startsWith("/") ? meta.next : "/dashboard" } };
+    return { pendingToken, meta: { ...meta, next: safeNextPath(meta.next) } };
   } catch {
     return null;
   }

@@ -50,7 +50,7 @@ export async function listPublic(query: { q?: string; category?: string }) {
   const filter: Record<string, unknown> = { active: true };
   const category = categoryOf(query.category);
   if (category) filter.category = category;
-  const q = query.q?.trim();
+  const q = query.q?.trim().slice(0, 120);
   if (q) {
     const pattern = escapeRegex(q);
     filter.$or = [{ question: { $regex: pattern, $options: "i" } }, { answer: { $regex: pattern, $options: "i" } }];

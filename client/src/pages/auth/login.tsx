@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label, FieldError } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { GoogleButton } from "@/components/google-button";
+import { safeNextPath } from "@/lib/safe-next";
 
 const googleEnabled = !!import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
@@ -20,7 +21,7 @@ export default function LoginPage() {
   const [password, setPassword] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
-  const dest = next && next.startsWith("/") ? next : "/dashboard";
+  const dest = safeNextPath(next);
 
   React.useEffect(() => {
     document.title = "Log in · Place2Park";

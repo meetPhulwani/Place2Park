@@ -6,6 +6,7 @@ import { useAuth } from "@/context/auth";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { clearEmailOtpChallenge, readEmailOtpChallenge, saveEmailOtpChallenge } from "@/lib/google-auth";
+import { safeNextPath } from "@/lib/safe-next";
 
 function clock(total: number) {
   const minutes = Math.floor(total / 60);
@@ -53,7 +54,7 @@ export default function VerifyEmailPage() {
         resendAvailableAt: data.data.resendAvailableAt as string,
       };
       saveEmailOtpChallenge(next, meta?.next);
-      setMeta({ ...next, next: meta?.next && meta.next.startsWith("/") ? meta.next : "/dashboard" });
+      setMeta({ ...next, next: safeNextPath(meta?.next) });
       setOtp("");
     } catch (e2) {
       const message = errorMessage(e2, "Couldn't send another code.");
@@ -75,7 +76,7 @@ export default function VerifyEmailPage() {
     setLoading(true);
     try {
       const { data } = await api.post("/auth/email-otp/verify", { pendingToken: pending.pendingToken, otp });
-      const next = meta?.next && meta.next.startsWith("/") ? meta.next : "/dashboard";
+      const next = safeNextPath(meta?.next);
       clearEmailOtpChallenge();
       login(data.data.token, data.data.user);
       navigate(next);

@@ -55,7 +55,7 @@ export async function evidence(req: AuthedRequest, res: Response) {
   const file = req.file;
   if (!file?.buffer) throw new ApiError(400, UPLOAD_ERROR_MESSAGE);
   const stored = await storeListingImage(
-    { buffer: file.buffer, mimetype: file.mimetype, size: file.size },
+    { buffer: file.buffer, mimetype: file.mimetype, size: file.size, originalname: file.originalname },
     { hostId: req.userId }
   );
   const row = await SupportEvidence.create({

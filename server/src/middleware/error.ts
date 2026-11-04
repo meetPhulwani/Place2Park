@@ -24,8 +24,17 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
     res.status(400).json({ success: false, message: "Invalid id." });
     return;
   }
+  const parseType = (err as { type?: string; status?: number } | undefined)?.type;
+  if (parseType === "entity.parse.failed") {
+    res.status(400).json({ success: false, message: "Invalid JSON." });
+    return;
+  }
+  if (parseType === "entity.too.large") {
+    res.status(413).json({ success: false, message: "Request is too large." });
+    return;
+  }
   if (name === "ValidationError") {
-    res.status(422).json({ success: false, message: "Invalid input." });
+    res.status(400).json({ success: false, message: "Invalid input." });
     return;
   }
   if ((err as { code?: string } | undefined)?.code === "LIMIT_FILE_SIZE") {
