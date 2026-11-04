@@ -61,7 +61,7 @@ export default function SupportPage() {
           </Link>
           , or sign in and use{" "}
           <Link href="/help" className="font-medium text-brand-700 hover:text-brand-800">
-            Help & Support
+            Help Center
           </Link>{" "}
           to report a driver or host, contact Place2Park, or follow a ticket.
         </p>

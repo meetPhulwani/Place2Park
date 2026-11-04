@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/auth";
 import {
   Menu, X, LayoutDashboard, CalendarClock, History, Heart, User,
-  Building2, LogOut, ShieldCheck, Flag, LifeBuoy, Inbox, CircleHelp,
+  Building2, LogOut, ShieldCheck, CircleHelp,
 } from "lucide-react";
 import { Avatar } from "./ui/avatar";
 import { cn } from "@/lib/utils";
@@ -54,11 +54,7 @@ export function UserMenu({
       ? [{ href: "/host", label: "Host dashboard", icon: Building2 }]
       : []),
     ...(role === "ADMIN" ? [{ href: "/admin", label: "Admin", icon: ShieldCheck }] : []),
-    { href: "/help/report", label: "Report a driver or host", icon: Flag },
-    { href: "/help/contact", label: "Contact Place2Park support", icon: LifeBuoy },
-    { href: "/help/tickets", label: "My reports and tickets", icon: Inbox },
-    { href: "/help", label: "Support", icon: LifeBuoy },
-    { href: "/help/faqs", label: "Help Center", icon: CircleHelp },
+    { href: "/help", label: "Help Center", icon: CircleHelp },
   ];
 
   return (
@@ -153,18 +149,7 @@ export function MobileMenu({
       ? [{ href: "/host", label: "Host dashboard", icon: Building2 }]
       : []),
     ...(role === "ADMIN" ? [{ href: "/admin", label: "Admin", icon: ShieldCheck }] : []),
-    ...(loggedIn
-      ? [
-          { href: "/help/report", label: "Report a driver or host", icon: Flag },
-          { href: "/help/contact", label: "Contact Place2Park support", icon: LifeBuoy },
-          { href: "/help/tickets", label: "My reports and tickets", icon: Inbox },
-          { href: "/help", label: "Support", icon: LifeBuoy },
-          { href: "/help/faqs", label: "Help Center", icon: CircleHelp },
-        ]
-      : [
-          { href: "/support", label: "Support", icon: LifeBuoy },
-          { href: "/faqs", label: "Help Center", icon: CircleHelp },
-        ]),
+    { href: loggedIn ? "/help" : "/faqs", label: "Help Center", icon: CircleHelp },
   ];
 
   return (

@@ -11,8 +11,7 @@ const items: SidebarItem[] = [
   { href: "/host/earnings", label: "Earnings", icon: "Wallet" },
   { href: "/host/reviews", label: "Reviews", icon: "Star" },
   { href: "/host/settings", label: "Settings", icon: "Settings" },
-  { href: "/help", label: "Help & Support", icon: "LifeBuoy", exact: true },
-  { href: "/help/faqs", label: "Help Center", icon: "CircleHelp" },
+  { href: "/help", label: "Help Center", icon: "CircleHelp" },
 ];
 
 export function HostLayout() {

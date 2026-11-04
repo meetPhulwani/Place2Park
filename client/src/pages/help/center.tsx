@@ -32,12 +32,12 @@ const cards = [
 
 export default function HelpCenterPage() {
   useEffect(() => {
-    document.title = "Help & Support · Place2Park";
+    document.title = "Help Center · Place2Park";
   }, []);
   return (
     <div className="space-y-8">
       <DashboardHeader
-        title="Help & Support"
+        title="Help Center"
         description="Report a booking problem or ask Place2Park for help. Listing reports on a parking page still go to the listing queue."
       />
       <div className="grid gap-3 sm:grid-cols-2">
