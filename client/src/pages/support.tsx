@@ -55,11 +55,11 @@ export default function SupportPage() {
           </p>
         </div>
         <p className="mt-8 text-center text-sm text-slate-500">
-          Common questions are answered in the{" "}
-          <Link href="/#faq" className="font-medium text-brand-700 hover:text-brand-800">
-            FAQ
-          </Link>
-          .
+          Signed in? Use{" "}
+          <Link href="/help" className="font-medium text-brand-700 hover:text-brand-800">
+            Help & Support
+          </Link>{" "}
+          to report a driver or host, contact Place2Park, or follow a ticket.
         </p>
       </main>
       <Footer />

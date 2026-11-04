@@ -10,6 +10,7 @@ import * as host from "../controllers/host.controller.js";
 import * as admin from "../controllers/admin.controller.js";
 import * as payouts from "../controllers/payouts.controller.js";
 import * as uploads from "../controllers/uploads.controller.js";
+import * as support from "../controllers/support.controller.js";
 import { adminOnly, authenticate, hostOnly, maybeAuthenticate } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { asyncHandler } from "../middleware/error.js";
@@ -42,6 +43,7 @@ import {
   emailOtpVerifySchema, forgotPasswordSchema, googleLoginSchema,
   listingSchema, loginSchema, payoutNoteSchema, payoutProfileSchema, payoutReferenceSchema,
   profileSchema, reportSchema, resetPasswordSchema, reviewSchema, signupSchema, smtpTestSchema,
+  supportTicketSchema, ticketReplySchema, ticketUpdateSchema, userReportSchema,
   vehicleSchema, verifyPaymentSchema,
 } from "../utils/validation.js";
 import { ALLOWED_UPLOAD_TYPES, MAX_UPLOAD_BYTES } from "../services/media.js";
@@ -97,6 +99,12 @@ r.post("/reviews", authenticate, rateLimit("review", positiveIntEnv("RATE_LIMIT_
 r.get("/favorites", authenticate, a(engagement.listFavorites));
 r.post("/favorites/toggle", authenticate, rateLimit("favorite", positiveIntEnv("RATE_LIMIT_FAVORITE", 60), positiveIntEnv("RATE_LIMIT_FAVORITE_WINDOW_MS", 10 * 60_000, 86_400_000)), a(engagement.toggleFavorite));
 r.post("/reports", authenticate, rateLimit("report", positiveIntEnv("RATE_LIMIT_REPORT", 5), positiveIntEnv("RATE_LIMIT_REPORT_WINDOW_MS", 60 * 60_000, 86_400_000)), validate(reportSchema), a(engagement.createReport));
+r.get("/support/bookings", authenticate, a(support.bookings));
+r.post("/support/reports", authenticate, rateLimit("support-report", positiveIntEnv("RATE_LIMIT_SUPPORT_REPORT", 5), positiveIntEnv("RATE_LIMIT_SUPPORT_REPORT_WINDOW_MS", 60 * 60_000, 86_400_000)), validate(userReportSchema), a(support.createReport));
+r.post("/support/tickets", authenticate, rateLimit("support-ticket", positiveIntEnv("RATE_LIMIT_SUPPORT_TICKET", 8), positiveIntEnv("RATE_LIMIT_SUPPORT_TICKET_WINDOW_MS", 60 * 60_000, 86_400_000)), validate(supportTicketSchema), a(support.createTicket));
+r.get("/support/mine", authenticate, a(support.mine));
+r.get("/support/cases/:kind/:id", authenticate, a(support.detail));
+r.post("/support/cases/:kind/:id/messages", authenticate, rateLimit("support-message", positiveIntEnv("RATE_LIMIT_SUPPORT_MESSAGE", 20), positiveIntEnv("RATE_LIMIT_SUPPORT_MESSAGE_WINDOW_MS", 60 * 60_000, 86_400_000)), validate(ticketReplySchema), a(support.reply));
 r.get("/notifications", authenticate, a(users.listNotifications));
 
 // ---- Host
@@ -135,6 +143,10 @@ r.post("/admin/payouts/:id/mark-paid", authenticate, adminOnly, validate(payoutR
 r.post("/admin/payouts/:id/fail", authenticate, adminOnly, validate(payoutNoteSchema), a(payouts.adminFailPayout));
 r.post("/admin/payouts/:id/reverse", authenticate, adminOnly, validate(payoutNoteSchema), a(payouts.adminReversePayout));
 r.post("/admin/users/:id/verify-payout", authenticate, adminOnly, a(payouts.adminVerifyPayoutProfile));
+r.get("/admin/support", authenticate, adminOnly, a(support.adminList));
+r.get("/admin/support/:kind/:id", authenticate, adminOnly, a(support.adminDetail));
+r.post("/admin/support/:kind/:id/messages", authenticate, adminOnly, rateLimit("support-admin-message", positiveIntEnv("RATE_LIMIT_SUPPORT_ADMIN_MESSAGE", 60), positiveIntEnv("RATE_LIMIT_SUPPORT_ADMIN_MESSAGE_WINDOW_MS", 60 * 60_000, 86_400_000)), validate(ticketReplySchema), a(support.adminReply));
+r.post("/admin/support/:kind/:id", authenticate, adminOnly, validate(ticketUpdateSchema), a(support.adminPatch));
 r.get("/admin/reports", authenticate, adminOnly, a(admin.listReports));
 r.post("/admin/reports/:id/resolve", authenticate, adminOnly, a(admin.resolveReport));
 r.get("/admin/reviews", authenticate, adminOnly, a(admin.listReviews));
@@ -150,5 +162,6 @@ const upload = multer({
   },
 });
 r.post("/upload", authenticate, hostOnly, rateLimit("upload", positiveIntEnv("RATE_LIMIT_UPLOAD", 30), positiveIntEnv("RATE_LIMIT_UPLOAD_WINDOW_MS", 10 * 60_000, 86_400_000)), upload.single("file"), a(uploads.uploadImage));
+r.post("/support/evidence", authenticate, rateLimit("support-evidence", positiveIntEnv("RATE_LIMIT_SUPPORT_EVIDENCE", 20), positiveIntEnv("RATE_LIMIT_SUPPORT_EVIDENCE_WINDOW_MS", 10 * 60_000, 86_400_000)), upload.single("file"), a(support.evidence));
 
 export default r;

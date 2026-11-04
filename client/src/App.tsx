@@ -27,6 +27,11 @@ import HistoryPage from "@/pages/account/history";
 import SavedPage from "@/pages/account/saved";
 import PaymentsPage from "@/pages/account/payments";
 import ProfilePage from "@/pages/account/profile";
+import HelpCenterPage from "@/pages/help/center";
+import ReportUserPage from "@/pages/help/report-form";
+import ContactSupportPage from "@/pages/help/ticket-form";
+import MyTicketsPage from "@/pages/help/tickets";
+import TicketDetailPage from "@/pages/help/ticket-detail";
 
 import HostOverviewPage from "@/pages/host/overview";
 import HostListingsPage from "@/pages/host/listings";
@@ -46,6 +51,8 @@ import AdminPaymentsPage from "@/pages/admin/payments";
 import AdminReportsPage from "@/pages/admin/reports";
 import AdminReviewsPage from "@/pages/admin/reviews";
 import AdminPayoutsPage from "@/pages/admin/payouts";
+import AdminSupportPage from "@/pages/admin/support-desk";
+import AdminSupportCasePage from "@/pages/admin/support-case";
 
 export default function App() {
   return (
@@ -76,6 +83,11 @@ export default function App() {
           <Route path="/saved" element={<SavedPage />} />
           <Route path="/payments" element={<PaymentsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/help" element={<HelpCenterPage />} />
+          <Route path="/help/report" element={<ReportUserPage />} />
+          <Route path="/help/contact" element={<ContactSupportPage />} />
+          <Route path="/help/tickets" element={<MyTicketsPage />} />
+          <Route path="/help/tickets/:kind/:id" element={<TicketDetailPage />} />
         </Route>
 
         <Route element={<HostLayout />}>
@@ -98,6 +110,8 @@ export default function App() {
           <Route path="/admin/payments" element={<AdminPaymentsPage />} />
           <Route path="/admin/payouts" element={<AdminPayoutsPage />} />
           <Route path="/admin/reports" element={<AdminReportsPage />} />
+          <Route path="/admin/support" element={<AdminSupportPage />} />
+          <Route path="/admin/support/:kind/:id" element={<AdminSupportCasePage />} />
           <Route path="/admin/reviews" element={<AdminReviewsPage />} />
         </Route>
 

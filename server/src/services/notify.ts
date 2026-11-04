@@ -18,7 +18,8 @@ export type NotificationType =
   | "LISTING_APPROVED"
   | "LISTING_REJECTED"
   | "HOST_PAYOUT_PAID"
-  | "HOST_PAYOUT_FAILED";
+  | "HOST_PAYOUT_FAILED"
+  | "TICKET_UPDATE";
 
 /**
  * Notification abstraction: always persists in-app; sends email only when

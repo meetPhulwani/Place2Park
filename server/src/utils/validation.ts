@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { isAllowedListingImageUrl } from "../services/media.js";
 import { ALLOWED_DURATIONS_MINS, LEVELS, PROPERTY_TYPES, REPORT_REASONS, VEHICLE_TYPES } from "./constants.js";
+import { DRIVER_REPORT_CATEGORIES, HOST_REPORT_CATEGORIES, SUPPORT_CATEGORIES, TICKET_PRIORITIES, TICKET_STATUSES } from "./support-constants.js";
 import { passwordIssue } from "./password.js";
 import { normalizeIndianMobile } from "./phone.js";
 
@@ -79,6 +80,38 @@ export const reviewSchema = z.object({
   bookingId: z.string().min(1),
   rating: z.number().int().min(1).max(5),
   comment: z.string().trim().max(1000).default(""),
+});
+
+const userReportCategories = [...new Set([...DRIVER_REPORT_CATEGORIES, ...HOST_REPORT_CATEGORIES])] as [string, ...string[]];
+
+export const userReportSchema = z.object({
+  bookingId: z.string().trim().min(1),
+  reportedUserId: z.string().trim().optional(),
+  category: z.enum(userReportCategories),
+  description: z.string().trim().min(20).max(2000),
+  incidentAt: z.union([z.string().datetime(), z.literal("")]).optional(),
+  evidenceIds: z.array(z.string().trim().min(1)).max(4).optional(),
+});
+
+export const supportTicketSchema = z.object({
+  category: z.enum(SUPPORT_CATEGORIES),
+  subject: z.string().trim().min(4).max(120),
+  description: z.string().trim().min(20).max(2000),
+  bookingId: z.union([z.string().trim().min(1), z.literal("")]).optional(),
+  paymentId: z.union([z.string().trim().min(1), z.literal("")]).optional(),
+  evidenceIds: z.array(z.string().trim().min(1)).max(4).optional(),
+});
+
+export const ticketReplySchema = z.object({
+  body: z.string().trim().min(2).max(2000),
+  visibility: z.enum(["PUBLIC", "INTERNAL"]).optional(),
+});
+
+export const ticketUpdateSchema = z.object({
+  status: z.enum(TICKET_STATUSES).optional(),
+  priority: z.enum(TICKET_PRIORITIES).optional(),
+  assigneeId: z.string().trim().nullable().optional(),
+  note: z.string().trim().max(2000).optional(),
 });
 
 export const reportSchema = z.object({

@@ -11,6 +11,7 @@ const items: SidebarItem[] = [
   { href: "/saved", label: "Saved", icon: "Heart" },
   { href: "/payments", label: "Payments", icon: "CreditCard" },
   { href: "/profile", label: "Profile", icon: "User" },
+  { href: "/help", label: "Help & Support", icon: "LifeBuoy" },
 ];
 
 export function AccountLayout() {
