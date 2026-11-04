@@ -26,13 +26,13 @@ export default function SupportPage() {
         </div>
         <div className="mt-10 grid gap-4 sm:grid-cols-2">
           <a
-            href="mailto:support@parkly.example"
+            href="mailto:support@place2park.me"
             className="glass rounded-2xl p-6 transition-shadow hover:shadow-card-hover"
           >
             <Mail className="size-6 text-brand-700" aria-hidden />
             <h2 className="mt-3 font-semibold text-slate-900">Email support</h2>
             <p className="mt-1 text-sm text-slate-500">
-              support@parkly.example — bookings, payments, refunds and account help.
+              support@place2park.me — bookings, payments, refunds and account help.
             </p>
           </a>
           <div className="glass rounded-2xl p-6">
@@ -55,7 +55,11 @@ export default function SupportPage() {
           </p>
         </div>
         <p className="mt-8 text-center text-sm text-slate-500">
-          Signed in? Use{" "}
+          Browse the{" "}
+          <Link href="/faqs" className="font-medium text-brand-700 hover:text-brand-800">
+            help center
+          </Link>
+          , or sign in and use{" "}
           <Link href="/help" className="font-medium text-brand-700 hover:text-brand-800">
             Help & Support
           </Link>{" "}

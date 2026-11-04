@@ -132,7 +132,10 @@ export default function BookingDetailPage() {
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm text-slate-400">Booking {booking.code}</p>
+          <p className="text-sm text-slate-400">
+            Booking {booking.code}{" "}
+            <Link href="/help/faqs?category=BOOKINGS" className="font-medium text-brand-600">Booking questions</Link>
+          </p>
           <h1 className="mt-0.5 font-display text-2xl font-bold tracking-tight text-slate-900">
             {space.title}
           </h1>

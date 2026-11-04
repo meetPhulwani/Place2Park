@@ -57,7 +57,8 @@ export function UserMenu({
     { href: "/help/report", label: "Report a driver or host", icon: Flag },
     { href: "/help/contact", label: "Contact Place2Park support", icon: LifeBuoy },
     { href: "/help/tickets", label: "My reports and tickets", icon: Inbox },
-    { href: "/help", label: "Help center", icon: CircleHelp },
+    { href: "/help", label: "Support", icon: LifeBuoy },
+    { href: "/help/faqs", label: "Help Center", icon: CircleHelp },
   ];
 
   return (
@@ -157,9 +158,13 @@ export function MobileMenu({
           { href: "/help/report", label: "Report a driver or host", icon: Flag },
           { href: "/help/contact", label: "Contact Place2Park support", icon: LifeBuoy },
           { href: "/help/tickets", label: "My reports and tickets", icon: Inbox },
-          { href: "/help", label: "Help center", icon: CircleHelp },
+          { href: "/help", label: "Support", icon: LifeBuoy },
+          { href: "/help/faqs", label: "Help Center", icon: CircleHelp },
         ]
-      : [{ href: "/support", label: "Help center", icon: CircleHelp }]),
+      : [
+          { href: "/support", label: "Support", icon: LifeBuoy },
+          { href: "/faqs", label: "Help Center", icon: CircleHelp },
+        ]),
   ];
 
   return (

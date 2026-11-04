@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { isAllowedListingImageUrl } from "../services/media.js";
 import { ALLOWED_DURATIONS_MINS, LEVELS, PROPERTY_TYPES, REPORT_REASONS, VEHICLE_TYPES } from "./constants.js";
+import { FAQ_CATEGORIES } from "./faq-constants.js";
 import { DRIVER_REPORT_CATEGORIES, HOST_REPORT_CATEGORIES, SUPPORT_CATEGORIES, TICKET_PRIORITIES, TICKET_STATUSES } from "./support-constants.js";
 import { passwordIssue } from "./password.js";
 import { normalizeIndianMobile } from "./phone.js";
@@ -112,6 +113,26 @@ export const ticketUpdateSchema = z.object({
   priority: z.enum(TICKET_PRIORITIES).optional(),
   assigneeId: z.string().trim().nullable().optional(),
   note: z.string().trim().max(2000).optional(),
+});
+
+export const faqSchema = z.object({
+  category: z.enum(FAQ_CATEGORIES),
+  question: z.string().trim().min(8).max(200),
+  answer: z.string().trim().min(20).max(2000),
+  featured: z.boolean().optional(),
+  active: z.boolean().optional(),
+  order: z.number().int().min(0).max(1000).optional(),
+  related: z.array(z.string().trim().min(1).max(80)).max(6).optional(),
+});
+
+export const faqUpdateSchema = faqSchema.partial();
+
+export const faqFeedbackSchema = z.object({
+  helpful: z.boolean(),
+});
+
+export const faqReorderSchema = z.object({
+  ids: z.array(z.string().trim().min(1)).min(1).max(200),
 });
 
 export const reportSchema = z.object({

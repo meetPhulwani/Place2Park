@@ -111,7 +111,8 @@ export default function HostEarningsPage() {
         <p className="mt-1 text-sm text-slate-500">
           Calculated earnings use the stored host share (90% of the parking fee on new
           bookings). Completed bookings are not paid out automatically. Payouts are manual
-          after admin approval. Historical bookings keep the amounts saved at checkout.
+          after admin approval. Historical bookings keep the amounts saved at checkout.{" "}
+          <Link href="/help/faqs?category=PAYOUTS" className="font-medium text-brand-600">Payout questions</Link>
         </p>
       </div>
 

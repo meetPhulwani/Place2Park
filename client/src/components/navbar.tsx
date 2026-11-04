@@ -29,6 +29,9 @@ export function Navbar({ overlay }: { overlay?: boolean }) {
           </div>
         )}
         <div className="flex items-center gap-2">
+          <div className="hidden md:block">
+            <NavLink href={user ? "/help" : "/support"}>Support</NavLink>
+          </div>
           {user ? (
             <UserMenu
               name={user.name ?? "Account"}

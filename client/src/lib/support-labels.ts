@@ -41,22 +41,3 @@ export const STATUS_LABEL: Record<string, string> = {
 export function labelOf(list: [string, string][], value: string) {
   return list.find(([id]) => id === value)?.[1] ?? value.replaceAll("_", " ").toLowerCase();
 }
-
-export const FAQS = [
-  {
-    q: "When do I get the exact address?",
-    a: "The street address stays hidden until a booking is confirmed. The map pin is visible while you search.",
-  },
-  {
-    q: "How do refunds work?",
-    a: "Cancel from the booking page. A captured payment for a cancelled or unavailable booking is refunded through Razorpay.",
-  },
-  {
-    q: "Can I report someone I have not booked with?",
-    a: "No. A user report has to be tied to a booking you were part of, so the other person cannot be chosen by hand.",
-  },
-  {
-    q: "Does a report suspend the other person?",
-    a: "No. Place2Park reviews both sides before any account restriction. A report alone does not suspend anyone.",
-  },
-];

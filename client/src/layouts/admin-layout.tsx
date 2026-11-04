@@ -13,6 +13,7 @@ const items: SidebarItem[] = [
   { href: "/admin/payouts", label: "Payouts", icon: "Wallet" },
   { href: "/admin/reports", label: "Listing reports", icon: "Flag" },
   { href: "/admin/support", label: "Support desk", icon: "LifeBuoy" },
+  { href: "/admin/faqs", label: "Help center", icon: "CircleHelp" },
   { href: "/admin/reviews", label: "Reviews", icon: "Star" },
 ];
 

@@ -2,13 +2,13 @@ import Link from "@/components/link";
 import { useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Search, CalendarClock, History, Heart, CreditCard, User,
-  Building2, CalendarDays, Wallet, Star, Settings, Users, Flag, LifeBuoy,
+  Building2, CalendarDays, Wallet, Star, Settings, Users, Flag, LifeBuoy, CircleHelp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const ICONS = {
   LayoutDashboard, Search, CalendarClock, History, Heart, CreditCard, User,
-  Building2, CalendarDays, Wallet, Star, Settings, Users, Flag, LifeBuoy,
+  Building2, CalendarDays, Wallet, Star, Settings, Users, Flag, LifeBuoy, CircleHelp,
 } as const;
 
 export type SidebarIconName = keyof typeof ICONS;

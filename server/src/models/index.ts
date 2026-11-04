@@ -17,3 +17,5 @@ export { SupportEvidence } from "./SupportEvidence.js";
 export { HostPayout } from "./HostPayout.js";
 export { AdminAudit } from "./AdminAudit.js";
 export { PendingUpload } from "./PendingUpload.js";
+export { Faq } from "./Faq.js";
+export { FaqFeedback } from "./FaqFeedback.js";

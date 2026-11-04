@@ -18,6 +18,7 @@ import SearchResultsPage from "@/pages/search-results";
 import ParkingDetailPage from "@/pages/parking-detail";
 import BecomeAHostPage from "@/pages/become-a-host";
 import SupportPage from "@/pages/support";
+import PublicFaqsPage from "@/pages/faqs";
 import NotFoundPage from "@/pages/not-found";
 
 import DashboardPage from "@/pages/account/dashboard";
@@ -32,6 +33,7 @@ import ReportUserPage from "@/pages/help/report-form";
 import ContactSupportPage from "@/pages/help/ticket-form";
 import MyTicketsPage from "@/pages/help/tickets";
 import TicketDetailPage from "@/pages/help/ticket-detail";
+import HelpFaqsPage from "@/pages/help/faqs";
 
 import HostOverviewPage from "@/pages/host/overview";
 import HostListingsPage from "@/pages/host/listings";
@@ -53,6 +55,7 @@ import AdminReviewsPage from "@/pages/admin/reviews";
 import AdminPayoutsPage from "@/pages/admin/payouts";
 import AdminSupportPage from "@/pages/admin/support-desk";
 import AdminSupportCasePage from "@/pages/admin/support-case";
+import AdminFaqsPage from "@/pages/admin/faqs";
 
 export default function App() {
   return (
@@ -65,6 +68,7 @@ export default function App() {
         <Route path="/parking/:id" element={<ParkingDetailPage />} />
         <Route path="/become-a-host" element={<BecomeAHostPage />} />
         <Route path="/support" element={<SupportPage />} />
+        <Route path="/faqs" element={<PublicFaqsPage />} />
 
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<LoginPage />} />
@@ -84,6 +88,7 @@ export default function App() {
           <Route path="/payments" element={<PaymentsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/help" element={<HelpCenterPage />} />
+          <Route path="/help/faqs" element={<HelpFaqsPage />} />
           <Route path="/help/report" element={<ReportUserPage />} />
           <Route path="/help/contact" element={<ContactSupportPage />} />
           <Route path="/help/tickets" element={<MyTicketsPage />} />
@@ -111,6 +116,7 @@ export default function App() {
           <Route path="/admin/payouts" element={<AdminPayoutsPage />} />
           <Route path="/admin/reports" element={<AdminReportsPage />} />
           <Route path="/admin/support" element={<AdminSupportPage />} />
+          <Route path="/admin/faqs" element={<AdminFaqsPage />} />
           <Route path="/admin/support/:kind/:id" element={<AdminSupportCasePage />} />
           <Route path="/admin/reviews" element={<AdminReviewsPage />} />
         </Route>

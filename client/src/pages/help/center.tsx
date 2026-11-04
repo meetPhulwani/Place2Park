@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { CircleHelp, Flag, Inbox, LifeBuoy } from "lucide-react";
 import Link from "@/components/link";
 import { DashboardHeader } from "@/components/dashboard/page-header";
-import { FAQS } from "@/lib/support-labels";
 
 const cards = [
   {
@@ -24,7 +23,7 @@ const cards = [
     icon: Inbox,
   },
   {
-    href: "/help#faq",
+    href: "/help/faqs",
     title: "Help center",
     body: "Short answers for bookings, refunds, and how reporting works.",
     icon: CircleHelp,
@@ -54,15 +53,6 @@ export default function HelpCenterPage() {
           </Link>
         ))}
       </div>
-      <section id="faq" className="scroll-mt-24 space-y-3">
-        <h2 className="font-display text-xl font-semibold text-ink">Help center</h2>
-        {FAQS.map((item) => (
-          <details key={item.q} className="rounded-xl border border-line bg-white px-5 py-4">
-            <summary className="cursor-pointer font-medium text-ink">{item.q}</summary>
-            <p className="mt-2 text-sm text-muted">{item.a}</p>
-          </details>
-        ))}
-      </section>
     </div>
   );
 }

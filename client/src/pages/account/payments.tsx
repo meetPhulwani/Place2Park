@@ -27,7 +27,10 @@ export default function PaymentsPage() {
     <div className="space-y-6 animate-fade-in">
       <div>
         <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">Payments</h1>
-        <p className="mt-1 text-sm text-slate-500">All transactions on your account.</p>
+        <p className="mt-1 text-sm text-slate-500">
+          All transactions on your account.{" "}
+          <Link href="/help/faqs?category=PAYMENTS" className="font-medium text-brand-600">Payment questions</Link>
+        </p>
       </div>
       {payments === null ? (
         <Skeleton className="h-64 rounded-2xl" />
