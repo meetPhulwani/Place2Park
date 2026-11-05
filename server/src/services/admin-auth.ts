@@ -79,12 +79,14 @@ function logAdminOtp(event: {
   provider: string;
   providerStatus: number | null;
   recipientDomain?: string;
+  reason?: string;
 }) {
   const line = {
     stage: event.stage,
     category: event.category,
     provider: event.provider,
     providerStatus: event.providerStatus,
+    ...(event.reason ? { reason: event.reason } : {}),
     ...(event.recipientDomain ? { recipientDomain: event.recipientDomain } : {}),
   };
   if (event.stage === "failed") console.error("[admin-otp]", line);
@@ -197,7 +199,8 @@ export async function startAdminLogin(
   const locked = account?.lockedUntil && account.lockedUntil.getTime() > Date.now();
   const usable = Boolean(account && account.status === "ACTIVE" && !locked && match);
   if (!usable) {
-    logAdminOtp({ stage: "skipped", category: "not_issued", provider: "none", providerStatus: null });
+    const reason = !account ? "no_account" : account.status !== "ACTIVE" ? "inactive" : locked ? "locked" : "password";
+    logAdminOtp({ stage: "skipped", category: "not_issued", provider: "none", providerStatus: null, reason });
     await writeConsoleAudit({ action: "login.password", adminId: account ? String(account._id) : null, outcome: "FAILURE", req });
     return decoyChallenge();
   }
@@ -331,7 +334,8 @@ export async function resendAdminOtp(token: string, req: Request, deps?: Outboun
       await writeConsoleAudit({ action: "login.delivery", adminId: String(account._id), outcome: "FAILURE", req });
     }
   } else {
-    logAdminOtp({ stage: "skipped", category: "not_issued", provider: "none", providerStatus: null });
+    const reason = doc.get("decoy") ? "decoy" : !account ? "no_account" : "inactive";
+    logAdminOtp({ stage: "skipped", category: "not_issued", provider: "none", providerStatus: null, reason });
     doc.otpHash = sha256(randomToken());
   }
   doc.otpExpiresAt = new Date(Date.now() + OTP_TTL_MS);

@@ -4,7 +4,7 @@ import { after, before, describe, it } from "node:test";
 import type { Request, Response } from "express";
 import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
-import { AdminAccount, AdminConsoleSession, AdminLoginChallenge } from "../models/index.js";
+import { AdminAccount, AdminConsoleSession, AdminLoginChallenge, User } from "../models/index.js";
 import { ApiError } from "../middleware/error.js";
 import { start } from "../controllers/console-auth.controller.js";
 import {
@@ -269,10 +269,76 @@ describe("admin OTP delivery", { concurrency: 1 }, () => {
       assert.equal(wrong.cookies.p2p_adm, undefined);
       assert.equal(failed.cookies.p2p_adm, undefined);
       assert.equal(typeof wrong.cookies.p2p_adm_step, "string");
-      assert.match(logs.text(), /"category":"not_issued"/);
+      assert.match(logs.text(), /"reason":"password"/);
       assert.match(logs.text(), /"category":"validation_error"/);
     } finally {
       setConsoleMailDeps(undefined);
+      logs.restore();
+    }
+  });
+
+  it("does not email a marketplace ADMIN user when no AdminAccount exists", async () => {
+    await User.create({
+      name: "Legacy Admin",
+      email: "legacy.admin@place2park.me",
+      passwordHash: await bcrypt.hash(PASSWORD, 12),
+      role: "ADMIN",
+    });
+    let calls = 0;
+    const logs = watchLogs();
+    try {
+      const started = await startAdminLogin({ email: "legacy.admin@place2park.me", password: PASSWORD }, req(), {
+        isProd: true,
+        cfg: readyMail,
+        fetch: async () => {
+          calls += 1;
+          return { ok: true, status: 200, json: async () => ({}) } as unknown as globalThis.Response;
+        },
+      });
+      assert.equal(calls, 0);
+      assert.equal(started.stage, "otp");
+      assert.match(logs.text(), /"reason":"no_account"/);
+      assert.equal(logs.text().includes("legacy.admin@place2park.me"), false);
+      assert.equal(await AdminAccount.exists({ email: "legacy.admin@place2park.me" }), null);
+      assert.equal(await AdminConsoleSession.countDocuments({}), 0);
+      const challenge = await AdminLoginChallenge.findOne({ tokenHash: sha256(started.token) });
+      assert.equal(challenge?.decoy, true);
+    } finally {
+      logs.restore();
+    }
+  });
+
+  it("records inactive and locked accounts without calling Resend", async () => {
+    let calls = 0;
+    const fetch = async () => {
+      calls += 1;
+      return { ok: true, status: 200, json: async () => ({}) } as unknown as globalThis.Response;
+    };
+    const logs = watchLogs();
+    try {
+      await AdminAccount.updateOne({ email: "failure@place2park.me" }, { $set: { status: "DISABLED", lockedUntil: null } });
+      const inactive = await startAdminLogin({ email: "failure@place2park.me", password: PASSWORD }, req(), {
+        isProd: true,
+        cfg: readyMail,
+        fetch,
+      });
+      await AdminAccount.updateOne(
+        { email: "failure@place2park.me" },
+        { $set: { status: "ACTIVE", lockedUntil: new Date(Date.now() + 60_000) } }
+      );
+      const locked = await startAdminLogin({ email: "failure@place2park.me", password: PASSWORD }, req(), {
+        isProd: true,
+        cfg: readyMail,
+        fetch,
+      });
+      assert.equal(calls, 0);
+      assert.equal(inactive.stage, "otp");
+      assert.equal(locked.stage, "otp");
+      assert.match(logs.text(), /"reason":"inactive"/);
+      assert.match(logs.text(), /"reason":"locked"/);
+      assert.equal(await AdminConsoleSession.countDocuments({}), 0);
+    } finally {
+      await AdminAccount.updateOne({ email: "failure@place2park.me" }, { $set: { status: "ACTIVE", lockedUntil: null } });
       logs.restore();
     }
   });
