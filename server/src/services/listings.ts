@@ -13,10 +13,19 @@ export type ListingModerationPatch = {
   verified?: boolean;
 };
 
-/** Production listings wait for admin review. Local/dev auto-verifies so the host→book path is testable. */
-export function statusOnPublish(nodeEnv = env.NODE_ENV): ListingPublishState {
-  if (nodeEnv === "production") return { status: "PENDING_REVIEW", verified: false };
+/** Production listings wait for admin review unless an administrator turns that requirement off. */
+export function statusOnPublish(nodeEnv = env.NODE_ENV, requireReview?: boolean): ListingPublishState {
+  const review = requireReview === undefined ? nodeEnv === "production" : requireReview;
+  if (review) return { status: "PENDING_REVIEW", verified: false };
   return { status: "VERIFIED", verified: true };
+}
+
+export async function resolvePublishState(publish: boolean, nodeEnv = env.NODE_ENV): Promise<ListingPublishState> {
+  if (!publish) return { status: "DRAFT", verified: false };
+  const { PlatformSetting } = await import("../models/PlatformSetting.js");
+  const row = await PlatformSetting.findOne({ key: "platform" }).select("listingsRequireReview").lean();
+  if (!row) return statusOnPublish(nodeEnv);
+  return statusOnPublish(nodeEnv, row.listingsRequireReview !== false);
 }
 
 export function listingCreateState(publish: boolean, nodeEnv = env.NODE_ENV): ListingPublishState {

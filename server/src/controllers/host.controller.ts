@@ -9,7 +9,7 @@ import { redactBooking } from "../utils/privacy.js";
 import { env } from "../config/env.js";
 import type { ListingInput } from "../utils/validation.js";
 import { persistListingImages } from "../services/media.js";
-import { listingCreateState, statusOnPublish } from "../services/listings.js";
+import { resolvePublishState } from "../services/listings.js";
 import { bookingStatus, calendarMonth } from "../utils/request-input.js";
 
 function fmtMin(m: number) {
@@ -142,7 +142,7 @@ export async function listListings(req: AuthedRequest, res: Response) {
 }
 
 export async function getListing(req: AuthedRequest, res: Response) {
-  const space = await ownedSpace(req.params.id, req.userId, req.userRole === "ADMIN");
+  const space = await ownedSpace(req.params.id, req.userId);
   res.json({ success: true, data: { listing: space.toJSON() } });
 }
 
@@ -150,7 +150,7 @@ export async function createListing(req: AuthedRequest, res: Response) {
   const input = req.body as ListingInput;
   const published = !!input.publish;
   const payload = listingDataFromInput(input);
-  const { status, verified } = listingCreateState(published, env.NODE_ENV);
+  const { status, verified } = await resolvePublishState(published, env.NODE_ENV);
   let space: InstanceType<typeof ParkingSpace> | undefined;
   await persistListingImages([], payload.images, async () => {
     space = await ParkingSpace.create({
@@ -171,8 +171,12 @@ export async function updateListing(req: AuthedRequest, res: Response) {
     publicId: img.publicId || undefined,
   }));
   Object.assign(space, listingDataFromInput(input));
+  const reviewState = await resolvePublishState(true, env.NODE_ENV);
   if (input.publish && ["DRAFT", "REJECTED", "PENDING_REVIEW"].includes(space.status)) {
-    Object.assign(space, statusOnPublish(env.NODE_ENV));
+    Object.assign(space, reviewState);
+  } else if (reviewState.status === "PENDING_REVIEW" && ["VERIFIED", "ACTIVE"].includes(space.status)) {
+    space.status = "PENDING_REVIEW";
+    space.verified = false;
   }
   await persistListingImages(previous, space.images as { url: string; publicId?: string }[], async () => {
     await space.save();
@@ -185,11 +189,13 @@ export async function setListingStatus(req: AuthedRequest, res: Response) {
   const action = (req.body as { action: string }).action;
   if (action === "pause" && ["ACTIVE", "VERIFIED"].includes(space.status)) space.status = "PAUSED";
   else if (action === "activate" && space.status === "PAUSED") {
-    if (space.verified || env.NODE_ENV !== "production") Object.assign(space, statusOnPublish("development"));
-    else Object.assign(space, statusOnPublish("production"));
+    Object.assign(
+      space,
+      space.verified ? { status: "VERIFIED" as const, verified: true } : await resolvePublishState(true, env.NODE_ENV)
+    );
   }
   else if (action === "submit" && ["DRAFT", "REJECTED"].includes(space.status)) {
-    Object.assign(space, statusOnPublish(env.NODE_ENV));
+    Object.assign(space, await resolvePublishState(true, env.NODE_ENV));
   }
   else if (action === "delete") {
     const hasUpcoming = await Booking.exists({

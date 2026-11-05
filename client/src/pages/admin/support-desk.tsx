@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { STATUS_LABEL } from "@/lib/support-labels";
-import { api, errorMessage } from "@/services/api";
+import { consoleApi, errorMessage } from "@/services/console-api";
 
 type Row = { id: string; kind: string; reference: string; type: string; category: string; status: string; createdAt: string };
 
@@ -22,7 +22,7 @@ export default function AdminSupportPage() {
 
   function load(params: URLSearchParams) {
     setRows(null);
-    api.get(`/admin/support?${params.toString()}`).then(({ data }) => setRows(data.data.cases as Row[])).catch((err) => {
+    consoleApi.get(`/support?${params.toString()}`).then(({ data }) => setRows(data.data.cases as Row[])).catch((err) => {
       setRows([]);
       setError(errorMessage(err, "Couldn't load tickets."));
     });
@@ -74,7 +74,7 @@ export default function AdminSupportPage() {
         <ul className="space-y-2">
           {rows.map((row) => (
             <li key={`${row.kind}-${row.id}`}>
-              <Link href={`/admin/support/${row.kind}/${row.id}`} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-white px-4 py-3">
+              <Link href={`/support/${row.kind}/${row.id}`} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-white px-4 py-3">
                 <span>
                   <span className="font-semibold text-ink">{row.reference}</span>
                   <span className="ml-2 text-sm text-muted">{row.type} · {row.category}</span>

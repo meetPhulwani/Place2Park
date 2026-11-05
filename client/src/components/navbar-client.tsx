@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/auth";
 import {
   Menu, X, LayoutDashboard, CalendarClock, History, Heart, User,
-  Building2, LogOut, ShieldCheck, CircleHelp,
+  Building2, LogOut, CircleHelp,
 } from "lucide-react";
 import { Avatar } from "./ui/avatar";
 import { cn } from "@/lib/utils";
@@ -53,7 +53,6 @@ export function UserMenu({
     ...(["HOST", "BOTH", "ADMIN"].includes(role)
       ? [{ href: "/host", label: "Host dashboard", icon: Building2 }]
       : []),
-    ...(role === "ADMIN" ? [{ href: "/admin", label: "Admin", icon: ShieldCheck }] : []),
     { href: "/help", label: "Help Center", icon: CircleHelp },
   ];
 
@@ -148,7 +147,6 @@ export function MobileMenu({
     ...(showHostDashboardLink(loggedIn ? role : null)
       ? [{ href: "/host", label: "Host dashboard", icon: Building2 }]
       : []),
-    ...(role === "ADMIN" ? [{ href: "/admin", label: "Admin", icon: ShieldCheck }] : []),
     { href: loggedIn ? "/help" : "/faqs", label: "Help Center", icon: CircleHelp },
   ];
 

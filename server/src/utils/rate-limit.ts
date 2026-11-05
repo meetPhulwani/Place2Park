@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import type { Request, RequestHandler } from "express";
 import { rateLimit as expressRateLimit, type Store, type IncrementResponse } from "express-rate-limit";
+import { ApiError } from "../middleware/error.js";
+import { counterUnavailable, processCounter, sharedCounter, type SharedCounter } from "./shared-counter.js";
 
 /** Production driver booking cap. Tests must not change these values. */
 export const BOOKING_RATE_LIMIT = 10;
@@ -39,7 +41,6 @@ const WINDOW_MAX_MS = 24 * 60 * 60_000;
 
 /**
  * Optional override. Empty, zero, and non-integers keep the coded default.
- * Counters stay in this process. Add a shared store before running more than one API instance.
  */
 export function positiveIntEnv(name: string, fallback: number, max = 1_000_000) {
   const raw = process.env[name];
@@ -55,10 +56,7 @@ type AuditCategory = "api" | "auth" | "otp" | "booking" | "payment";
 
 type AuthedRequest = Request & { userId?: string };
 
-/**
- * In-memory sliding window shared by every limiter in this process.
- * A second Render instance does not see these hits. Redis is not configured.
- */
+/** Local fallback window used only by non-sensitive limiters when Redis is down. */
 const buckets = new Map<string, number[]>();
 const denyCounts = new Map<string, number>();
 
@@ -173,11 +171,12 @@ function resilientStore(primary: Store, fallback: SlidingWindowStore): Store {
       primary.init?.(options);
       fallback.init?.(options);
     },
-    increment(key) {
+    async increment(key) {
       try {
-        return primary.increment(key);
+        return await primary.increment(key);
       } catch (err) {
-        console.error("[rate-limit] store unavailable; enforcing in-memory limit", {
+        if (err instanceof ApiError) throw err;
+        console.error("[rate-limit] shared counter unavailable; enforcing local limit", {
           name: err instanceof Error ? err.name : "Error",
         });
         return fallback.increment(key);
@@ -202,6 +201,10 @@ function resilientStore(primary: Store, fallback: SlidingWindowStore): Store {
       fallback.resetAll?.();
     },
   };
+}
+
+function sensitiveLimiter(name: string) {
+  return /^(console-|login|signup|google|otp|password-reset|forgot|reset)/.test(name);
 }
 
 function auditFor(name: string, explicit?: AuditCategory): AuditCategory | undefined {
@@ -231,13 +234,62 @@ type RateLimitOptions = {
   skip?: (req: Request) => boolean;
   audit?: AuditCategory;
   store?: Store;
+  /** Auth and admin limits reject the request when the shared counter is down. */
+  failClosed?: boolean;
+  counter?: SharedCounter;
 };
+
+class SharedWindowStore implements Store {
+  localKeys = true;
+  windowMs = 60_000;
+  prefix: string;
+  failClosed: boolean;
+  counter: SharedCounter;
+  constructor(prefix: string, counter: SharedCounter, failClosed: boolean) {
+    this.prefix = prefix;
+    this.counter = counter;
+    this.failClosed = failClosed;
+  }
+  init(options: { windowMs: number }) {
+    this.windowMs = options.windowMs;
+  }
+  async increment(key: string): Promise<IncrementResponse> {
+    try {
+      return await this.counter.increment(`${this.prefix}${key}`, this.windowMs);
+    } catch (err) {
+      if (this.failClosed) throw counterUnavailable();
+      throw err;
+    }
+  }
+  async decrement(key: string) {
+    await this.counter.decrement(`${this.prefix}${key}`);
+  }
+  async resetKey(key: string) {
+    await this.counter.reset(`${this.prefix}${key}`);
+  }
+  async resetAll() {
+    await this.counter.reset(this.prefix);
+  }
+}
+
+const testStores: Array<{ resetAll?: () => void }> = [];
+
+/** Clears in-memory windows. Used by security tests so one process can exercise many login attempts. */
+export function resetRateLimitStoresForTests() {
+  if (process.env.NODE_ENV === "production") return;
+  for (const store of testStores) store.resetAll?.();
+  void processCounter.reset();
+}
 
 /** Express middleware. Defaults to the authenticated user id, otherwise the trusted client IP. */
 export function rateLimit(name: string, limit: number, windowMs: number, options: RateLimitOptions = {}): RequestHandler {
   const keyFn = options.key ?? actorKey;
-  const primary = options.store ?? new SlidingWindowStore(`${name}:`);
-  const store = resilientStore(primary, new SlidingWindowStore(`${name}:fallback:`));
+  const failClosed = options.failClosed ?? sensitiveLimiter(name);
+  const primary =
+    options.store ??
+    new SharedWindowStore(`${name}:`, options.counter ?? sharedCounter(), failClosed);
+  const store = failClosed ? primary : resilientStore(primary, new SlidingWindowStore(`${name}:fallback:`));
+  testStores.push(store);
   const category = auditFor(name, options.audit);
   return expressRateLimit({
     windowMs,

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { api, errorMessage } from "@/services/api";
+import { consoleApi, errorMessage } from "@/services/console-api";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
 
@@ -17,7 +17,7 @@ export function ListingModeration({
   async function act(action: "approve" | "reject" | "hide" | "unhide", msg: string) {
     setBusy(true);
     try {
-      await api.post(`/admin/listings/${spaceId}/moderate`, { action });
+      await consoleApi.post(`/listings/${spaceId}/moderate`, { action });
       toast.success(msg);
       onChanged();
     } catch (e) {

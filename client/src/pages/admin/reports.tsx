@@ -1,7 +1,7 @@
 import * as React from "react";
 import Link from "@/components/link";
 import { Flag } from "lucide-react";
-import { api, errorMessage } from "@/services/api";
+import { consoleApi, errorMessage } from "@/services/console-api";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,7 +27,7 @@ export default function AdminReportsPage() {
   const [reports, setReports] = React.useState<AdminReport[] | null>(null);
 
   const load = React.useCallback(() => {
-    api.get("/admin/reports").then(({ data }) => setReports(data.data.reports)).catch(() => setReports([]));
+    consoleApi.get("/reports").then(({ data }) => setReports(data.data.reports)).catch(() => setReports([]));
   }, []);
 
   React.useEffect(() => {
@@ -104,7 +104,7 @@ function ReportActions({ reportId, onChanged }: { reportId: string; onChanged: (
     if (!dialog) return;
     setBusy(true);
     try {
-      await api.post(`/admin/reports/${reportId}/resolve`, { action: dialog, note });
+      await consoleApi.post(`/reports/${reportId}/resolve`, { action: dialog, note });
       toast.success(dialog === "resolve" ? "Report resolved." : "Report dismissed.");
       onChanged();
     } catch (e) {

@@ -113,8 +113,12 @@ describe("request validation", () => {
 
   it("wires validation onto previously open mutation routes", () => {
     const routes = readFileSync(new URL("../routes/index.ts", import.meta.url), "utf8");
-    for (const schema of ["favoriteSchema", "listingStatusSchema", "userStatusSchema", "verifiedFlagSchema", "moderationSchema", "resolveReportSchema", "emptyBodySchema"]) {
+    const consoleRoutes = readFileSync(new URL("../routes/console.ts", import.meta.url), "utf8");
+    for (const schema of ["favoriteSchema", "listingStatusSchema", "emptyBodySchema"]) {
       assert.match(routes, new RegExp(`validate\\(${schema}\\)`));
+    }
+    for (const schema of ["userStatusSchema", "verifiedFlagSchema", "moderationSchema", "resolveReportSchema"]) {
+      assert.match(consoleRoutes, new RegExp(`validate\\(${schema}\\)`));
     }
   });
 });

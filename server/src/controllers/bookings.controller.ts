@@ -154,7 +154,7 @@ export async function detail(req: AuthedRequest, res: Response) {
   if (!booking) throw new ApiError(404, "Booking not found.");
   const isOwner = String(booking.userId) === req.userId;
   const isHost = String((booking.hostId as { _id?: unknown })?._id ?? booking.hostId) === req.userId;
-  if (!isOwner && !isHost && req.userRole !== "ADMIN") throw new ApiError(403, "Not your booking.");
+  if (!isOwner && !isHost) throw new ApiError(403, "Not your booking.");
 
   const [payment, review] = await Promise.all([
     Payment.findOne({ bookingId: booking._id }),
@@ -179,7 +179,7 @@ export async function cancel(req: AuthedRequest, res: Response) {
   const started = Date.now();
   console.info("[cancel] request", { bookingId: req.params.id, userId: req.userId });
   try {
-    const { refunded, refundStatus } = await cancelBooking(req.params.id, req.userId, req.userRole === "ADMIN");
+    const { refunded, refundStatus } = await cancelBooking(req.params.id, req.userId, false);
     console.info("[cancel] response", {
       bookingId: req.params.id,
       refunded,

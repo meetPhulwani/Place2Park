@@ -1,5 +1,5 @@
 import * as React from "react";
-import { api } from "@/services/api";
+import { consoleApi } from "@/services/console-api";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/stat-card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -28,7 +28,7 @@ export default function AdminPaymentsPage() {
 
   React.useEffect(() => {
     document.title = "Payments — Admin · Place2Park";
-    api.get("/admin/payments").then(({ data: d }) => setData(d.data)).catch(() => undefined);
+    consoleApi.get("/payments").then(({ data: d }) => setData(d.data)).catch(() => undefined);
   }, []);
 
   if (!data) {

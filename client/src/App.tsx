@@ -1,11 +1,11 @@
+import { useEffect, useState } from "react";
 import { Routes, Route } from "react-router-dom";
+import { api } from "@/services/api";
 import { Toaster } from "@/components/ui/toaster";
 import { ScrollToTop } from "@/components/scroll-to-top";
 import { AuthLayout } from "@/layouts/auth-layout";
 import { AccountLayout } from "@/layouts/account-layout";
 import { HostLayout } from "@/layouts/host-layout";
-import { AdminLayout } from "@/layouts/admin-layout";
-
 import LandingPage from "@/pages/landing";
 import LoginPage from "@/pages/auth/login";
 import SignupRolePage from "@/pages/auth/signup-role";
@@ -45,21 +45,19 @@ import HostEarningsPage from "@/pages/host/earnings";
 import HostReviewsPage from "@/pages/host/reviews";
 import HostSettingsPage from "@/pages/host/settings";
 
-import AdminDashboardPage from "@/pages/admin/dashboard";
-import AdminUsersPage from "@/pages/admin/users";
-import AdminListingsPage from "@/pages/admin/listings";
-import AdminBookingsPage from "@/pages/admin/bookings";
-import AdminPaymentsPage from "@/pages/admin/payments";
-import AdminReportsPage from "@/pages/admin/reports";
-import AdminReviewsPage from "@/pages/admin/reviews";
-import AdminPayoutsPage from "@/pages/admin/payouts";
-import AdminSupportPage from "@/pages/admin/support-desk";
-import AdminSupportCasePage from "@/pages/admin/support-case";
-import AdminFaqsPage from "@/pages/admin/faqs";
+function PublicNotice() {
+  const [message, setMessage] = useState("");
+  useEffect(() => {
+    api.get("/platform/notice").then(({ data }) => setMessage(String(data.data?.message ?? ""))).catch(() => setMessage(""));
+  }, []);
+  if (!message) return null;
+  return <div role="status" className="bg-[#0251B0] px-4 py-2 text-center text-sm text-white">{message}</div>;
+}
 
 export default function App() {
   return (
     <>
+      <PublicNotice />
       <ScrollToTop />
       <Routes>
         <Route path="/" element={<LandingPage />} />
@@ -105,20 +103,6 @@ export default function App() {
           <Route path="/host/earnings" element={<HostEarningsPage />} />
           <Route path="/host/reviews" element={<HostReviewsPage />} />
           <Route path="/host/settings" element={<HostSettingsPage />} />
-        </Route>
-
-        <Route element={<AdminLayout />}>
-          <Route path="/admin" element={<AdminDashboardPage />} />
-          <Route path="/admin/users" element={<AdminUsersPage />} />
-          <Route path="/admin/listings" element={<AdminListingsPage />} />
-          <Route path="/admin/bookings" element={<AdminBookingsPage />} />
-          <Route path="/admin/payments" element={<AdminPaymentsPage />} />
-          <Route path="/admin/payouts" element={<AdminPayoutsPage />} />
-          <Route path="/admin/reports" element={<AdminReportsPage />} />
-          <Route path="/admin/support" element={<AdminSupportPage />} />
-          <Route path="/admin/faqs" element={<AdminFaqsPage />} />
-          <Route path="/admin/support/:kind/:id" element={<AdminSupportCasePage />} />
-          <Route path="/admin/reviews" element={<AdminReviewsPage />} />
         </Route>
 
         <Route path="*" element={<NotFoundPage />} />

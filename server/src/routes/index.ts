@@ -7,12 +7,11 @@ import * as bookings from "../controllers/bookings.controller.js";
 import * as payments from "../controllers/payments.controller.js";
 import * as engagement from "../controllers/engagement.controller.js";
 import * as host from "../controllers/host.controller.js";
-import * as admin from "../controllers/admin.controller.js";
 import * as payouts from "../controllers/payouts.controller.js";
 import * as uploads from "../controllers/uploads.controller.js";
 import * as support from "../controllers/support.controller.js";
 import * as faqs from "../controllers/faqs.controller.js";
-import { adminOnly, authenticate, hostOnly, maybeAuthenticate } from "../middleware/auth.js";
+import { authenticate, hostOnly, maybeAuthenticate } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { asyncHandler } from "../middleware/error.js";
 import {
@@ -42,11 +41,11 @@ import {
 import {
   blockSlotSchema, bookingRequestSchema, createPaymentOrderSchema, emailOtpResendSchema,
   emailOtpVerifySchema, emptyBodySchema, favoriteSchema, forgotPasswordSchema, googleLoginSchema,
-  listingSchema, listingStatusSchema, loginSchema, moderationSchema, payoutNoteSchema, payoutProfileSchema, payoutReferenceSchema,
-  profileSchema, reportSchema, resetPasswordSchema, resolveReportSchema, reviewSchema, signupSchema, smtpTestSchema,
-  faqFeedbackSchema, faqReorderSchema, faqSchema, faqUpdateSchema,
-  supportTicketSchema, ticketReplySchema, ticketUpdateSchema, userReportSchema, userStatusSchema,
-  vehicleSchema, verifiedFlagSchema, verifyPaymentSchema,
+  listingSchema, listingStatusSchema, loginSchema, payoutProfileSchema,
+  profileSchema, reportSchema, resetPasswordSchema, reviewSchema, signupSchema,
+  faqFeedbackSchema,
+  supportTicketSchema, ticketReplySchema, userReportSchema,
+  vehicleSchema, verifyPaymentSchema,
 } from "../utils/validation.js";
 import { ALLOWED_UPLOAD_TYPES, MAX_UPLOAD_BYTES } from "../services/media.js";
 
@@ -91,6 +90,10 @@ r.post("/users/me/vehicles", authenticate, validate(vehicleSchema), a(users.addV
 r.delete("/users/me/vehicles/:id", authenticate, a(users.removeVehicle));
 
 // ---- Parking discovery
+r.get("/platform/notice", a(async (req, res) => {
+  const { publicNotice } = await import("../controllers/console-admins.controller.js");
+  await publicNotice(req, res);
+}));
 r.get("/parking/search", a(parking.search));
 r.get("/parking/areas", parking.knownAreas);
 r.get("/parking/places/suggest", rateLimit("places-suggest", 40, 60_000), a(parking.suggestPlaces));
@@ -144,37 +147,7 @@ r.put("/host/payout-profile", authenticate, hostOnly, validate(payoutProfileSche
 r.post("/host/payouts/request", authenticate, hostOnly, rateLimit("payout-request", positiveIntEnv("RATE_LIMIT_PAYOUT_REQUEST", 8), positiveIntEnv("RATE_LIMIT_PAYOUT_REQUEST_WINDOW_MS", 10 * 60_000, 86_400_000)), validate(emptyBodySchema), a(payouts.requestPayout));
 r.get("/host/reviews", authenticate, hostOnly, a(host.listReviews));
 
-// ---- Admin
-r.get("/admin/metrics", authenticate, adminOnly, a(admin.metrics));
-r.get("/admin/users", authenticate, adminOnly, a(admin.listUsers));
-r.post("/admin/users/:id/status", authenticate, adminOnly, validate(userStatusSchema), a(admin.setUserStatus));
-r.post("/admin/users/:id/verify-host", authenticate, adminOnly, validate(verifiedFlagSchema), a(admin.setHostVerified));
-r.get("/admin/listings", authenticate, adminOnly, a(admin.listListings));
-r.post("/admin/listings/:id/moderate", authenticate, adminOnly, validate(moderationSchema), a(admin.moderateListing));
-r.get("/admin/bookings", authenticate, adminOnly, a(admin.listBookings));
-r.get("/admin/payments", authenticate, adminOnly, a(admin.listPayments));
-r.get("/admin/payouts", authenticate, adminOnly, a(payouts.adminListPayouts));
-r.post("/admin/payouts/:id/reveal-destination", authenticate, adminOnly, a(payouts.adminRevealPayoutDestination));
-r.get("/admin/payouts/:id/destination-audits", authenticate, adminOnly, a(payouts.adminListPayoutDestinationAudits));
-r.post("/admin/payouts/:id/approve", authenticate, adminOnly, a(payouts.adminApprovePayout));
-r.post("/admin/payouts/:id/reject", authenticate, adminOnly, validate(payoutNoteSchema), a(payouts.adminRejectPayout));
-r.post("/admin/payouts/:id/mark-paid", authenticate, adminOnly, validate(payoutReferenceSchema), a(payouts.adminMarkPayoutPaid));
-r.post("/admin/payouts/:id/fail", authenticate, adminOnly, validate(payoutNoteSchema), a(payouts.adminFailPayout));
-r.post("/admin/payouts/:id/reverse", authenticate, adminOnly, validate(payoutNoteSchema), a(payouts.adminReversePayout));
-r.post("/admin/users/:id/verify-payout", authenticate, adminOnly, validate(verifiedFlagSchema), a(payouts.adminVerifyPayoutProfile));
-r.get("/admin/faqs", authenticate, adminOnly, a(faqs.adminList));
-r.post("/admin/faqs", authenticate, adminOnly, validate(faqSchema), a(faqs.adminCreate));
-r.post("/admin/faqs/reorder", authenticate, adminOnly, validate(faqReorderSchema), a(faqs.adminReorder));
-r.patch("/admin/faqs/:id", authenticate, adminOnly, validate(faqUpdateSchema), a(faqs.adminUpdate));
-r.delete("/admin/faqs/:id", authenticate, adminOnly, a(faqs.adminDelete));
-r.get("/admin/support", authenticate, adminOnly, a(support.adminList));
-r.get("/admin/support/:kind/:id", authenticate, adminOnly, a(support.adminDetail));
-r.post("/admin/support/:kind/:id/messages", authenticate, adminOnly, rateLimit("support-admin-message", positiveIntEnv("RATE_LIMIT_SUPPORT_ADMIN_MESSAGE", 60), positiveIntEnv("RATE_LIMIT_SUPPORT_ADMIN_MESSAGE_WINDOW_MS", 60 * 60_000, 86_400_000)), validate(ticketReplySchema), a(support.adminReply));
-r.post("/admin/support/:kind/:id", authenticate, adminOnly, validate(ticketUpdateSchema), a(support.adminPatch));
-r.get("/admin/reports", authenticate, adminOnly, a(admin.listReports));
-r.post("/admin/reports/:id/resolve", authenticate, adminOnly, validate(resolveReportSchema), a(admin.resolveReport));
-r.get("/admin/reviews", authenticate, adminOnly, a(admin.listReviews));
-r.post("/admin/email/test", authenticate, adminOnly, rateLimit("smtp-test", 3, 10 * 60000), validate(smtpTestSchema), a(admin.sendEmailTest));
+// Platform administration lives on the isolated console router.
 
 // ---- Uploads (Cloudinary in production; local /uploads when Cloudinary is unset in development)
 const upload = multer({

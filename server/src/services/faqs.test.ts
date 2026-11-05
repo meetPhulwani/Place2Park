@@ -75,8 +75,10 @@ describe("faq help center", () => {
     });
     await reorderFaqs([String(created.id)]);
     assert.equal((await Faq.findById(created.id))?.order, 0);
-    const src = readFileSync(new URL("../routes/index.ts", import.meta.url), "utf8");
-    assert.match(src, /\/admin\/faqs", authenticate, adminOnly/);
-    assert.match(src, /rateLimit\(\s*"faq-feedback"/);
+    const src = readFileSync(new URL("../routes/console.ts", import.meta.url), "utf8");
+    assert.match(src, /requireConsole/);
+    assert.match(src, /requirePermission\("faqs.write"\)/);
+    const userRoutes = readFileSync(new URL("../routes/index.ts", import.meta.url), "utf8");
+    assert.match(userRoutes, /rateLimit\(\s*"faq-feedback"/);
   });
 });

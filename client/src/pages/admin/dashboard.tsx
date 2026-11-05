@@ -1,7 +1,7 @@
 import * as React from "react";
 import Link from "@/components/link";
 import { Building2, Flag, Users, Wallet } from "lucide-react";
-import { api } from "@/services/api";
+import { api } from "@/services/console-api";
 import { StatCard } from "@/components/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SpaceStatusBadge } from "@/components/ui/badge";
@@ -38,7 +38,7 @@ export default function AdminDashboardPage() {
   const load = React.useCallback(() => {
     setFailed(false);
     api
-      .get("/admin/metrics")
+      .get("/metrics")
       .then(({ data: d }) => setData(d.data))
       .catch(() => setFailed(true));
   }, []);
@@ -91,7 +91,7 @@ export default function AdminDashboardPage() {
           value={data.openReports}
           hint={data.openReports > 0 ? "Needs attention" : "All clear"}
         />
-        <Link href="/admin/payouts" className="block sm:col-span-2 xl:col-span-1">
+        <Link href="/payouts" className="block sm:col-span-2 xl:col-span-1">
           <StatCard
             icon="Wallet"
             label="Payouts awaiting action"
@@ -103,17 +103,17 @@ export default function AdminDashboardPage() {
 
       <QuickActions
         items={[
-          { href: "/admin/users", label: "Users", icon: Users },
-          { href: "/admin/listings", label: "Listings", icon: Building2 },
-          { href: "/admin/payouts", label: "Payouts", icon: Wallet },
-          { href: "/admin/reports", label: "Reports", icon: Flag },
+          { href: "/users", label: "Users", icon: Users },
+          { href: "/listings", label: "Listings", icon: Building2 },
+          { href: "/payouts", label: "Payouts", icon: Wallet },
+          { href: "/reports", label: "Reports", icon: Flag },
         ]}
       />
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Listings awaiting review</CardTitle>
-          <Link href="/admin/listings?status=PENDING_REVIEW" className="text-sm font-medium text-brand-600 hover:text-brand-800">
+          <Link href="/listings?status=PENDING_REVIEW" className="text-sm font-medium text-brand-600 hover:text-brand-800">
             Review all
           </Link>
         </CardHeader>
@@ -126,7 +126,7 @@ export default function AdminDashboardPage() {
                 <li key={l.id} className="flex flex-wrap items-center justify-between gap-4 py-3">
                   <div className="min-w-0">
                     <Link
-                      href={`/admin/listings?status=PENDING_REVIEW`}
+                      href={`/listings?status=PENDING_REVIEW`}
                       className="truncate text-sm font-semibold text-ink hover:text-brand-800"
                     >
                       {l.title}

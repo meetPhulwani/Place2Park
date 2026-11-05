@@ -1,5 +1,5 @@
 import * as React from "react";
-import { api } from "@/services/api";
+import { consoleApi } from "@/services/console-api";
 import { BookingStatusBadge, Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate, formatINR, formatTime } from "@/lib/utils";
@@ -21,7 +21,7 @@ export default function AdminBookingsPage() {
 
   React.useEffect(() => {
     document.title = "Bookings — Admin · Place2Park";
-    api.get("/admin/bookings").then(({ data }) => setBookings(data.data.bookings)).catch(() => setBookings([]));
+    consoleApi.get("/bookings").then(({ data }) => setBookings(data.data.bookings)).catch(() => setBookings([]));
   }, []);
 
   if (bookings === null) {

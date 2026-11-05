@@ -1,5 +1,5 @@
 import * as React from "react";
-import { api, errorMessage } from "@/services/api";
+import { consoleApi, errorMessage } from "@/services/console-api";
 import { useAuth } from "@/context/auth";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -29,7 +29,7 @@ export default function AdminUsersPage() {
   const [users, setUsers] = React.useState<AdminUser[] | null>(null);
 
   const load = React.useCallback(() => {
-    api.get("/admin/users").then(({ data }) => setUsers(data.data.users)).catch(() => setUsers([]));
+    consoleApi.get("/users").then(({ data }) => setUsers(data.data.users)).catch(() => setUsers([]));
   }, []);
 
   React.useEffect(() => {
@@ -157,7 +157,7 @@ function UserActions({
           variant="secondary"
           size="sm"
           disabled={busy}
-          onClick={() => run(() => api.post(`/admin/users/${userId}/status`, { status: "ACTIVE" }), "Account reactivated.")}
+          onClick={() => run(() => consoleApi.post(`/users/${userId}/status`, { status: "ACTIVE" }), "Account reactivated.")}
         >
           Reactivate
         </Button>
@@ -169,7 +169,7 @@ function UserActions({
           disabled={busy}
           onClick={() =>
             run(
-              () => api.post(`/admin/users/${userId}/verify-host`, { verified: !hostVerified }),
+              () => consoleApi.post(`/users/${userId}/verify-host`, { verified: !hostVerified }),
               hostVerified ? "Host verification removed." : "Host marked verified."
             )
           }
@@ -184,7 +184,7 @@ function UserActions({
           disabled={busy}
           onClick={() =>
             run(
-              () => api.post(`/admin/users/${userId}/verify-payout`, { verified: !payoutVerified }),
+              () => consoleApi.post(`/users/${userId}/verify-payout`, { verified: !payoutVerified }),
               payoutVerified ? "Payout details unverified." : "Payout details verified."
             )
           }
@@ -195,7 +195,7 @@ function UserActions({
       <ConfirmDialog
         open={confirm === "suspend"}
         onClose={() => setConfirm(null)}
-        onConfirm={() => run(() => api.post(`/admin/users/${userId}/status`, { status: "SUSPENDED" }), "Account suspended.")}
+        onConfirm={() => run(() => consoleApi.post(`/users/${userId}/status`, { status: "SUSPENDED" }), "Account suspended.")}
         loading={busy}
         danger
         title="Suspend this account?"

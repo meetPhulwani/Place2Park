@@ -81,5 +81,5 @@ export function authorize(...roles: string[]) {
   };
 }
 
-export const hostOnly = authorize("HOST", "BOTH", "ADMIN");
+export const hostOnly = authorize("HOST", "BOTH");
 export const adminOnly = authorize("ADMIN");

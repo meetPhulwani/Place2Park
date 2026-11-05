@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
 import { FAQ_CATEGORY_LABELS } from "@/lib/faq-search";
-import { api, errorMessage } from "@/services/api";
+import { consoleApi, errorMessage } from "@/services/console-api";
 
 type Row = {
   id: string;
@@ -25,7 +25,7 @@ export default function AdminFaqsPage() {
   const [error, setError] = useState("");
 
   function load() {
-    api.get("/admin/faqs").then(({ data }) => setRows(data.data.faqs as Row[])).catch((err) => {
+    consoleApi.get("/faqs").then(({ data }) => setRows(data.data.faqs as Row[])).catch((err) => {
       setRows([]);
       setError(errorMessage(err, "Couldn't load FAQs."));
     });
@@ -39,8 +39,8 @@ export default function AdminFaqsPage() {
   async function save(e: React.FormEvent) {
     e.preventDefault();
     try {
-      if (editing) await api.patch(`/admin/faqs/${editing}`, form);
-      else await api.post("/admin/faqs", form);
+      if (editing) await consoleApi.patch(`/faqs/${editing}`, form);
+      else await consoleApi.post("/faqs", form);
       setForm(empty);
       setEditing(null);
       toast.success(editing ? "FAQ updated." : "FAQ added.");
@@ -59,7 +59,7 @@ export default function AdminFaqsPage() {
     next.splice(target, 0, item);
     setRows(next);
     try {
-      await api.post("/admin/faqs/reorder", { ids: next.map((row) => row.id) });
+      await consoleApi.post("/faqs/reorder", { ids: next.map((row) => row.id) });
     } catch (err) {
       toast.error(errorMessage(err, "Couldn't reorder FAQs."));
       load();
@@ -109,10 +109,10 @@ export default function AdminFaqsPage() {
                 <Button type="button" size="sm" variant="secondary" onClick={() => { setEditing(row.id); setForm({ question: row.question, answer: row.answer, category: row.category, featured: row.featured, active: row.active }); }}>Edit</Button>
                 <Button type="button" size="sm" variant="secondary" onClick={() => void move(index, -1)}>Up</Button>
                 <Button type="button" size="sm" variant="secondary" onClick={() => void move(index, 1)}>Down</Button>
-                <Button type="button" size="sm" variant="secondary" onClick={() => void api.patch(`/admin/faqs/${row.id}`, { active: !row.active }).then(load)}>
+                <Button type="button" size="sm" variant="secondary" onClick={() => void consoleApi.patch(`/faqs/${row.id}`, { active: !row.active }).then(load)}>
                   {row.active ? "Deactivate" : "Activate"}
                 </Button>
-                <Button type="button" size="sm" variant="danger" onClick={() => void api.delete(`/admin/faqs/${row.id}`).then(() => { toast.success("FAQ deleted."); load(); })}>Delete</Button>
+                <Button type="button" size="sm" variant="danger" onClick={() => void consoleApi.delete(`/faqs/${row.id}`).then(() => { toast.success("FAQ deleted."); load(); })}>Delete</Button>
               </div>
             </li>
           ))}

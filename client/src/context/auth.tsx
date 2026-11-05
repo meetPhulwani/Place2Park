@@ -81,5 +81,5 @@ export function useAuth() {
 }
 
 export function isHostRole(role?: string) {
-  return role === "HOST" || role === "BOTH" || role === "ADMIN";
+  return role === "HOST" || role === "BOTH";
 }

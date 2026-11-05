@@ -155,7 +155,9 @@ describe("dashboard refund occupancy", () => {
   });
 
   it("does not let a refunded CONFIRMED booking win assertSoleOccupant or block createBooking", async () => {
-    const start = hoursFromNow(8);
+    const start = new Date();
+    start.setDate(start.getDate() + 1);
+    start.setHours(10, 0, 0, 0);
     const existing = await seedPaid({ status: "CONFIRMED", start });
     await Booking.updateOne({ _id: existing._id }, { $set: { refunded: true } });
     assert.equal(await hasConflict(String(spaceId), existing.start, existing.end), false);

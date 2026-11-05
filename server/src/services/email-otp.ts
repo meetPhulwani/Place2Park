@@ -164,7 +164,8 @@ export async function startSignupEmailOtp(
   const passwordHash = await bcrypt.hash(input.password, 10);
   const emailTaken = await User.exists({ email });
   const phoneTaken = await User.exists({ phone: input.phone });
-  if (emailTaken || phoneTaken) {
+  const { emailBelongsToAdmin } = await import("./admin-auth.js");
+  if (emailTaken || phoneTaken || (await emailBelongsToAdmin(email))) {
     return issuePending(
       {
         purpose: "signup",
@@ -196,6 +197,8 @@ export async function beginGoogleSignIn(identity: VerifiedGoogleIdentity, deps?:
     throw new ApiError(401, "Google account email is not verified.");
   }
   const email = identity.email.toLowerCase();
+  const { emailBelongsToAdmin } = await import("./admin-auth.js");
+  if (await emailBelongsToAdmin(email)) throw new ApiError(401, "Google sign-in failed. Try again.");
 
   let user = await User.findOne({ googleId: identity.sub }).select("+passwordHash");
   if (!user) {

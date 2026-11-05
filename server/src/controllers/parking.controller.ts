@@ -133,9 +133,8 @@ export async function detail(req: Request, res: Response) {
 
   const userId = (req as AuthedRequest).userId as string | undefined;
   const isOwner = userId != null && String(space.hostId) === userId;
-  const isAdmin = (req as AuthedRequest).userRole === "ADMIN";
-  // Paused, hidden, and draft listings stay visible only to the owner or an admin.
-  if (!["VERIFIED", "ACTIVE"].includes(space.status) && !isOwner && !isAdmin)
+  // Platform staff use the separate console. A user role never reveals a paused listing.
+  if (!["VERIFIED", "ACTIVE"].includes(space.status) && !isOwner)
     throw new ApiError(404, "Listing not found.");
 
   const spaceId = String(space._id);
@@ -154,7 +153,7 @@ export async function detail(req: Request, res: Response) {
       : null,
   ]);
 
-  const revealExactLocation = isOwner || isAdmin || !!hasConfirmedBooking;
+  const revealExactLocation = isOwner || !!hasConfirmedBooking;
   const spaceJson = space.toJSON() as Record<string, unknown>;
   if (!revealExactLocation) {
     spaceJson.address = "";

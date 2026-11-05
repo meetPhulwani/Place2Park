@@ -232,7 +232,8 @@ describe("support tickets", () => {
     assert.match(src, /rateLimit\(\s*"support-ticket"/);
     assert.match(src, /rateLimit\(\s*"support-message"/);
     assert.match(src, /rateLimit\(\s*"support-evidence"/);
-    assert.match(src, /\/admin\/support\/:kind\/:id", authenticate, adminOnly/);
+    const consoleSrc = readFileSync(new URL("../routes/console.ts", import.meta.url), "utf8");
+    assert.match(consoleSrc, /requirePermission\("support.write"\)/);
   });
 
   it("rejects evidence that is not a jpeg, png, or webp", () => {

@@ -133,12 +133,13 @@ describe("paused listings", () => {
     assert.equal(res.statusCode, 200);
     const body = res.body as { data?: { space?: { status?: string } } };
     assert.equal(body.data?.space?.status, "PAUSED");
-    const adminRes = jsonRes();
-    await detail(
-      { params: { id }, userId: new mongoose.Types.ObjectId().toString(), userRole: "ADMIN" } as unknown as AuthedRequest,
-      adminRes
+    await assert.rejects(
+      () => detail(
+        { params: { id }, userId: new mongoose.Types.ObjectId().toString(), userRole: "ADMIN" } as unknown as AuthedRequest,
+        jsonRes()
+      ),
+      (err: unknown) => err instanceof ApiError && err.status === 404
     );
-    assert.equal(adminRes.statusCode, 200);
   });
 });
 

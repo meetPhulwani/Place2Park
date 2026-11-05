@@ -1,7 +1,7 @@
 import * as React from "react";
 import Link from "@/components/link";
 import { useSearchParams } from "react-router-dom";
-import { api } from "@/services/api";
+import { api } from "@/services/console-api";
 import { SpaceStatusBadge, Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatINR, formatDate } from "@/lib/utils";
@@ -31,7 +31,7 @@ export default function AdminListingsPage() {
 
   const load = React.useCallback(() => {
     api
-      .get(`/admin/listings${status ? `?status=${status}` : ""}`)
+      .get(`/listings${status ? `?status=${status}` : ""}`)
       .then(({ data }) => setListings(data.data.listings))
       .catch(() => setListings([]));
   }, [status]);

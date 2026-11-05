@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useSearchParams } from "react-router-dom";
-import { api, errorMessage } from "@/services/api";
+import { api, consoleApi, errorMessage } from "@/services/console-api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,7 +40,7 @@ export default function AdminPayoutsPage() {
   const load = React.useCallback(() => {
     setListGeneration((n) => n + 1);
     api
-      .get(`/admin/payouts${status ? `?status=${status}` : ""}`)
+      .get(`/payouts${status ? `?status=${status}` : ""}`)
       .then(({ data }) => {
         const rows = (data.data.payouts as AdminPayout[]).map((row) => ({
           ...row,
@@ -150,7 +150,7 @@ function PayoutRow({
   async function act(path: string, body: Record<string, string>, msg: string) {
     setBusy(true);
     try {
-      await api.post(`/admin/payouts/${payout.id}/${path}`, body);
+      await consoleApi.post(`/payouts/${payout.id}/${path}`, body);
       toast.success(msg);
       onChanged();
     } catch (e) {
@@ -163,7 +163,7 @@ function PayoutRow({
   async function revealAccount() {
     setBusy(true);
     try {
-      const { data } = await api.post(`/admin/payouts/${payout.id}/reveal-destination`, {});
+      const { data } = await consoleApi.post(`/payouts/${payout.id}/reveal-destination`, {});
       setRevealed(nextRevealedAccount(null, "reveal", data.data.destination.accountNumber));
     } catch (e) {
       const status = (e as { response?: { status?: number } }).response?.status;

@@ -1,7 +1,7 @@
 import * as React from "react";
 import Link from "@/components/link";
 import { Star } from "lucide-react";
-import { api } from "@/services/api";
+import { consoleApi } from "@/services/console-api";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDateTime } from "@/lib/utils";
@@ -20,7 +20,7 @@ export default function AdminReviewsPage() {
 
   React.useEffect(() => {
     document.title = "Reviews — Admin · Place2Park";
-    api.get("/admin/reviews").then(({ data }) => setReviews(data.data.reviews)).catch(() => setReviews([]));
+    consoleApi.get("/reviews").then(({ data }) => setReviews(data.data.reviews)).catch(() => setReviews([]));
   }, []);
 
   return (

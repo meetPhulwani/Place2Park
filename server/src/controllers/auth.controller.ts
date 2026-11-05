@@ -9,6 +9,7 @@ import { env, isProd } from "../config/env.js";
 import { deliverPasswordResetLink, isEmailConfigured } from "../services/email.js";
 import { beginGoogleSignIn, completeEmailOtp, resendEmailOtp, startSignupEmailOtp } from "../services/email-otp.js";
 import { passwordIssue } from "../utils/password.js";
+import { emailBelongsToAdmin, rejectAdminPassword } from "../services/admin-auth.js";
 
 function issueToken(user: { _id: unknown; tokenVersion?: number | null }) {
   return signToken(String(user._id), user.tokenVersion ?? 0);
@@ -49,6 +50,10 @@ export async function verifyEmailOtp(req: Request, res: Response) {
 
 export async function login(req: Request, res: Response) {
   const { email, password } = req.body as { email: string; password: string };
+  if (await emailBelongsToAdmin(email)) {
+    await rejectAdminPassword(password);
+    throw new ApiError(401, "Incorrect email or password.");
+  }
   const user = await User.findOne({ email }).select("+passwordHash");
   if (!user?.passwordHash || !(await bcrypt.compare(password, user.passwordHash)))
     throw new ApiError(401, "Incorrect email or password.");
@@ -74,6 +79,7 @@ export async function googleLogin(req: Request, res: Response) {
   }
   if (!payload?.email || !payload.sub || payload.email_verified !== true)
     throw new ApiError(401, "Google account email is not verified.");
+  if (await emailBelongsToAdmin(payload.email)) throw new ApiError(401, "Google sign-in failed. Try again.");
 
   const result = await beginGoogleSignIn({
     sub: payload.sub,
@@ -105,7 +111,7 @@ export async function forgotPassword(req: Request, res: Response) {
     console.error("[email] password-reset skipped: email is not configured");
     throw new ApiError(503, "We couldn't send the reset email. Try again shortly.");
   }
-  if (email) {
+  if (email && !(await emailBelongsToAdmin(email))) {
     const user = await User.findOne({ email });
     if (user) {
       const token = crypto.randomBytes(24).toString("hex");

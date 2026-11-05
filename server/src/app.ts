@@ -2,6 +2,8 @@ import express, { type Request } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import routes from "./routes/index.js";
+import consoleRoutes from "./routes/console.js";
+import { registerConsoleSpa } from "./console-spa.js";
 import { errorHandler, notFoundHandler } from "./middleware/error.js";
 import { allowedCorsOrigins } from "./config/cors.js";
 import { env, isProd } from "./config/env.js";
@@ -34,10 +36,15 @@ export function createApp() {
   );
 
   app.get("/api/health", (_req, res) => res.json({ success: true, data: { status: "ok" } }));
+  app.use("/api/console", consoleRoutes);
   app.use("/api", routes);
   // Static: uploaded photos + demo images
   app.use("/uploads", express.static(UPLOADS_DIR, { maxAge: "7d" }));
   app.use("/demo", express.static(DEMO_DIR, { maxAge: "7d" }));
+  registerConsoleSpa(app);
+  app.use(["/admin", "/administrator", "/superadmin", "/admin-login", "/console", "/console.html", "/dist-console"], (_req, res) => {
+    res.status(404).json({ success: false, message: "Not found." });
+  });
 
   app.use(notFoundHandler);
   app.use(errorHandler);

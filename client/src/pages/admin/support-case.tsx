@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
 import { STATUS_LABEL } from "@/lib/support-labels";
-import { api, errorMessage } from "@/services/api";
+import { consoleApi, errorMessage } from "@/services/console-api";
 
 type Person = { id: string; name: string; email: string; role: string; status: string };
 type Case = {
@@ -37,7 +37,7 @@ export default function AdminSupportCasePage() {
   const [busy, setBusy] = useState(false);
 
   function load() {
-    api.get(`/admin/support/${kind}/${id}`).then(({ data }) => {
+    consoleApi.get(`/support/${kind}/${id}`).then(({ data }) => {
       const next = data.data as Case;
       setItem(next);
       setStatus(next.status);
@@ -111,17 +111,17 @@ export default function AdminSupportCasePage() {
           </li>
         ))}
       </ol>
-      <form className="space-y-3 rounded-xl border border-line bg-white p-5" onSubmit={(e) => { e.preventDefault(); void act(() => api.post(`/admin/support/${kind}/${id}/messages`, { body, visibility: "PUBLIC" }), "Reply sent."); }}>
+      <form className="space-y-3 rounded-xl border border-line bg-white p-5" onSubmit={(e) => { e.preventDefault(); void act(() => consoleApi.post(`/support/${kind}/${id}/messages`, { body, visibility: "PUBLIC" }), "Reply sent."); }}>
         <label className="block text-sm font-medium text-ink" htmlFor="admin-reply">Reply to the user</label>
         <textarea id="admin-reply" className="min-h-24 w-full rounded-lg border border-line px-3 py-2 text-sm" value={body} onChange={(e) => setBody(e.target.value)} />
         <div className="flex flex-wrap gap-2">
           <Button type="submit" disabled={busy || body.trim().length < 2}>Send reply</Button>
-          <Button type="button" variant="secondary" disabled={busy || body.trim().length < 2} onClick={() => void act(() => api.post(`/admin/support/${kind}/${id}/messages`, { body, visibility: "INTERNAL" }), "Note saved.")}>Save internal note</Button>
+          <Button type="button" variant="secondary" disabled={busy || body.trim().length < 2} onClick={() => void act(() => consoleApi.post(`/support/${kind}/${id}/messages`, { body, visibility: "INTERNAL" }), "Note saved.")}>Save internal note</Button>
         </div>
       </form>
       <form className="grid gap-3 rounded-xl border border-line bg-white p-5 sm:grid-cols-2" onSubmit={(e) => {
         e.preventDefault();
-        void act(() => api.post(`/admin/support/${kind}/${id}`, { status, priority, assigneeId: assigneeId || null, note }), "Ticket updated.");
+        void act(() => consoleApi.post(`/support/${kind}/${id}`, { status, priority, assigneeId: assigneeId || null, note }), "Ticket updated.");
       }}>
         <label className="text-sm font-medium text-ink">Status
           <select className="mt-1 h-10 w-full rounded-lg border border-line px-3 text-sm" value={status} onChange={(e) => setStatus(e.target.value)}>
