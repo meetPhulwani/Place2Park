@@ -94,7 +94,7 @@ describe("signup credentials", () => {
         log: (msg) => lines.push(msg),
       }
     );
-    assert.equal(result, "sent");
+    assert.equal(result.provider, "delegate");
     assert.equal(sent.includes("654321"), true);
     assert.equal(lines.some((line) => line.includes("654321")), false);
   });

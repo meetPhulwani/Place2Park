@@ -275,11 +275,16 @@ function warnDelivery(log: (line: string) => void, lines: string[]) {
 
 type EmailFetch = (input: string, init: RequestInit) => Promise<Response>;
 
+export type MailDelivery = {
+  provider: "resend" | "smtp" | "delegate";
+  providerStatus: number | null;
+};
+
 async function deliverViaResend(
   payload: MailMessage & { from: string },
   apiKey: string,
   deps: { fetch?: EmailFetch; timeoutMs?: number }
-) {
+): Promise<number> {
   const fetchFn = deps.fetch ?? fetch;
   const timeoutMs = deps.timeoutMs ?? RESEND_TIMEOUT_MS;
   let res: Response;
@@ -331,6 +336,7 @@ async function deliverViaResend(
       category,
     });
   }
+  return res.status;
 }
 
 export type OutboundMailDeps = {
@@ -344,7 +350,7 @@ export type OutboundMailDeps = {
   requestId?: string;
 };
 
-export async function sendMail(message: MailMessage, deps: OutboundMailDeps = {}) {
+export async function sendMail(message: MailMessage, deps: OutboundMailDeps = {}): Promise<MailDelivery> {
   const cfg = deps.cfg ?? env;
   const requestId = deps.requestId ?? randomUUID();
   const logFailure =
@@ -353,7 +359,7 @@ export async function sendMail(message: MailMessage, deps: OutboundMailDeps = {}
       console.error("[email] delivery_failed", event);
     });
   try {
-    await deliverOutboundMail(message, { ...deps, cfg, requestId });
+    return await deliverOutboundMail(message, { ...deps, cfg, requestId });
   } catch (err) {
     try {
       logFailure(buildEmailFailureEvent(requestId, err, cfg));
@@ -364,7 +370,10 @@ export async function sendMail(message: MailMessage, deps: OutboundMailDeps = {}
   }
 }
 
-async function deliverOutboundMail(message: MailMessage, deps: OutboundMailDeps & { cfg: SmtpAuthConfig; requestId: string }) {
+async function deliverOutboundMail(
+  message: MailMessage,
+  deps: OutboundMailDeps & { cfg: SmtpAuthConfig; requestId: string }
+): Promise<MailDelivery> {
   const cfg = deps.cfg;
   const production = deps.isProd ?? isProd;
   const log = deps.log ?? ((msg: string) => console.warn(msg));
@@ -386,19 +395,20 @@ async function deliverOutboundMail(message: MailMessage, deps: OutboundMailDeps 
   const payload = { from, ...message };
   if (deps.send) {
     await deps.send(payload);
-    return;
+    return { provider: "delegate", providerStatus: null };
   }
   if (isResendConfigured(cfg)) {
     console.info("[email] sending via Resend", { toDomain: emailDomain(to) || "invalid" });
-    await deliverViaResend(payload, String(cfg.RESEND_API_KEY), {
+    const providerStatus = await deliverViaResend(payload, String(cfg.RESEND_API_KEY), {
       fetch: deps.fetch,
       timeoutMs: deps.timeoutMs,
     });
-    console.info("[email] Resend accepted", { toDomain: emailDomain(to) || "invalid" });
-    return;
+    console.info("[email] Resend accepted", { toDomain: emailDomain(to) || "invalid", providerStatus });
+    return { provider: "resend", providerStatus };
   }
   const transporter = nodemailer.createTransport(smtpTransportOptions(cfg));
   await transporter.sendMail(payload);
+  return { provider: "smtp", providerStatus: null };
 }
 
 export function configuredSmtpTestRecipient(cfg: SmtpAuthConfig = env): string {
@@ -482,8 +492,8 @@ export async function notifyAdmin(
 export async function deliverVerificationCode(
   input: { email: string; code: string },
   deps: OutboundMailDeps = {}
-): Promise<"sent"> {
-  await sendMail(
+): Promise<MailDelivery> {
+  return sendMail(
     {
       to: input.email,
       subject: "Your Place2Park verification code",
@@ -491,7 +501,6 @@ export async function deliverVerificationCode(
     },
     deps
   );
-  return "sent";
 }
 
 export async function deliverPasswordResetLink(

@@ -25,12 +25,12 @@ function askHidden(label: string) {
     stdin.setEncoding("utf8");
     let value = "";
     const onData = (chunk: string) => {
-      if (chunk === "\r" || chunk === "\n") {
+      if (chunk === "\r" || chunk === "\n" || chunk === "\r\n") {
         stdin.setRawMode?.(false);
         stdin.pause();
         stdin.off("data", onData);
         process.stdout.write("\n");
-        resolve(value);
+        resolve(value.replace(/[\r\n]+$/g, ""));
         return;
       }
       if (chunk === "\u0003") process.exit(1);

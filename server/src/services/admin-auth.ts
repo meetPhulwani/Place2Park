@@ -4,7 +4,7 @@ import { AdminAccount } from "../models/AdminAccount.js";
 import { AdminConsoleSession } from "../models/AdminConsoleSession.js";
 import { AdminLoginChallenge } from "../models/AdminLoginChallenge.js";
 import { ApiError } from "../middleware/error.js";
-import { deliverVerificationCode, type OutboundMailDeps } from "./email.js";
+import { buildEmailFailureEvent, deliverVerificationCode, type OutboundMailDeps } from "./email.js";
 import { writeConsoleAudit } from "./console-audit.js";
 import {
   hasPermission,
@@ -49,12 +49,46 @@ function dummyHash() {
   return dummyHashPromise;
 }
 
+/** The Windows provision prompt can store a trailing CR/LF with the password. */
+async function passwordMatches(password: string, hash: string) {
+  const stripped = password.replace(/[\r\n]+$/g, "");
+  const candidates = [...new Set([password, stripped, `${stripped}\r`, `${stripped}\n`, `${stripped}\r\n`])].filter(Boolean);
+  let matched = false;
+  for (const candidate of candidates) {
+    matched = (await bcrypt.compare(candidate, hash)) || matched;
+  }
+  return matched;
+}
+
 export async function rejectAdminPassword(password: string) {
   await bcrypt.compare(password, await dummyHash());
 }
 
 function otpHash(code: string, challengeId: string) {
   return sha256(`${challengeId}:${code}`);
+}
+
+function recipientDomain(email: string) {
+  const domain = email.toLowerCase().split("@")[1] ?? "";
+  return /^[a-z0-9.-]+$/.test(domain) ? domain : "invalid";
+}
+
+function logAdminOtp(event: {
+  stage: "generated" | "accepted" | "failed" | "skipped";
+  category: string;
+  provider: string;
+  providerStatus: number | null;
+  recipientDomain?: string;
+}) {
+  const line = {
+    stage: event.stage,
+    category: event.category,
+    provider: event.provider,
+    providerStatus: event.providerStatus,
+    ...(event.recipientDomain ? { recipientDomain: event.recipientDomain } : {}),
+  };
+  if (event.stage === "failed") console.error("[admin-otp]", line);
+  else console.info("[admin-otp]", line);
 }
 
 export function readCookie(req: Request, name: string) {
@@ -159,16 +193,18 @@ export async function startAdminLogin(
   const email = input.email.toLowerCase().trim();
   const account = await AdminAccount.findOne({ email }).select("+passwordHash +answerHash +totpSecret");
   const hash = account?.passwordHash || (await dummyHash());
-  const match = await bcrypt.compare(input.password, hash);
+  const match = await passwordMatches(input.password, hash);
   const locked = account?.lockedUntil && account.lockedUntil.getTime() > Date.now();
   const usable = Boolean(account && account.status === "ACTIVE" && !locked && match);
   if (!usable) {
+    logAdminOtp({ stage: "skipped", category: "not_issued", provider: "none", providerStatus: null });
     await writeConsoleAudit({ action: "login.password", adminId: account ? String(account._id) : null, outcome: "FAILURE", req });
     return decoyChallenge();
   }
   if (account) await AdminLoginChallenge.deleteMany({ adminId: account._id });
   const token = randomToken();
   const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
+  const domain = recipientDomain(account!.email);
   const challenge = await AdminLoginChallenge.create({
     tokenHash: sha256(token),
     adminId: account!._id,
@@ -178,9 +214,25 @@ export async function startAdminLogin(
     otpSentAt: new Date(),
     expiresAt: new Date(Date.now() + CHALLENGE_TTL_MS),
   });
+  logAdminOtp({ stage: "generated", category: "persisted", provider: "none", providerStatus: null, recipientDomain: domain });
   try {
-    await deliverVerificationCode({ email: account!.email, code }, deps ?? mailOverride);
-  } catch {
+    const delivery = await deliverVerificationCode({ email: account!.email, code }, deps ?? mailOverride);
+    logAdminOtp({
+      stage: "accepted",
+      category: "sent",
+      provider: delivery.provider,
+      providerStatus: delivery.providerStatus,
+      recipientDomain: domain,
+    });
+  } catch (err) {
+    const failure = buildEmailFailureEvent("admin-otp", err);
+    logAdminOtp({
+      stage: "failed",
+      category: failure.category,
+      provider: failure.provider,
+      providerStatus: failure.providerStatus,
+      recipientDomain: domain,
+    });
     await challenge.deleteOne();
     await writeConsoleAudit({ action: "login.delivery", adminId: String(account!._id), outcome: "FAILURE", req });
     return decoyChallenge();
@@ -252,16 +304,34 @@ export async function resendAdminOtp(token: string, req: Request, deps?: Outboun
   const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
   const canSend = Boolean(account && account.status === "ACTIVE" && !doc.get("decoy"));
   if (canSend && account) {
+    const domain = recipientDomain(account.email);
     doc.otpHash = otpHash(code, doc.tokenHash);
+    logAdminOtp({ stage: "generated", category: "persisted", provider: "none", providerStatus: null, recipientDomain: domain });
     try {
-      await deliverVerificationCode({ email: account.email, code }, deps ?? mailOverride);
+      const delivery = await deliverVerificationCode({ email: account.email, code }, deps ?? mailOverride);
       doc.otpAttempts = 0;
+      logAdminOtp({
+        stage: "accepted",
+        category: "sent",
+        provider: delivery.provider,
+        providerStatus: delivery.providerStatus,
+        recipientDomain: domain,
+      });
       await writeConsoleAudit({ action: "login.otp_sent", adminId: String(account._id), outcome: "SUCCESS", req });
-    } catch {
+    } catch (err) {
+      const failure = buildEmailFailureEvent("admin-otp", err);
+      logAdminOtp({
+        stage: "failed",
+        category: failure.category,
+        provider: failure.provider,
+        providerStatus: failure.providerStatus,
+        recipientDomain: domain,
+      });
       doc.otpHash = sha256(randomToken());
       await writeConsoleAudit({ action: "login.delivery", adminId: String(account._id), outcome: "FAILURE", req });
     }
   } else {
+    logAdminOtp({ stage: "skipped", category: "not_issued", provider: "none", providerStatus: null });
     doc.otpHash = sha256(randomToken());
   }
   doc.otpExpiresAt = new Date(Date.now() + OTP_TTL_MS);
@@ -394,7 +464,7 @@ export function csrfMatches(header: string, cookie: string, csrfHash: string) {
 export async function reauthenticate(adminId: string, token: string, password: string, code: string, req: Request) {
   const account = await AdminAccount.findById(adminId).select("+passwordHash +totpSecret status");
   if (!account || account.status !== "ACTIVE") throw new ApiError(401, BAD_LOGIN);
-  const passwordOk = await bcrypt.compare(password, account.passwordHash);
+  const passwordOk = await passwordMatches(password, account.passwordHash);
   let secret = "";
   try {
     secret = openSecret(account.totpSecret);
