@@ -16,11 +16,12 @@ export function StaffPage() {
 
   return (
     <section>
-      <h1 className="text-xl font-semibold">Administrators</h1>
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0251B0]">Access</p>
+      <h1 className="mt-1 text-3xl font-bold">Administrators</h1>
       <p className="mt-2 text-sm">Only the Super Admin can add or change administrator access. New accounts stay locked until the authenticator code is confirmed.</p>
       <ul className="mt-4 space-y-2">
         {rows.map((row) => (
-          <li key={row.id} className="rounded-lg border border-[#C7D1DD] bg-white px-4 py-3 text-sm">
+          <li key={row.id} className="p2p-card px-4 py-3 text-sm">
             <span className="font-medium">{row.name}</span> · {row.email} · {row.role} · {row.status}
           </li>
         ))}

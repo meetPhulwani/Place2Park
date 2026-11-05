@@ -1,10 +1,11 @@
 import * as React from "react";
 import { useParams } from "react-router-dom";
-import { api, errorStatus } from "@/services/api";
+import { api } from "@/services/api";
+import { pageErrorStatus } from "@/lib/http-error";
 import type { ParkingSpaceFull } from "@/types";
 import { ListingWizard, type WizardData, defaultWizardData } from "@/components/listing-wizard";
 import { Skeleton } from "@/components/ui/skeleton";
-import NotFoundPage from "@/pages/not-found";
+import { ErrorScreen } from "@/components/error-screen";
 
 function minutesToTime(m: number) {
   return `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
@@ -17,7 +18,7 @@ type Listing = ParkingSpaceFull & {
 export default function EditListingPage() {
   const { id } = useParams<{ id: string }>();
   const [listing, setListing] = React.useState<Listing | null>(null);
-  const [notFound, setNotFound] = React.useState(false);
+  const [failure, setFailure] = React.useState<number | null>(null);
 
   React.useEffect(() => {
     document.title = "Edit listing · Place2Park";
@@ -25,11 +26,11 @@ export default function EditListingPage() {
       .get(`/host/listings/${id}`)
       .then(({ data }) => setListing(data.data.listing))
       .catch((e) => {
-        if ([403, 404].includes(errorStatus(e) ?? 0)) setNotFound(true);
+        setFailure(pageErrorStatus(e));
       });
   }, [id]);
 
-  if (notFound) return <NotFoundPage />;
+  if (failure) return <ErrorScreen status={failure} />;
   if (!listing) {
     return (
       <div className="max-w-3xl space-y-4">

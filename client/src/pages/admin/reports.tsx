@@ -38,7 +38,8 @@ export default function AdminReportsPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0251B0]">Trust</p>
+        <h1 className="mt-1 font-display text-3xl font-bold tracking-tight text-[#111827]">
           Reported listings
         </h1>
         <p className="mt-1 text-sm text-slate-500">

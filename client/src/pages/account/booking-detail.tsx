@@ -4,7 +4,8 @@ import { useParams, useSearchParams } from "react-router-dom";
 import {
   CheckCircle2, ExternalLink, KeyRound, LifeBuoy, MapPin, ShieldCheck,
 } from "lucide-react";
-import { api, errorStatus } from "@/services/api";
+import { api } from "@/services/api";
+import { pageErrorStatus } from "@/lib/http-error";
 import type { Booking, BookingSpaceRef, Payment, Review } from "@/types";
 import { MapView } from "@/components/map/map-view";
 import { BookingStatusBadge, Badge } from "@/components/ui/badge";
@@ -18,7 +19,7 @@ import { gmapsDirectionsUrl } from "@/lib/geo";
 import { FREE_CANCEL_BEFORE_MINS } from "@/lib/constants";
 import { getDisplayLocation } from "@/lib/location";
 import { formatDate, formatDuration, formatINR, formatTime } from "@/lib/utils";
-import NotFoundPage from "@/pages/not-found";
+import { ErrorScreen } from "@/components/error-screen";
 
 interface DetailData {
   booking: Booking;
@@ -32,8 +33,7 @@ export default function BookingDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [sp] = useSearchParams();
   const [data, setData] = React.useState<DetailData | null>(null);
-  const [notFound, setNotFound] = React.useState(false);
-  const [loadError, setLoadError] = React.useState<string | null>(null);
+  const [failure, setFailure] = React.useState<number | null>(null);
   const [reloadKey, setReloadKey] = React.useState(0);
 
   React.useEffect(() => {
@@ -44,22 +44,14 @@ export default function BookingDetailPage() {
       .then(({ data: d }) => !cancelled && setData(d.data))
       .catch((e) => {
         if (cancelled) return;
-        if ([403, 404].includes(errorStatus(e) ?? 0)) setNotFound(true);
-        else setLoadError("Couldn't load this booking. Check your connection and try again.");
+        setFailure(pageErrorStatus(e));
       });
     return () => {
       cancelled = true;
     };
   }, [id, reloadKey]);
 
-  if (notFound) return <NotFoundPage />;
-  if (loadError) {
-    return (
-      <p role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-        {loadError}
-      </p>
-    );
-  }
+  if (failure) return <ErrorScreen status={failure} />;
   if (!data) {
     return (
       <div className="mx-auto max-w-4xl space-y-4">

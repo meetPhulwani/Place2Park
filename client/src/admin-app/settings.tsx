@@ -13,7 +13,8 @@ export function SettingsPage() {
   }, []);
   return (
     <section className="max-w-lg">
-      <h1 className="text-xl font-semibold">Platform configuration</h1>
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0251B0]">Platform</p>
+      <h1 className="mt-1 text-3xl font-bold">Configuration</h1>
       <p className="mt-2 text-sm">Changes require a recent authenticator confirmation. Fee and cancellation rules stay in the server configuration.</p>
       <form
         className="mt-4 grid gap-2"

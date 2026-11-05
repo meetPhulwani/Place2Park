@@ -5,7 +5,8 @@ import {
   BadgeCheck, Bike, Car, Cctv, DoorOpen, ExternalLink, KeyRound, MapPin,
   Ruler, ShieldCheck, Umbrella, UserCheck, Zap,
 } from "lucide-react";
-import { api, errorStatus } from "@/services/api";
+import { api } from "@/services/api";
+import { pageErrorStatus } from "@/lib/http-error";
 import { useAuth } from "@/context/auth";
 import type { HostInfo, ParkingSpaceFull, Review } from "@/types";
 import { Navbar } from "@/components/navbar";
@@ -26,7 +27,7 @@ import { formatINR } from "@/lib/utils";
 import {
   LEVEL_LABELS, PROPERTY_TYPE_LABELS, type Level, type PropertyType,
 } from "@/lib/constants";
-import NotFoundPage from "./not-found";
+import { ErrorScreen } from "@/components/error-screen";
 
 interface DetailData {
   space: ParkingSpaceFull;
@@ -42,8 +43,7 @@ export default function ParkingDetailPage() {
   const [sp] = useSearchParams();
   const { user, loading: authLoading } = useAuth();
   const [data, setData] = React.useState<DetailData | null>(null);
-  const [notFound, setNotFound] = React.useState(false);
-  const [loadError, setLoadError] = React.useState<string | null>(null);
+  const [failure, setFailure] = React.useState<number | null>(null);
 
   React.useEffect(() => {
     if (authLoading) return; // wait so the request carries the auth token
@@ -53,8 +53,7 @@ export default function ParkingDetailPage() {
       .then(({ data: d }) => !cancelled && setData(d.data))
       .catch((e) => {
         if (cancelled) return;
-        if (errorStatus(e) === 404) setNotFound(true);
-        else setLoadError("Couldn't load this listing. Check your connection and try again.");
+        setFailure(pageErrorStatus(e));
       });
     return () => {
       cancelled = true;
@@ -65,19 +64,7 @@ export default function ParkingDetailPage() {
     if (data) document.title = `${data.space.title} — ${getDisplayLocation(data.space)} · Place2Park`;
   }, [data]);
 
-  if (notFound) return <NotFoundPage />;
-  if (loadError) {
-    return (
-      <>
-        <Navbar />
-        <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-          <p role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-            {loadError}
-          </p>
-        </main>
-      </>
-    );
-  }
+  if (failure) return <ErrorScreen status={failure} />;
   if (!data) {
     return (
       <>

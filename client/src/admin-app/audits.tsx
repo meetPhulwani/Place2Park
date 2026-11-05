@@ -16,10 +16,11 @@ export function AuditsPage() {
   }, []);
   return (
     <section>
-      <h1 className="text-xl font-semibold">Audit log</h1>
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0251B0]">Security</p>
+      <h1 className="mt-1 text-3xl font-bold">Audit log</h1>
       <ul className="mt-4 space-y-2">
         {rows.map((row) => (
-          <li key={row.id} className="rounded-lg border border-[#C7D1DD] bg-white px-4 py-3 text-sm">
+          <li key={row.id} className="p2p-card px-4 py-3 text-sm">
             {row.createdAt} · {row.action} · {row.outcome}
           </li>
         ))}

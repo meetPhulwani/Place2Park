@@ -5,7 +5,8 @@ export function SecurityPage() {
   const [message, setMessage] = React.useState("");
   return (
     <section className="max-w-lg">
-      <h1 className="text-xl font-semibold">Security</h1>
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0251B0]">Account</p>
+      <h1 className="mt-1 text-3xl font-bold">Security</h1>
       <p className="mt-2 text-sm">Password changes require a recent password and authenticator confirmation. Authenticator verification cannot be turned off.</p>
       <form
         className="mt-4 grid gap-2"

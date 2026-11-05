@@ -35,7 +35,7 @@ export default function AdminSupportPage() {
 
   return (
     <div className="space-y-6">
-      <DashboardHeader title="Support desk" description="User reports and Place2Park tickets. A report does not suspend anyone." />
+      <DashboardHeader kicker="Care" title="Support desk" description="User reports and Place2Park tickets. A report does not suspend anyone." />
       <form
         className="grid gap-3 rounded-xl border border-line bg-white p-4 sm:grid-cols-3"
         onSubmit={(e) => {

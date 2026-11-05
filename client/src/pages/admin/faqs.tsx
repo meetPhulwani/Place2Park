@@ -68,7 +68,7 @@ export default function AdminFaqsPage() {
 
   return (
     <div className="space-y-6">
-      <DashboardHeader title="Help center FAQs" description="Add, edit, hide, or reorder questions. Hidden questions stay out of the public help center." />
+      <DashboardHeader kicker="Help" title="Help center FAQs" description="Add, edit, hide, or reorder questions. Hidden questions stay out of the public help center." />
       {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
       <form onSubmit={save} className="grid gap-3 rounded-xl border border-line bg-white p-5">
         <label className="text-sm font-medium text-ink">Question

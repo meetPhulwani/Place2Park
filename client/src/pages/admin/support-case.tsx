@@ -71,6 +71,7 @@ export default function AdminSupportCasePage() {
   return (
     <div className="space-y-6">
       <DashboardHeader
+        kicker="Support"
         title={item.reference}
         description={`${item.subject || item.category} · ${item.category}`}
         actions={<Badge variant="brand">{STATUS_LABEL[item.status] ?? item.status}</Badge>}

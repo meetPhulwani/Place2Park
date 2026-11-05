@@ -49,7 +49,8 @@ export default function AdminUsersPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">Users</h1>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0251B0]">Directory</p>
+        <h1 className="mt-1 font-display text-3xl font-bold tracking-tight text-[#111827]">Users</h1>
         <p className="mt-1 text-sm text-slate-500">{users.length} accounts</p>
       </div>
       <div className="glass overflow-x-auto rounded-2xl">
