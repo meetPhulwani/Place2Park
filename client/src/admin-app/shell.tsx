@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { consoleApi } from "@/services/console-api";
+import { SuperAdminPassword } from "./security";
 import "./console.css";
 
 const groups = [
@@ -58,7 +59,6 @@ const groups = [
       ["/staff", "Administrators", Shield],
       ["/audits", "Audit log", ClipboardList],
       ["/settings", "Configuration", Settings],
-      ["/security", "Security", Shield],
     ] as const,
   },
 ];
@@ -77,7 +77,6 @@ const titles: Record<string, string> = {
   "/staff": "Administrators",
   "/audits": "Audit log",
   "/settings": "Configuration",
-  "/security": "Security",
 };
 
 function roleLabel(role: string) {
@@ -101,66 +100,68 @@ export function ConsoleShell() {
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [menu, setMenu] = useState(false);
-  const [admin, setAdmin] = useState<{ email: string; role: string } | null>(null);
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [role, setRole] = useState("");
   const title = pageTitle(location.pathname);
 
   useEffect(() => {
     consoleApi.get("/auth/session").then(({ data }) => {
-      const row = data.data.admin as { email?: string; role?: string };
-      setAdmin({ email: String(row.email ?? ""), role: String(row.role ?? "") });
-    }).catch(() => setAdmin(null));
+      const row = data.data.admin as { role?: string };
+      setRole(String(row.role ?? ""));
+    }).catch(() => setRole(""));
   }, []);
 
   function signOut() {
     void consoleApi.post("/auth/logout").finally(() => navigate("/sign-in"));
   }
 
-  const nav = (
-    <>
-      <div className={`flex items-center gap-3 px-3 pb-6 ${collapsed ? "md:justify-center md:px-2" : ""}`}>
-        <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-[#D1FF42] font-display text-lg font-bold text-[#012456]">P</span>
-        <div className={collapsed ? "md:hidden" : ""}>
-          <p className="font-display text-lg font-bold leading-none tracking-tight">Place2Park</p>
-          <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#D1FF42]">Admin Console</p>
-        </div>
-      </div>
-      <nav className="flex-1 space-y-5 overflow-y-auto px-2 pb-4">
-        {groups.map((group) => (
-          <div key={group.label}>
-            <p className={`px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45 ${collapsed ? "md:sr-only" : ""}`}>{group.label}</p>
-            <div className="space-y-0.5">
-              {group.items.map(([to, label, Icon]) => (
-                <NavLink
-                  key={to}
-                  to={to}
-                  end={to === "/"}
-                  title={label}
-                  className="p2p-nav-link"
-                  onClick={() => setOpen(false)}
-                >
-                  <Icon className="size-4 shrink-0" aria-hidden />
-                  <span className={collapsed ? "md:sr-only" : ""}>{label}</span>
-                </NavLink>
-              ))}
-            </div>
+  function navigation(compact: boolean) {
+    return (
+      <>
+        {!compact && (
+          <div className="px-3 pb-6">
+            <p className="font-display text-lg font-bold leading-none tracking-tight">Place2Park</p>
+            <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#D1FF42]">Admin Console</p>
           </div>
-        ))}
-      </nav>
-      <div className={`mx-2 rounded-2xl bg-white/10 p-3 ${collapsed ? "md:px-2" : ""}`}>
-        <p className={`truncate text-sm font-medium ${collapsed ? "md:hidden" : ""}`}>{admin?.email || "Administrator"}</p>
-        <p className={`mt-0.5 text-xs text-[#D1FF42] ${collapsed ? "md:hidden" : ""}`}>{admin ? roleLabel(admin.role) : "Signed in"}</p>
-        <button type="button" className="mt-2 flex items-center gap-2 text-sm text-white/80 hover:text-white" onClick={signOut}>
-          <LogOut className="size-4" aria-hidden />
-          <span className={collapsed ? "md:sr-only" : ""}>Sign out</span>
-        </button>
-      </div>
-    </>
-  );
+        )}
+        <nav className={`flex-1 space-y-5 px-2 pb-4 ${compact ? "overflow-hidden" : "overflow-y-auto"}`}>
+          {groups.map((group) => (
+            <div key={group.label}>
+              {!compact && <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45">{group.label}</p>}
+              <div className="space-y-0.5">
+                {group.items.map(([to, label, Icon]) => (
+                  <NavLink
+                    key={to}
+                    to={to}
+                    end={to === "/"}
+                    title={label}
+                    aria-label={label}
+                    className="p2p-nav-link"
+                    onClick={() => setOpen(false)}
+                  >
+                    <Icon className="size-4 shrink-0" aria-hidden />
+                    {!compact && <span>{label}</span>}
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+          ))}
+        </nav>
+        <div className={`mx-2 rounded-2xl bg-white/10 p-3 ${compact ? "px-2" : ""}`}>
+          {!compact && <p className="text-xs text-[#D1FF42]">{role ? roleLabel(role) : "Signed in"}</p>}
+          <button type="button" className="mt-2 flex items-center gap-2 text-sm text-white/80 hover:text-white" onClick={signOut}>
+            <LogOut className="size-4" aria-hidden />
+            {!compact && <span>Sign out</span>}
+          </button>
+        </div>
+      </>
+    );
+  }
 
   return (
     <div className="p2p-console min-h-screen">
       <div className="flex min-h-screen">
-        <aside className={`p2p-sidebar relative sticky top-0 hidden h-screen shrink-0 flex-col py-5 transition-[width] duration-200 md:flex ${collapsed ? "w-[4.75rem]" : "w-72"}`}>
+        <aside className={`p2p-sidebar relative sticky top-0 hidden h-screen shrink-0 flex-col overflow-hidden py-5 transition-[width] duration-200 md:flex ${collapsed ? "is-collapsed w-[4.75rem]" : "w-72"}`}>
           <button
             type="button"
             className="absolute -right-3 top-7 hidden size-6 place-items-center rounded-full border border-[#C7D1DD] bg-white text-[#0251B0] shadow-sm md:grid"
@@ -169,12 +170,12 @@ export function ConsoleShell() {
           >
             <ChevronLeft className={`size-3.5 transition ${collapsed ? "rotate-180" : ""}`} />
           </button>
-          {nav}
+          {navigation(collapsed)}
         </aside>
         {open && (
           <div className="fixed inset-0 z-40 md:hidden">
             <button type="button" className="absolute inset-0 bg-[#012456]/40" aria-label="Close menu" onClick={() => setOpen(false)} />
-            <aside className="p2p-sidebar relative flex h-full w-[min(100%,18rem)] flex-col py-5">{nav}</aside>
+            <aside className="p2p-sidebar relative flex h-full w-[min(100%,18rem)] flex-col overflow-y-auto py-5">{navigation(false)}</aside>
           </div>
         )}
         <div className="min-w-0 flex-1">
@@ -188,13 +189,19 @@ export function ConsoleShell() {
                 <p className="truncate font-display text-lg font-bold text-[#111827]">{title}</p>
               </div>
             </div>
-            <div className="relative">
-              <button type="button" className="rounded-xl border border-[#E2E8F0] bg-white px-3 py-2 text-left text-sm" onClick={() => setMenu((value) => !value)} aria-expanded={menu}>
-                <span className="block max-w-40 truncate font-medium text-[#111827]">{admin?.email || "Account"}</span>
-                <span className="block text-xs text-[#0251B0]">{admin ? roleLabel(admin.role) : ""}</span>
+            <div className="relative flex items-center gap-2">
+              {role === "SUPER_ADMIN" ? (
+                <button type="button" className="rounded-xl px-2 py-2 text-xs font-semibold text-[#0251B0]" onClick={() => setPasswordOpen(true)}>
+                  {roleLabel(role)}
+                </button>
+              ) : (
+                <span className="px-2 py-2 text-xs font-semibold text-[#0251B0]">{role ? roleLabel(role) : "Account"}</span>
+              )}
+              <button type="button" className="rounded-xl border border-[#E2E8F0] bg-white px-3 py-2 text-sm" onClick={() => setMenu((value) => !value)} aria-expanded={menu} aria-label="Account menu">
+                Account
               </button>
               {menu && (
-                <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-[#E2E8F0] bg-white p-2 shadow-pop">
+                <div className="absolute right-0 mt-12 w-44 rounded-2xl border border-[#E2E8F0] bg-white p-2 shadow-pop">
                   <button type="button" className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-[#F3F5F7]" onClick={signOut}>
                     <LogOut className="size-4" aria-hidden /> Sign out
                   </button>
@@ -217,6 +224,7 @@ export function ConsoleShell() {
           </main>
         </div>
       </div>
+      {role === "SUPER_ADMIN" && <SuperAdminPassword open={passwordOpen} onClose={() => setPasswordOpen(false)} />}
     </div>
   );
 }

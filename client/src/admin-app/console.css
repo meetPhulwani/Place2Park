@@ -25,6 +25,26 @@
   box-shadow: 8px 0 32px rgb(2 81 176 / 0.12);
 }
 
+.p2p-sidebar.is-collapsed,
+.p2p-sidebar.is-collapsed nav {
+  overflow: hidden;
+  scrollbar-width: none;
+}
+
+.p2p-sidebar.is-collapsed .p2p-nav-link {
+  justify-content: center;
+  gap: 0;
+  padding-right: 0.4rem;
+  padding-left: 0.4rem;
+}
+
+.p2p-sidebar.is-collapsed::-webkit-scrollbar,
+.p2p-sidebar.is-collapsed nav::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 .p2p-nav-link {
   display: flex;
   align-items: center;

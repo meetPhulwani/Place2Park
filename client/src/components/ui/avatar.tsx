@@ -1,3 +1,4 @@
+import { useState } from "react";
 import Image from "@/components/image";
 import { initials } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -13,15 +14,17 @@ export function Avatar({
   size?: number;
   className?: string;
 }) {
-  if (image) {
+  const [failed, setFailed] = useState(false);
+  if (image && !failed) {
     return (
       <Image
         src={image}
-        alt={name ?? "User"}
+        alt=""
         width={size}
         height={size}
-        className={cn("rounded-full object-cover", className)}
+        className={cn("shrink-0 rounded-full object-cover", className)}
         style={{ width: size, height: size }}
+        onError={() => setFailed(true)}
       />
     );
   }
@@ -29,7 +32,7 @@ export function Avatar({
     <span
       aria-hidden
       className={cn(
-        "inline-flex items-center justify-center rounded-full bg-brand-100 font-semibold text-brand-800",
+        "inline-flex shrink-0 items-center justify-center rounded-full bg-brand-100 font-semibold leading-none text-brand-800",
         className
       )}
       style={{ width: size, height: size, fontSize: size * 0.38 }}

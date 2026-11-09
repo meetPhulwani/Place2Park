@@ -19,7 +19,6 @@ import AdminSupportCasePage from "@/pages/admin/support-case";
 import AdminFaqsPage from "@/pages/admin/faqs";
 import { StaffPage } from "./staff";
 import { AuditsPage } from "./audits";
-import { SecurityPage } from "./security";
 import { SettingsPage } from "./settings";
 
 function RequireSession({ children }: { children: React.ReactNode }) {
@@ -53,7 +52,6 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <Route path="/reviews" element={<AdminReviewsPage />} />
           <Route path="/staff" element={<StaffPage />} />
           <Route path="/audits" element={<AuditsPage />} />
-          <Route path="/security" element={<SecurityPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>
       </Routes>

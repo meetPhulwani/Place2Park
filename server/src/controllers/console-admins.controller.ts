@@ -113,6 +113,7 @@ export async function updateSettings(req: Request, res: Response) {
 
 export async function updatePassword(req: Request, res: Response) {
   const current = req as ConsoleRequest;
+  if (current.adminAccount.role !== "SUPER_ADMIN") throw new ApiError(404, "Not found.");
   const bcrypt = await import("bcryptjs");
   const { passwordIssue } = await import("../utils/password.js");
   const next = String((req.body as { password?: string }).password ?? "");
