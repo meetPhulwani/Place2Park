@@ -45,23 +45,7 @@
 .p2p-nav-link[aria-current="page"] {
   background: white;
   color: var(--elite-ink);
-  box-shadow: 0 8px 18px rgb(1 36 86 / 0.18);
-}
-
-.p2p-nav-link[aria-current="page"] .p2p-nav-mark {
-  background: var(--volt);
-}
-
-.p2p-nav-mark {
-  width: 0.45rem;
-  height: 0.45rem;
-  border-radius: 999px;
-  background: rgb(209 255 66 / 0.0);
-  box-shadow: 0 0 0 0 rgb(209 255 66 / 0);
-}
-
-.p2p-nav-link[aria-current="page"] .p2p-nav-mark {
-  box-shadow: 0 0 0 4px rgb(209 255 66 / 0.35);
+  box-shadow: inset 3px 0 0 var(--volt), 0 8px 18px rgb(1 36 86 / 0.18);
 }
 
 .p2p-card {

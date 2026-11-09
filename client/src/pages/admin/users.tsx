@@ -27,6 +27,8 @@ interface AdminUser {
 export default function AdminUsersPage() {
   const { user: admin } = useAuth();
   const [users, setUsers] = React.useState<AdminUser[] | null>(null);
+  const [query, setQuery] = React.useState("");
+  const [selected, setSelected] = React.useState<AdminUser | null>(null);
 
   const load = React.useCallback(() => {
     consoleApi.get("/users").then(({ data }) => setUsers(data.data.users)).catch(() => setUsers([]));
@@ -53,6 +55,12 @@ export default function AdminUsersPage() {
         <h1 className="mt-1 font-display text-3xl font-bold tracking-tight text-[#111827]">Users</h1>
         <p className="mt-1 text-sm text-slate-500">{users.length} accounts</p>
       </div>
+      <input
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        placeholder="Search name or email"
+        className="h-11 w-full max-w-md rounded-xl border border-[#C7D1DD] bg-white px-3 text-sm"
+      />
       <div className="glass overflow-x-auto rounded-2xl">
         <table className="w-full min-w-[720px] text-left text-sm">
           <thead>
@@ -67,8 +75,8 @@ export default function AdminUsersPage() {
             </tr>
           </thead>
           <tbody>
-            {users.map((u) => (
-              <tr key={u.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60">
+            {users.filter((user) => `${user.name ?? ""} ${user.email}`.toLowerCase().includes(query.trim().toLowerCase())).map((u) => (
+              <tr key={u.id} className="cursor-pointer border-b border-slate-100 last:border-0 hover:bg-slate-50/60" onClick={() => setSelected(u)}>
                 <td className="px-5 py-3">
                   <div className="flex items-center gap-3">
                     <Avatar name={u.name} image={u.image} size={32} />
@@ -88,7 +96,7 @@ export default function AdminUsersPage() {
                 <td className="px-5 py-3">
                   <Badge variant={u.status === "ACTIVE" ? "success" : "danger"}>{u.status}</Badge>
                 </td>
-                <td className="px-5 py-3">
+                <td className="px-5 py-3" onClick={(event) => event.stopPropagation()}>
                   <UserActions
                     userId={u.id}
                     status={u.status}
@@ -105,6 +113,38 @@ export default function AdminUsersPage() {
           </tbody>
         </table>
       </div>
+      {selected && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-[#012456]/30" onClick={() => setSelected(null)}>
+          <aside className="h-full w-full max-w-md overflow-y-auto bg-white p-6 shadow-pop" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="font-display text-2xl font-bold">{selected.name ?? "User"}</h2>
+                <p className="text-sm text-[#64748b]">{selected.email}</p>
+              </div>
+              <button type="button" className="text-sm font-semibold text-[#0251B0]" onClick={() => setSelected(null)}>Close</button>
+            </div>
+            <dl className="mt-6 space-y-3 text-sm">
+              <div className="flex justify-between"><dt>Role</dt><dd>{selected.role}</dd></div>
+              <div className="flex justify-between"><dt>Status</dt><dd>{selected.status}</dd></div>
+              <div className="flex justify-between"><dt>Joined</dt><dd>{formatDate(selected.createdAt)}</dd></div>
+              <div className="flex justify-between"><dt>Bookings</dt><dd>{selected.bookings}</dd></div>
+              <div className="flex justify-between"><dt>Listings</dt><dd>{selected.listings}</dd></div>
+            </dl>
+            <div className="mt-6" onClick={(event) => event.stopPropagation()}>
+              <UserActions
+                userId={selected.id}
+                status={selected.status}
+                role={selected.role}
+                hostVerified={selected.hostVerified}
+                payoutVerified={!!selected.payoutVerified}
+                payoutSubmitted={!!selected.payoutSubmitted}
+                isSelf={selected.id === admin?.id}
+                onChanged={load}
+              />
+            </div>
+          </aside>
+        </div>
+      )}
     </div>
   );
 }

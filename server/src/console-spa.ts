@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import express, { type Express, type Request, type Response } from "express";
 import { isProd } from "./config/env.js";
 import { adminConsolePath } from "./utils/admin-secret.js";
+import { consoleAssetType } from "./utils/console-asset.js";
 
 const PLACEHOLDER = "/__console_base__";
 
@@ -13,7 +14,7 @@ function applyConsoleDocumentHeaders(res: Response) {
   const script = isProd ? "'self'" : "'self' 'unsafe-inline'";
   res.setHeader(
     "Content-Security-Policy",
-    `default-src 'self'; script-src ${script}; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws:; base-uri 'none'; frame-ancestors 'none'`
+    `default-src 'self'; script-src ${script}; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data:; connect-src 'self' ws:; base-uri 'none'; frame-ancestors 'none'`
   );
 }
 
@@ -50,10 +51,10 @@ function serveBuilt(req: Request, res: Response, consolePath: string) {
       return;
     }
     const body = fs.readFileSync(target);
-    const type = target.endsWith(".html") ? "text/html" : target.endsWith(".js") ? "text/javascript" : "application/octet-stream";
     const text = body.toString("utf8").split(PLACEHOLDER).join(consolePath);
     if (target.endsWith(".html")) applyConsoleDocumentHeaders(res);
-    res.type(type).send(target.endsWith(".html") || target.endsWith(".js") || target.endsWith(".css") ? text : body);
+    res.setHeader("Content-Type", consoleAssetType(target));
+    res.send(target.endsWith(".html") || target.endsWith(".js") || target.endsWith(".css") ? text : body);
   }
 }
 

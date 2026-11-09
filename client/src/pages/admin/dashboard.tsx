@@ -1,11 +1,11 @@
 import * as React from "react";
 import Link from "@/components/link";
+import { Building2, CalendarClock, Users, Wallet } from "lucide-react";
 import { consoleApi } from "@/services/console-api";
 import { Skeleton } from "@/components/ui/skeleton";
-import { SpaceStatusBadge } from "@/components/ui/badge";
-import { ListingModeration } from "@/components/listing-moderation";
 import { DashboardLoadError } from "@/components/dashboard/load-error";
-import { formatDate, formatINR } from "@/lib/utils";
+import { formatDateTime, formatINR } from "@/lib/utils";
+import { TrendChart, type ChartPoint } from "@/admin-app/trend-chart";
 
 interface Metrics {
   users: number;
@@ -16,24 +16,24 @@ interface Metrics {
   revenue: number;
   openReports: number;
   pendingPayouts?: number;
-  pendingReview: {
-    id: string;
-    title: string;
-    area: string;
-    status: string;
-    createdAt: string;
-    hostId: { name?: string } | null;
-  }[];
 }
 
-interface PaymentRow {
+interface BookingRow {
   id: string;
+  createdAt?: string;
+  start: string;
+  status: string;
+  totalAmount: number;
+  serviceFee?: number;
+  platformFee?: number;
+  code?: string;
+  userId?: { name?: string } | null;
+}
+
+interface PayoutRow {
   amount: number;
   status: string;
-  createdAt: string;
-  bookingCode: string;
-  driverName: string;
-  spaceTitle: string;
+  requestedAt?: string;
 }
 
 interface AuditRow {
@@ -41,202 +41,205 @@ interface AuditRow {
   action: string;
   outcome: string;
   createdAt: string;
+  target?: string;
 }
 
-function Bars({ rows }: { rows: { label: string; display: string; value: number; tone: "blue" | "volt" }[] }) {
-  const max = Math.max(...rows.map((row) => row.value), 1);
-  return (
-    <ul className="space-y-3">
-      {rows.map((row) => (
-        <li key={row.label}>
-          <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
-            <span className="font-medium text-[#111827]">{row.label}</span>
-            <span className="tabular-nums text-[#0251B0]">{row.display}</span>
-          </div>
-          <div className="p2p-bar" aria-hidden>
-            <span style={{ width: `${Math.max(4, (row.value / max) * 100)}%`, background: row.tone === "volt" ? "#D1FF42" : "#0251B0" }} />
-          </div>
-        </li>
-      ))}
-    </ul>
-  );
+const RANGES = [
+  { id: 7, label: "7 days" },
+  { id: 30, label: "30 days" },
+  { id: 90, label: "90 days" },
+] as const;
+
+const REVENUE_STATUSES = new Set(["CONFIRMED", "ACTIVE", "COMPLETED"]);
+const OPEN_TICKETS = new Set(["OPEN", "UNDER_REVIEW", "AWAITING_USER"]);
+
+function dayKey(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function within(value: string | undefined, days: number) {
+  if (!value) return false;
+  const time = new Date(value).getTime();
+  if (Number.isNaN(time)) return false;
+  return time >= Date.now() - days * 86_400_000;
 }
 
 export default function AdminDashboardPage() {
   const [data, setData] = React.useState<Metrics | null>(null);
   const [failed, setFailed] = React.useState(false);
-  const [payments, setPayments] = React.useState<PaymentRow[] | null>(null);
-  const [paymentsNote, setPaymentsNote] = React.useState("");
+  const [bookings, setBookings] = React.useState<BookingRow[] | null>(null);
+  const [payouts, setPayouts] = React.useState<PayoutRow[] | null>(null);
   const [audits, setAudits] = React.useState<AuditRow[] | null>(null);
-  const [health, setHealth] = React.useState<"checking" | "ok" | "down">("checking");
+  const [openTickets, setOpenTickets] = React.useState<number | null>(null);
+  const [range, setRange] = React.useState<(typeof RANGES)[number]["id"]>(30);
 
   const load = React.useCallback(() => {
     setFailed(false);
     setData(null);
     consoleApi.get("/metrics").then(({ data: body }) => setData(body.data)).catch(() => setFailed(true));
-    consoleApi.get("/payments").then(({ data: body }) => {
-      setPayments((body.data.payments as PaymentRow[]).slice(0, 6));
-      setPaymentsNote("");
-    }).catch((err: { response?: { status?: number } }) => {
-      setPayments([]);
-      setPaymentsNote(err.response?.status === 403 ? "Payments are not available for this role." : "Payments could not be loaded.");
-    });
+    consoleApi.get("/bookings").then(({ data: body }) => setBookings(body.data.bookings as BookingRow[])).catch(() => setBookings([]));
+    consoleApi.get("/payouts").then(({ data: body }) => setPayouts(body.data.payouts as PayoutRow[])).catch(() => setPayouts(null));
     consoleApi.get("/audits").then(({ data: body }) => {
-      const rows = (body.data.audits as Array<{ _id: string; action: string; outcome: string; createdAt: string }>).slice(0, 6);
-      setAudits(rows.map((row) => ({ id: row._id, action: row.action, outcome: row.outcome, createdAt: row.createdAt })));
+      const rows = (body.data.audits as Array<{ _id: string; action: string; outcome: string; createdAt: string; target?: string }>).slice(0, 8);
+      setAudits(rows.map((row) => ({ id: row._id, action: row.action, outcome: row.outcome, createdAt: row.createdAt, target: row.target })));
     }).catch(() => setAudits([]));
-    fetch("/api/health")
-      .then((response) => setHealth(response.ok ? "ok" : "down"))
-      .catch(() => setHealth("down"));
+    consoleApi.get("/support").then(({ data: body }) => {
+      const rows = body.data.cases as Array<{ status: string }>;
+      setOpenTickets(rows.filter((row) => OPEN_TICKETS.has(row.status)).length);
+    }).catch(() => setOpenTickets(null));
   }, []);
 
   React.useEffect(() => {
-    document.title = "Overview · Place2Park Console";
+    document.title = "Dashboard · Place2Park Console";
     load();
   }, [load]);
 
   if (!data && failed) return <DashboardLoadError onRetry={load} />;
-  if (!data) {
+  if (!data || !bookings) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-10 w-72" />
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, index) => <Skeleton key={index} className="h-28 rounded-2xl" />)}
-        </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        {Array.from({ length: 5 }).map((_, index) => <Skeleton key={index} className="h-28 rounded-2xl" />)}
       </div>
     );
   }
 
-  const stats = [
-    ["Total users", String(data.users)],
-    ["Active listings", String(data.activeListings)],
-    ["Bookings this month", String(data.monthBookings)],
-    ["Platform revenue", formatINR(data.revenue)],
-    ["Pending payouts", String(data.pendingPayouts ?? 0)],
-    ["Open reports", String(data.openReports)],
+  const recent = bookings.filter((row) => within(row.createdAt || row.start, range));
+  const days = new Map<string, { bookings: number; gmv: number; revenue: number; payouts: number }>();
+  for (const row of recent) {
+    const key = dayKey(row.createdAt || row.start);
+    if (!key) continue;
+    const bucket = days.get(key) ?? { bookings: 0, gmv: 0, revenue: 0, payouts: 0 };
+    bucket.bookings += 1;
+    if (REVENUE_STATUSES.has(row.status)) {
+      bucket.gmv += row.totalAmount || 0;
+      bucket.revenue += (row.serviceFee || 0) + (row.platformFee || 0);
+    }
+    days.set(key, bucket);
+  }
+  const payoutDays = new Map(days);
+  for (const row of payouts ?? []) {
+    if (!within(row.requestedAt, range)) continue;
+    const key = dayKey(row.requestedAt || "");
+    if (!key) continue;
+    const bucket = payoutDays.get(key) ?? { bookings: 0, gmv: 0, revenue: 0, payouts: 0 };
+    bucket.payouts += row.amount || 0;
+    payoutDays.set(key, bucket);
+  }
+  const points: ChartPoint[] = [...days.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([label, bucket]) => ({ label, values: [bucket.bookings] }));
+  const revenuePoints: ChartPoint[] = [...payoutDays.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([label, bucket]) => ({ label, values: [bucket.gmv, bucket.revenue, bucket.payouts] }));
+
+  const cards = [
+    { label: "Total users", value: String(data.users), icon: Users, href: "/users" },
+    { label: "Active listings", value: String(data.activeListings), icon: Building2, href: "/listings" },
+    { label: "Bookings this month", value: String(data.monthBookings), icon: CalendarClock, href: "/bookings" },
+    { label: "Gross booking value", value: formatINR(data.gmv), icon: Wallet, href: "/payments" },
+    { label: "Pending payouts", value: String(data.pendingPayouts ?? 0), icon: Wallet, href: "/payouts" },
+  ];
+
+  const operations = [
+    { label: "Listings awaiting approval", value: data.pendingListings, href: "/listings?status=PENDING_REVIEW" },
+    { label: "Pending payouts", value: data.pendingPayouts ?? 0, href: "/payouts" },
+    { label: "Open support tickets", value: openTickets, href: "/support" },
+    { label: "Open reports", value: data.openReports, href: "/reports" },
+    { label: "Bookings in view", value: recent.length, href: "/bookings" },
   ];
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0251B0]">Overview</p>
-          <h1 className="mt-1 text-3xl font-bold">Platform overview</h1>
-          <p className="mt-1 text-sm text-[#64748b]">Figures come from the live console metrics, payments, and audit APIs.</p>
-        </div>
-        <span className="rounded-full bg-[#D1FF42] px-3 py-1 text-xs font-bold text-[#111827]">
-          {health === "checking" ? "Checking API" : health === "ok" ? "API responding" : "API unavailable"}
-        </span>
-      </header>
-
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {stats.map(([label, value], index) => (
-          <article key={label} className="p2p-card p-5">
-            <p className="text-sm text-[#64748b]">{label}</p>
-            <p className="mt-2 font-display text-3xl font-bold tracking-tight text-[#0251B0]">{value}</p>
-            {index === 1 && <p className="mt-2 text-xs text-[#64748b]">{data.pendingListings} awaiting review</p>}
-          </article>
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        {cards.map((card) => (
+          <Link key={card.label} href={card.href} className="p2p-card block p-5">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm text-[#64748b]">{card.label}</p>
+              <card.icon className="size-4 text-[#0251B0]" aria-hidden />
+            </div>
+            <p className="mt-3 font-display text-3xl font-bold tracking-tight text-[#0251B0]">{card.value}</p>
+          </Link>
         ))}
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-2">
+      <section className="grid gap-4 xl:grid-cols-2">
         <article className="p2p-card p-5">
-          <h2 className="font-display text-lg font-bold">Revenue</h2>
-          <p className="mb-4 text-xs text-[#64748b]">Confirmed, active, and completed bookings.</p>
-          <Bars
-            rows={[
-              { label: "Gross booking value", display: formatINR(data.gmv), value: data.gmv, tone: "blue" },
-              { label: "Platform revenue", display: formatINR(data.revenue), value: data.revenue, tone: "volt" },
-            ]}
-          />
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-display text-lg font-bold">Booking trends</h2>
+              <p className="text-xs text-[#64748b]">Daily counts from the latest bookings returned by the console.</p>
+            </div>
+            <div className="flex gap-1">
+              {RANGES.map((item) => (
+                <button key={item.id} type="button" className={`rounded-full px-3 py-1 text-xs font-semibold ${range === item.id ? "bg-[#0251B0] text-white" : "bg-[#F3F5F7] text-[#111827]"}`} onClick={() => setRange(item.id)}>
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <TrendChart points={points} series={[{ name: "Bookings", color: "#0251B0" }]} />
         </article>
         <article className="p2p-card p-5">
-          <h2 className="font-display text-lg font-bold">Activity</h2>
-          <p className="mb-4 text-xs text-[#64748b]">Current counts. No estimated history is shown.</p>
-          <Bars
-            rows={[
-              { label: "Users", display: String(data.users), value: data.users, tone: "blue" },
-              { label: "Active listings", display: String(data.activeListings), value: data.activeListings, tone: "volt" },
-              { label: "Bookings this month", display: String(data.monthBookings), value: data.monthBookings, tone: "blue" },
-              { label: "Pending payouts", display: String(data.pendingPayouts ?? 0), value: data.pendingPayouts ?? 0, tone: "volt" },
+          <div className="mb-1">
+            <h2 className="font-display text-lg font-bold">Revenue overview</h2>
+            <p className="text-xs text-[#64748b]">Gross booking value, platform fees, and recorded host payouts. Totals on the cards above are platform-wide.</p>
+          </div>
+          <p className="mb-4 text-sm text-[#0251B0]">Platform revenue {formatINR(data.revenue)} · Gross booking value {formatINR(data.gmv)}</p>
+          <TrendChart
+            points={payouts === null ? revenuePoints.map((point) => ({ ...point, values: point.values.slice(0, 2) })) : revenuePoints}
+            series={[
+              { name: "Gross booking value", color: "#0251B0", format: formatINR },
+              { name: "Platform revenue", color: "#B3E51A", format: formatINR },
+              ...(payouts === null ? [] : [{ name: "Host payouts", color: "#013270", format: formatINR }]),
             ]}
           />
         </article>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-3">
-        <article className="p2p-card p-5 xl:col-span-2">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-display text-lg font-bold">Recent payments</h2>
-            <Link href="/payments" className="text-sm font-semibold text-[#0251B0]">View all</Link>
-          </div>
-          {payments === null ? <Skeleton className="h-28" /> : payments.length === 0 ? (
-            <p className="text-sm text-[#64748b]">{paymentsNote || "No payments recorded."}</p>
-          ) : (
-            <ul className="divide-y divide-[#E2E8F0]">
-              {payments.map((row) => (
-                <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
-                  <div>
-                    <p className="font-medium">{row.spaceTitle || row.bookingCode || "Payment"}</p>
-                    <p className="text-xs text-[#64748b]">{row.driverName || "Driver"} · {formatDate(row.createdAt)}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-[#0251B0]">{formatINR(row.amount)}</p>
-                    <p className="text-xs uppercase tracking-wide text-[#64748b]">{row.status}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </article>
+      <section className="grid gap-4 lg:grid-cols-[0.9fr_1.4fr]">
         <article className="p2p-card p-5">
-          <h2 className="font-display text-lg font-bold">System</h2>
-          <ul className="mt-3 space-y-3 text-sm">
-            <li className="flex justify-between"><span>API health</span><span className="font-semibold">{health}</span></li>
-            <li className="flex justify-between"><span>Open reports</span><span className="font-semibold">{data.openReports}</span></li>
-            <li className="flex justify-between"><span>Listings in review</span><span className="font-semibold">{data.pendingListings}</span></li>
-            <li className="flex justify-between"><span>Payouts waiting</span><span className="font-semibold">{data.pendingPayouts ?? 0}</span></li>
+          <h2 className="font-display text-lg font-bold">Operations</h2>
+          <ul className="mt-3 divide-y divide-[#E2E8F0]">
+            {operations.map((item) => (
+              <li key={item.label}>
+                <Link href={item.href} className="flex items-center justify-between gap-3 py-3 text-sm hover:text-[#0251B0]">
+                  <span>{item.label}</span>
+                  <span className="font-semibold text-[#0251B0]">{item.value === null ? "—" : item.value}</span>
+                </Link>
+              </li>
+            ))}
           </ul>
         </article>
-      </section>
-
-      <section className="grid gap-4 lg:grid-cols-2">
-        <article className="p2p-card p-5">
+        <article className="p2p-card overflow-x-auto p-5">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-display text-lg font-bold">Pending listing approvals</h2>
-            <Link href="/listings?status=PENDING_REVIEW" className="text-sm font-semibold text-[#0251B0]">Review</Link>
-          </div>
-          {data.pendingReview.length === 0 ? <p className="text-sm text-[#64748b]">No listings are waiting.</p> : (
-            <ul className="divide-y divide-[#E2E8F0]">
-              {data.pendingReview.map((listing) => (
-                <li key={listing.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                  <div>
-                    <p className="font-medium">{listing.title}</p>
-                    <p className="text-xs text-[#64748b]">{listing.hostId?.name ?? "Host"} · {listing.area} · {formatDate(listing.createdAt)}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <SpaceStatusBadge status={listing.status} />
-                    <ListingModeration spaceId={listing.id} status={listing.status} onChanged={load} />
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </article>
-        <article className="p2p-card p-5">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-display text-lg font-bold">Recent admin activity</h2>
+            <h2 className="font-display text-lg font-bold">Recent activity</h2>
             <Link href="/audits" className="text-sm font-semibold text-[#0251B0]">Audit log</Link>
           </div>
           {audits === null ? <Skeleton className="h-28" /> : audits.length === 0 ? <p className="text-sm text-[#64748b]">No audit events yet.</p> : (
-            <ul className="space-y-2">
-              {audits.map((row) => (
-                <li key={row.id} className="rounded-xl bg-[#F3F5F7] px-3 py-2 text-sm">
-                  <span className="font-medium text-[#0251B0]">{row.action}</span>
-                  <span className="text-[#64748b]"> · {row.outcome} · {formatDate(row.createdAt)}</span>
-                </li>
-              ))}
-            </ul>
+            <table className="w-full min-w-[520px] text-left text-sm">
+              <thead>
+                <tr className="text-xs uppercase tracking-wide text-[#64748b]">
+                  <th className="py-2 font-medium">Activity</th>
+                  <th className="py-2 font-medium">Target</th>
+                  <th className="py-2 font-medium">When</th>
+                  <th className="py-2 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {audits.map((row) => (
+                  <tr key={row.id} className="border-t border-[#E2E8F0]">
+                    <td className="py-3 font-medium">{row.action}</td>
+                    <td className="py-3 text-[#64748b]">{row.target || "—"}</td>
+                    <td className="py-3 text-[#64748b]">{formatDateTime(row.createdAt)}</td>
+                    <td className="py-3">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${row.outcome === "SUCCESS" ? "bg-[#D1FF42] text-[#111827]" : "bg-[#FEE2E2] text-[#991B1B]"}`}>{row.outcome}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
         </article>
       </section>
