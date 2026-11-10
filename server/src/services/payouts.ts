@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 import { env } from "../config/env.js";
 import { ApiError } from "../middleware/error.js";
@@ -16,8 +17,11 @@ const ACCOUNT_RE = /^\d{9,18}$/;
 
 export type PayoutProfileInput = {
   accountHolder: string;
+  bankName?: string;
   ifsc: string;
   accountNumber: string;
+  confirmAccountNumber?: string;
+  currentPassword?: string;
 };
 
 export type PublicPayout = {
@@ -39,6 +43,7 @@ function toPublicPayout(payout: InstanceType<typeof HostPayout>): PublicPayout {
 
 export function publicPayoutProfile(profile?: {
   accountHolder?: string | null;
+  bankName?: string | null;
   ifsc?: string | null;
   accountLast4?: string | null;
   submittedAt?: Date | null;
@@ -46,12 +51,22 @@ export function publicPayoutProfile(profile?: {
   verifiedAt?: Date | null;
 } | null) {
   if (!profile?.accountLast4) {
-    return { submitted: false, verified: false, accountHolder: "", ifsc: "", accountLast4: "" };
+    return {
+      submitted: false,
+      configured: false,
+      verified: false,
+      accountHolder: "",
+      bankName: "",
+      ifsc: "",
+      accountLast4: "",
+    };
   }
   return {
     submitted: true,
+    configured: true,
     verified: !!profile.verified,
     accountHolder: profile.accountHolder ?? "",
+    bankName: profile.bankName ?? "",
     ifsc: profile.ifsc ?? "",
     accountLast4: profile.accountLast4,
     submittedAt: profile.submittedAt ?? null,
@@ -111,13 +126,17 @@ export function accountFingerprint(accountNumber: string, ifsc: string) {
 }
 
 export function normalizePayoutProfile(input: PayoutProfileInput) {
-  const accountHolder = String(input.accountHolder ?? "").trim();
+  const accountHolder = String(input.accountHolder ?? "").trim().replace(/\s+/g, " ");
+  const bankName = String(input.bankName ?? "").trim().replace(/\s+/g, " ");
   const ifsc = String(input.ifsc ?? "").trim().toUpperCase();
   const accountNumber = String(input.accountNumber ?? "").replace(/\s+/g, "");
+  const confirmAccountNumber = String(input.confirmAccountNumber ?? "").replace(/\s+/g, "");
   if (accountHolder.length < 2 || accountHolder.length > 80) throw new ApiError(400, "Enter the account holder name.");
+  if (bankName.length < 2 || bankName.length > 80 || /[\r\n]/.test(bankName)) throw new ApiError(400, "Enter the bank name.");
   if (!IFSC_RE.test(ifsc)) throw new ApiError(400, "Enter a valid IFSC code.");
   if (!ACCOUNT_RE.test(accountNumber)) throw new ApiError(400, "Enter a valid bank account number.");
-  return { accountHolder, ifsc, accountNumber, accountLast4: accountNumber.slice(-4) };
+  if (confirmAccountNumber !== accountNumber) throw new ApiError(400, "Account numbers do not match.");
+  return { accountHolder, bankName, ifsc, accountNumber, accountLast4: accountNumber.slice(-4) };
 }
 
 export function hostEarningFromQuote(pricePerHourPaise: number, durationMins: number) {
@@ -138,15 +157,27 @@ function appendEvent(
   });
 }
 
+export async function getHostPayoutDetails(hostId: string) {
+  const user = await User.findById(hostId).select("payoutProfile");
+  return publicPayoutProfile(user?.payoutProfile);
+}
+
 export async function saveHostPayoutProfile(hostId: string, input: PayoutProfileInput) {
   const normalized = normalizePayoutProfile(input);
-  const user = await User.findById(hostId).select("+payoutProfile.accountNumberEnc");
+  const user = await User.findById(hostId).select("+payoutProfile.accountNumberEnc +passwordHash");
   if (!user) throw new ApiError(404, "Account not found.");
+  const existing = Boolean(user.payoutProfile?.accountLast4);
+  if (existing) {
+    if (!user.passwordHash) throw new ApiError(400, "Set a password before changing payout details.");
+    const passwordOk = await bcrypt.compare(String(input.currentPassword ?? ""), user.passwordHash);
+    if (!passwordOk) throw new ApiError(401, "Enter your current password to change payout details.");
+  }
   const fingerprint = accountFingerprint(normalized.accountNumber, normalized.ifsc);
   const unchanged =
     user.payoutProfile?.accountFingerprint === fingerprint && user.payoutProfile.verified;
   user.payoutProfile = {
     accountHolder: normalized.accountHolder,
+    bankName: normalized.bankName,
     ifsc: normalized.ifsc,
     accountLast4: normalized.accountLast4,
     accountFingerprint: fingerprint,
@@ -157,7 +188,27 @@ export async function saveHostPayoutProfile(hostId: string, input: PayoutProfile
     verifiedById: unchanged ? user.payoutProfile?.verifiedById : undefined,
   };
   await user.save();
+  await AdminAudit.create({
+    action: "PAYOUT_DETAILS_SAVED",
+    actorId: hostId,
+    hostId,
+    accountLast4: normalized.accountLast4,
+  });
   return publicPayoutProfile(user.payoutProfile);
+}
+
+export async function createHostPayoutDetails(hostId: string, input: PayoutProfileInput) {
+  const existing = await User.findById(hostId).select("payoutProfile.accountLast4");
+  if (existing?.payoutProfile?.accountLast4) {
+    throw new ApiError(409, "Payout details already exist. Update them instead.");
+  }
+  return saveHostPayoutProfile(hostId, input);
+}
+
+export async function updateHostPayoutDetails(hostId: string, input: PayoutProfileInput) {
+  const existing = await User.findById(hostId).select("payoutProfile.accountLast4");
+  if (!existing?.payoutProfile?.accountLast4) throw new ApiError(404, "Payout details are not configured.");
+  return saveHostPayoutProfile(hostId, input);
 }
 
 export async function verifyHostPayoutProfile(adminId: string, hostId: string, verified: boolean) {
@@ -168,6 +219,7 @@ export async function verifyHostPayoutProfile(adminId: string, hostId: string, v
   user.payoutProfile.verifiedAt = verified ? new Date() : undefined;
   user.payoutProfile.verifiedById = verified ? new mongoose.Types.ObjectId(adminId) : undefined;
   await user.save();
+  if (verified) await syncEligibleHostPayout(hostId);
   return publicPayoutProfile(user.payoutProfile);
 }
 
@@ -235,8 +287,8 @@ export async function summarizeHostEarnings(hostId: string) {
     )[0]?.earning ?? 0,
     eligibleAmount,
     eligibleCount: eligible.length,
-    pendingTransferAmount: (byStatus.REQUESTED?.amount ?? 0) + (byStatus.APPROVED?.amount ?? 0),
-    pendingTransferCount: (byStatus.REQUESTED?.count ?? 0) + (byStatus.APPROVED?.count ?? 0),
+    pendingTransferAmount: OPEN_PAYOUT_STATUSES.reduce((sum, status) => sum + (byStatus[status]?.amount ?? 0), 0),
+    pendingTransferCount: OPEN_PAYOUT_STATUSES.reduce((sum, status) => sum + (byStatus[status]?.count ?? 0), 0),
     paidAmount: byStatus.PAID?.amount ?? 0,
     paidCount: byStatus.PAID?.count ?? 0,
     monthly: monthly.map((m) => ({ year: m._id.y, month: m._id.m, earning: m.earning })),
@@ -258,13 +310,75 @@ async function requireVerifiedProfile(hostId: string) {
   return { user, profile };
 }
 
-export async function requestHostPayout(hostId: string) {
+async function notifyPayoutRequested(payout: InstanceType<typeof HostPayout>) {
+  await notifyAdmin({
+    subject: "Host payout requested",
+    text: `A host requested a manual payout of ₹${(payout.amount / 100).toFixed(2)} (${String(payout._id)}). Review Admin → Payouts.`,
+  });
+}
+
+async function attachEligibleBookings(
+  payout: InstanceType<typeof HostPayout>,
+  hostId: string,
+  eligible: Awaited<ReturnType<typeof listEligibleBookings>>,
+  profile: { accountHolder?: string | null; bankName?: string | null; ifsc?: string | null; accountLast4?: string | null }
+) {
+  let added = 0;
+  for (const booking of eligible) {
+    const claimed = await Booking.findOneAndUpdate(
+      {
+        _id: booking._id,
+        hostId,
+        status: "COMPLETED",
+        refunded: { $ne: true },
+        $or: [{ payoutId: { $exists: false } }, { payoutId: null }],
+      },
+      { $set: { payoutId: payout._id } },
+      { new: true }
+    );
+    if (claimed) added += 1;
+  }
+  const claimed = await Booking.find({ payoutId: payout._id }).select("hostEarning end").sort({ end: 1 });
+  if (!claimed.length) return { payout, added: 0 };
+  payout.bookingIds = claimed.map((booking) => booking._id as mongoose.Types.ObjectId);
+  payout.amount = claimed.reduce((sum, booking) => sum + (booking.hostEarning ?? 0), 0);
+  payout.periodStart = claimed[0]?.end;
+  payout.periodEnd = claimed[claimed.length - 1]?.end;
+  payout.accountHolder = profile.accountHolder || payout.accountHolder;
+  payout.bankName = profile.bankName || payout.bankName;
+  payout.accountIfsc = profile.ifsc || payout.accountIfsc;
+  payout.accountLast4 = profile.accountLast4 || payout.accountLast4;
+  payout.idempotencyKey = `manual:${hostId}:${claimed.map((booking) => String(booking._id)).sort().join(",")}`;
+  if (added) appendEvent(payout, payout.status, undefined, "bookings_attached");
+  await payout.save();
+  return { payout, added };
+}
+
+/** Creates or updates one open manual payout for completed, paid bookings. Does not send money. */
+export async function syncEligibleHostPayout(hostId: string) {
+  const user = await User.findById(hostId).select("payoutProfile.accountLast4 payoutProfile.verified");
+  if (!user?.payoutProfile?.accountLast4 || !user.payoutProfile.verified) return null;
+  try {
+    return await requestHostPayout(hostId, { notifyAdmin: false });
+  } catch (err) {
+    if (err instanceof ApiError && (err.status === 400 || err.status === 409)) return null;
+    throw err;
+  }
+}
+
+export async function requestHostPayout(hostId: string, options?: { notifyAdmin?: boolean }) {
   const { profile } = await requireVerifiedProfile(hostId);
   const eligible = await listEligibleBookings(hostId);
   if (!eligible.length) {
     const open = await HostPayout.findOne({ hostId, status: { $in: [...OPEN_PAYOUT_STATUSES] } }).sort({ createdAt: -1 });
     if (open) return toPublicPayout(open);
     throw new ApiError(409, "There is no eligible balance to pay out yet.");
+  }
+  const openRequested = await HostPayout.findOne({ hostId, status: "REQUESTED" });
+  if (openRequested) {
+    const attached = await attachEligibleBookings(openRequested, hostId, eligible, profile);
+    if (attached.added && options?.notifyAdmin !== false) await notifyPayoutRequested(attached.payout);
+    return toPublicPayout(attached.payout);
   }
 
   const bookingIds = eligible.map((b) => b._id);
@@ -284,6 +398,7 @@ export async function requestHostPayout(hostId: string) {
       method: PAYOUT_METHOD,
       idempotencyKey,
       accountHolder: profile.accountHolder,
+      bankName: profile.bankName,
       accountIfsc: profile.ifsc,
       accountLast4: profile.accountLast4,
       periodStart,
@@ -334,10 +449,7 @@ export async function requestHostPayout(hostId: string) {
   payout.periodStart = eligible.find((b) => claimedIds.some((id) => String(id) === String(b._id)))?.end;
   payout.periodEnd = eligible.filter((b) => claimedIds.some((id) => String(id) === String(b._id))).at(-1)?.end;
   await payout.save();
-  await notifyAdmin({
-    subject: "Host payout requested",
-    text: `A host requested a manual payout of ₹${(payout.amount / 100).toFixed(2)} (${String(payout._id)}). Review Admin → Payouts.`,
-  });
+  if (options?.notifyAdmin !== false) await notifyPayoutRequested(payout);
   return toPublicPayout(payout);
 }
 
@@ -389,16 +501,55 @@ export async function rejectHostPayout(adminId: string, payoutId: string, note =
   return toPublicPayout(payout);
 }
 
-export async function markHostPayoutPaid(adminId: string, payoutId: string, reference: string) {
+function resolveTransferDate(value?: string) {
+  if (!value) return new Date();
+  const trimmed = value.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) throw new ApiError(400, "Enter a valid transfer date.");
+  const [year, month, day] = trimmed.split("-").map(Number);
+  const date = new Date(Date.UTC(year!, month! - 1, day!, 12, 0, 0));
+  if (Number.isNaN(date.getTime()) || date.getTime() > Date.now() + 24 * 3600 * 1000) {
+    throw new ApiError(400, "Transfer date cannot be in the future.");
+  }
+  return date;
+}
+
+async function assertTransferAllowed(hostId: string) {
+  const user = await User.findById(hostId).select("payoutProfile.accountLast4 payoutProfile.verified");
+  if (!user?.payoutProfile?.accountLast4) throw new ApiError(409, "This host has no payout details.");
+  if (!user.payoutProfile.verified) throw new ApiError(409, "Verify the host payout details before transferring.");
+}
+
+export async function markHostPayoutProcessing(adminId: string, payoutId: string) {
+  const existing = await loadPayout(payoutId);
+  if (existing.status === "PROCESSING") return toPublicPayout(existing);
+  if (existing.status === "PAID") throw new ApiError(409, "This payout is already paid.");
+  await assertTransferAllowed(String(existing.hostId));
+  const payout = await HostPayout.findOneAndUpdate(
+    { _id: payoutId, status: { $in: ["REQUESTED", "APPROVED"] } },
+    {
+      $set: { status: "PROCESSING", processedAt: new Date(), actedById: adminId },
+      $push: { events: { at: new Date(), status: "PROCESSING", actorId: adminId, note: "manual_processing" } },
+    },
+    { new: true }
+  );
+  if (!payout) throw new ApiError(409, "This payout cannot be marked processing.");
+  return toPublicPayout(payout);
+}
+
+export async function markHostPayoutPaid(adminId: string, payoutId: string, reference: string, transferDate?: string) {
+  const existing = await loadPayout(payoutId);
+  if (existing.status === "PAID") return toPublicPayout(existing);
   const ref = String(reference ?? "").trim();
   if (ref.length < 4) throw new ApiError(400, "Enter the bank or UPI reference for this payout.");
+  await assertTransferAllowed(String(existing.hostId));
+  const paidAt = resolveTransferDate(transferDate);
   const payout = await HostPayout.findOneAndUpdate(
-    { _id: payoutId, status: "APPROVED" },
+    { _id: payoutId, status: { $in: ["APPROVED", "PROCESSING"] } },
     {
       $set: {
         status: "PAID",
         reference: ref.slice(0, 80),
-        paidAt: new Date(),
+        paidAt,
         actedById: adminId,
       },
       $push: { events: { at: new Date(), status: "PAID", actorId: adminId, note: ref.slice(0, 80) } },
@@ -422,7 +573,7 @@ export async function markHostPayoutPaid(adminId: string, payoutId: string, refe
 
 export async function failHostPayout(adminId: string, payoutId: string, note = "") {
   const payout = await HostPayout.findOneAndUpdate(
-    { _id: payoutId, status: { $in: ["REQUESTED", "APPROVED"] } },
+    { _id: payoutId, status: { $in: ["REQUESTED", "APPROVED", "PROCESSING"] } },
     {
       $set: { status: "FAILED", failedAt: new Date(), actedById: adminId, notes: note.slice(0, 400) },
       $push: { events: { at: new Date(), status: "FAILED", actorId: adminId, note: note.slice(0, 400) } },
@@ -524,20 +675,78 @@ export type PayoutAuditLog = (line: string) => void;
 export async function listAdminPayouts(status?: string, _deps?: { log?: PayoutAuditLog }) {
   const filter = status && status !== "ALL" && (PAYOUT_STATUSES as readonly string[]).includes(status) ? { status } : {};
   const payouts = await HostPayout.find(filter).sort({ createdAt: -1 }).limit(100).populate("hostId", "name email payoutProfile");
+  const hostIds = payouts.map((payout) => {
+    const host = payout.hostId as unknown as { _id?: unknown };
+    return String(host?._id ?? payout.hostId);
+  });
+  const eligibleAmounts = await unclaimedHostEarnings([...new Set(hostIds)]);
   return payouts.map((p) => {
-    const host = p.hostId as unknown as { _id?: unknown; name?: string; email?: string; payoutProfile?: { accountHolder?: string; ifsc?: string; accountLast4?: string; verified?: boolean } };
+    const host = p.hostId as unknown as {
+      _id?: unknown;
+      name?: string;
+      email?: string;
+      payoutProfile?: { accountHolder?: string; bankName?: string; ifsc?: string; accountLast4?: string; verified?: boolean };
+    };
     const hostId = String(host?._id ?? p.hostId);
     return {
       ...p.toJSON(),
       hostId: { id: hostId, name: host?.name, email: host?.email },
       destination: {
         accountHolder: p.accountHolder || host?.payoutProfile?.accountHolder || "",
+        bankName: p.bankName || host?.payoutProfile?.bankName || "",
         ifsc: p.accountIfsc || host?.payoutProfile?.ifsc || "",
         accountLast4: p.accountLast4 || host?.payoutProfile?.accountLast4 || "",
         verified: !!host?.payoutProfile?.verified,
+        configured: Boolean(p.accountLast4 || host?.payoutProfile?.accountLast4),
       },
+      eligibleAmount: eligibleAmounts.get(hostId) ?? 0,
     };
   });
+}
+
+export async function listPayoutBeneficiaries() {
+  const users = await User.find({ "payoutProfile.accountLast4": { $regex: /^\d{4}$/ } })
+    .select("name payoutProfile")
+    .sort({ "payoutProfile.submittedAt": -1 })
+    .limit(100);
+  const amounts = await unclaimedHostEarnings(users.map((user) => String(user._id)));
+  return users.map((user) => {
+    const profile = publicPayoutProfile(user.payoutProfile);
+    return {
+      hostId: String(user._id),
+      hostName: user.name,
+      configured: profile.configured,
+      verified: profile.verified,
+      accountHolder: profile.accountHolder,
+      bankName: profile.bankName,
+      ifsc: profile.ifsc,
+      accountLast4: profile.accountLast4,
+      eligibleAmount: amounts.get(String(user._id)) ?? 0,
+    };
+  });
+}
+
+async function unclaimedHostEarnings(hostIds: string[]) {
+  const totals = new Map<string, number>();
+  if (!hostIds.length) return totals;
+  const bookings = await Booking.find({
+    hostId: { $in: hostIds },
+    status: "COMPLETED",
+    refunded: { $ne: true },
+    $or: [{ payoutId: { $exists: false } }, { payoutId: null }],
+  }).select("_id hostId hostEarning");
+  if (!bookings.length) return totals;
+  const payments = await Payment.find({ bookingId: { $in: bookings.map((booking) => booking._id) } }).select(
+    "bookingId status refundStatus"
+  );
+  const byBooking = new Map(payments.map((payment) => [String(payment.bookingId), payment]));
+  for (const booking of bookings) {
+    const payment = byBooking.get(String(booking._id));
+    if (!paymentAllowsPayout(payment?.status, payment?.refundStatus)) continue;
+    const key = String(booking.hostId);
+    totals.set(key, (totals.get(key) ?? 0) + (booking.hostEarning ?? 0));
+  }
+  return totals;
 }
 
 export async function revealAdminPayoutAccount(

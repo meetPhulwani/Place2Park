@@ -262,15 +262,35 @@ export const listingSchema = z
     path: ["selfParkingConfirmed"],
   });
 
-export const payoutProfileSchema = z.object({
-  accountHolder: z.string().trim().min(2).max(80),
+const payoutAccountFields = {
+  accountHolder: z.string().trim().min(2, "Enter the account holder name.").max(80),
+  bankName: z.string().trim().min(2, "Enter the bank name.").max(80),
   ifsc: z.string().trim().toUpperCase().regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, "Enter a valid IFSC code."),
   accountNumber: z.string().trim().regex(/^\d{9,18}$/, "Enter a valid bank account number."),
-});
+  confirmAccountNumber: z.string().trim().regex(/^\d{9,18}$/, "Enter a valid bank account number."),
+};
+
+export const payoutProfileSchema = z
+  .object(payoutAccountFields)
+  .refine((d) => d.accountNumber === d.confirmAccountNumber, {
+    message: "Account numbers do not match.",
+    path: ["confirmAccountNumber"],
+  });
+
+export const payoutDetailsUpdateSchema = z
+  .object({
+    ...payoutAccountFields,
+    currentPassword: z.string().min(1, "Enter your current password."),
+  })
+  .refine((d) => d.accountNumber === d.confirmAccountNumber, {
+    message: "Account numbers do not match.",
+    path: ["confirmAccountNumber"],
+  });
 
 export const payoutReferenceSchema = z.object({
   reference: z.string().trim().min(4).max(80),
   note: z.string().trim().max(400).optional(),
+  transferDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, "Enter a valid transfer date.").optional(),
 });
 
 export const payoutNoteSchema = z.object({

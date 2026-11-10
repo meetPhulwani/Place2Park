@@ -7,6 +7,7 @@ import { notify } from "../services/notify.js";
 import { sendSmtpTestMessage } from "../services/email.js";
 import { applyListingModeration } from "../services/listings.js";
 import { listingStatus } from "../utils/request-input.js";
+import { OPEN_PAYOUT_STATUSES } from "../utils/constants.js";
 
 export async function metrics(_req: AuthedRequest, res: Response) {
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
@@ -26,7 +27,7 @@ export async function metrics(_req: AuthedRequest, res: Response) {
       ]),
       Report.countDocuments({ status: "OPEN" }),
       ParkingSpace.find({ status: "PENDING_REVIEW" }).sort({ updatedAt: -1 }).limit(10).populate("hostId", "name email"),
-      HostPayout.countDocuments({ status: { $in: ["REQUESTED", "APPROVED"] } }),
+      HostPayout.countDocuments({ status: { $in: [...OPEN_PAYOUT_STATUSES] } }),
     ]);
   res.json({
     success: true,

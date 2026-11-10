@@ -1,26 +1,44 @@
 import type { Response } from "express";
 import type { AuthedRequest } from "../middleware/auth.js";
 import { ApiError } from "../middleware/error.js";
-import { User } from "../models/index.js";
 import {
   approveHostPayout,
   failHostPayout,
   listAdminPayoutAudits,
   listAdminPayouts,
+  listPayoutBeneficiaries,
   markHostPayoutPaid,
+  markHostPayoutProcessing,
   revealAdminPayoutAccount,
-  publicPayoutProfile,
   rejectHostPayout,
   requestHostPayout,
   reverseHostPayout,
+  createHostPayoutDetails,
+  getHostPayoutDetails,
   saveHostPayoutProfile,
+  updateHostPayoutDetails,
   summarizeHostEarnings,
   verifyHostPayoutProfile,
 } from "../services/payouts.js";
 
 export async function getPayoutProfile(req: AuthedRequest, res: Response) {
-  const user = await User.findById(req.userId).select("payoutProfile");
-  res.json({ success: true, data: { payoutProfile: publicPayoutProfile(user?.payoutProfile) } });
+  const payoutDetails = await getHostPayoutDetails(req.userId);
+  res.json({ success: true, data: { payoutProfile: payoutDetails, payoutDetails } });
+}
+
+export async function getPayoutDetails(req: AuthedRequest, res: Response) {
+  const payoutDetails = await getHostPayoutDetails(req.userId);
+  res.json({ success: true, data: { payoutDetails } });
+}
+
+export async function createPayoutDetails(req: AuthedRequest, res: Response) {
+  const payoutDetails = await createHostPayoutDetails(req.userId, req.body);
+  res.status(201).json({ success: true, data: { payoutDetails } });
+}
+
+export async function patchPayoutDetails(req: AuthedRequest, res: Response) {
+  const payoutDetails = await updateHostPayoutDetails(req.userId, req.body);
+  res.json({ success: true, data: { payoutDetails } });
 }
 
 export async function updatePayoutProfile(req: AuthedRequest, res: Response) {
@@ -52,6 +70,17 @@ export async function adminListPayouts(req: AuthedRequest, res: Response) {
   const status = typeof req.query.status === "string" ? req.query.status : undefined;
   const payouts = await listAdminPayouts(status);
   res.json({ success: true, data: { payouts } });
+}
+
+export async function adminListPayoutBeneficiaries(_req: AuthedRequest, res: Response) {
+  const beneficiaries = await listPayoutBeneficiaries();
+  res.json({ success: true, data: { beneficiaries } });
+}
+
+export async function adminMarkPayoutProcessing(req: AuthedRequest, res: Response) {
+  if (req.userRole !== "ADMIN") throw new ApiError(403, "You don't have access to this.");
+  const payout = await markHostPayoutProcessing(req.userId, req.params.id);
+  res.json({ success: true, data: { payout } });
 }
 
 export async function adminRevealPayoutDestination(req: AuthedRequest, res: Response) {
@@ -88,8 +117,9 @@ export async function adminRejectPayout(req: AuthedRequest, res: Response) {
 
 export async function adminMarkPayoutPaid(req: AuthedRequest, res: Response) {
   if (req.userRole !== "ADMIN") throw new ApiError(403, "You don't have access to this.");
-  const reference = String((req.body as { reference?: string }).reference ?? "");
-  const payout = await markHostPayoutPaid(req.userId, req.params.id, reference);
+  const body = req.body as { reference?: string; transferDate?: string };
+  const reference = String(body.reference ?? "");
+  const payout = await markHostPayoutPaid(req.userId, req.params.id, reference, body.transferDate);
   res.json({ success: true, data: { payout } });
 }
 

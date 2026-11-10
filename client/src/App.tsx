@@ -42,6 +42,7 @@ import HostEditListingPage from "@/pages/host/listing-edit";
 import HostCalendarPage from "@/pages/host/calendar";
 import HostBookingsPage from "@/pages/host/bookings";
 import HostEarningsPage from "@/pages/host/earnings";
+import HostPayoutSettingsPage from "@/pages/host/payout-settings";
 import HostReviewsPage from "@/pages/host/reviews";
 import HostSettingsPage from "@/pages/host/settings";
 
@@ -101,6 +102,7 @@ export default function App() {
           <Route path="/host/calendar" element={<HostCalendarPage />} />
           <Route path="/host/bookings" element={<HostBookingsPage />} />
           <Route path="/host/earnings" element={<HostEarningsPage />} />
+          <Route path="/host/payout-settings" element={<HostPayoutSettingsPage />} />
           <Route path="/host/reviews" element={<HostReviewsPage />} />
           <Route path="/host/settings" element={<HostSettingsPage />} />
         </Route>

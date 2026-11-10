@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, describe, it } from "node:test";
+import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import { AdminAudit, Booking, HostPayout, ParkingSpace, Payment, User } from "../models/index.js";
 import { ApiError } from "../middleware/error.js";
-import { authorize, type AuthedRequest } from "../middleware/auth.js";
+import { authenticate, authorize, hostOnly, signToken, type AuthedRequest } from "../middleware/auth.js";
+import { getPayoutDetails } from "../controllers/payouts.controller.js";
 import { env } from "../config/env.js";
 import { computeQuote } from "../utils/pricing.js";
 import {
@@ -15,7 +17,11 @@ import {
   markHostPayoutPaid,
   revealAdminPayoutAccount,
   approveHostPayout,
+  createHostPayoutDetails,
   failHostPayout,
+  getHostPayoutDetails,
+  listPayoutBeneficiaries,
+  markHostPayoutProcessing,
   publicPayoutProfile,
   reconcileRefundedBooking,
   requestHostPayout,
@@ -23,6 +29,8 @@ import {
   encryptAccountNumber,
   saveHostPayoutProfile,
   summarizeHostEarnings,
+  syncEligibleHostPayout,
+  updateHostPayoutDetails,
   verifyHostPayoutProfile,
 } from "./payouts.js";
 
@@ -77,12 +85,16 @@ async function seedBooking(opts: {
   return booking;
 }
 
+const PAYOUT_INPUT = {
+  accountHolder: "Priya Sharma",
+  bankName: "HDFC Bank",
+  ifsc: "hdfc0001234",
+  accountNumber: "123456789012",
+  confirmAccountNumber: "123456789012",
+};
+
 async function readyHost() {
-  await saveHostPayoutProfile(hostId, {
-    accountHolder: "Priya Sharma",
-    ifsc: "HDFC0001234",
-    accountNumber: "123456789012",
-  });
+  await saveHostPayoutProfile(hostId, PAYOUT_INPUT);
   await verifyHostPayoutProfile(adminId, hostId, true);
 }
 
@@ -161,11 +173,7 @@ describe("payout eligibility and commission", () => {
 
 describe("host onboarding and request guards", () => {
   it("masks payout details and requires admin verification before a request", async () => {
-    const profile = await saveHostPayoutProfile(hostId, {
-      accountHolder: "Priya Sharma",
-      ifsc: "HDFC0001234",
-      accountNumber: "123456789012",
-    });
+    const profile = await saveHostPayoutProfile(hostId, PAYOUT_INPUT);
     assert.equal(profile.accountLast4, "9012");
     assert.equal(profile.verified, false);
     assert.equal(JSON.stringify(profile).includes("123456789012"), false);
@@ -175,6 +183,9 @@ describe("host onboarding and request guards", () => {
     const summary = await summarizeHostEarnings(hostId);
     assert.equal(summary.payoutProfile.verified, true);
     assert.equal("accountNumber" in summary.payoutProfile, false);
+    assert.equal("confirmAccountNumber" in summary.payoutProfile, false);
+    assert.equal(summary.payoutProfile.bankName, "HDFC Bank");
+    assert.equal(summary.payoutProfile.ifsc, "HDFC0001234");
   });
 
   it("public profile helper never echoes the full account number", () => {
@@ -393,5 +404,153 @@ describe("payout encryption key separation", () => {
     assert.notEqual(current, legacy);
     env.PAYOUT_ENCRYPTION_KEY = "";
     assert.throws(() => decryptAccountNumber(current));
+  });
+});
+
+describe("payout beneficiary details", () => {
+  it("rejects invalid IFSC, account numbers, and confirmation mismatches", async () => {
+    await assert.rejects(
+      () => saveHostPayoutProfile(hostId, { ...PAYOUT_INPUT, ifsc: "HDFC1234567" }),
+      (err: unknown) => err instanceof ApiError && err.status === 400
+    );
+    await assert.rejects(
+      () => saveHostPayoutProfile(hostId, { ...PAYOUT_INPUT, accountNumber: "1234", confirmAccountNumber: "1234" }),
+      (err: unknown) => err instanceof ApiError && err.status === 400
+    );
+    await assert.rejects(
+      () => saveHostPayoutProfile(hostId, { ...PAYOUT_INPUT, confirmAccountNumber: "123456789013" }),
+      (err: unknown) => err instanceof ApiError && err.message === "Account numbers do not match."
+    );
+    assert.equal(await User.countDocuments({ "payoutProfile.accountLast4": "9012" }), 0);
+  });
+
+  it("encrypts the account number and returns only the mask", async () => {
+    const profile = await createHostPayoutDetails(hostId, PAYOUT_INPUT);
+    assert.equal(profile.configured, true);
+    assert.equal(profile.accountLast4, "9012");
+    assert.equal(JSON.stringify(profile).includes("123456789012"), false);
+    const stored = await User.findById(hostId).select("+payoutProfile.accountNumberEnc");
+    const enc = stored?.payoutProfile?.accountNumberEnc ?? "";
+    assert.equal(enc.includes("123456789012"), false);
+    assert.equal(decryptAccountNumber(enc), "123456789012");
+    const audits = await AdminAudit.find({ action: "PAYOUT_DETAILS_SAVED", hostId });
+    assert.equal(audits.length, 1);
+    assert.equal(audits[0]?.accountLast4, "9012");
+    assert.equal(JSON.stringify(audits).includes("123456789012"), false);
+  });
+
+  it("requires the current password before changing saved details", async () => {
+    await createHostPayoutDetails(hostId, PAYOUT_INPUT);
+    await assert.rejects(
+      () => updateHostPayoutDetails(hostId, { ...PAYOUT_INPUT, bankName: "State Bank" }),
+      (err: unknown) => err instanceof ApiError && err.status === 400
+    );
+    await User.updateOne({ _id: hostId }, { $set: { passwordHash: await bcrypt.hash("Host1!ok", 10) } });
+    await assert.rejects(
+      () => updateHostPayoutDetails(hostId, { ...PAYOUT_INPUT, bankName: "State Bank", currentPassword: "wrong-password" }),
+      (err: unknown) => err instanceof ApiError && err.status === 401
+    );
+    const updated = await updateHostPayoutDetails(hostId, {
+      ...PAYOUT_INPUT,
+      bankName: "State Bank",
+      currentPassword: "Host1!ok",
+    });
+    assert.equal(updated.bankName, "State Bank");
+    assert.equal(updated.accountLast4, "9012");
+    await assert.rejects(
+      () => createHostPayoutDetails(hostId, PAYOUT_INPUT),
+      (err: unknown) => err instanceof ApiError && err.status === 409
+    );
+  });
+
+  it("does not return another host's payout details", async () => {
+    await createHostPayoutDetails(hostId, PAYOUT_INPUT);
+    const other = await User.create({ name: "Other Host", email: `other-${Date.now()}@parkly.test`, role: "HOST" });
+    const otherView = await getHostPayoutDetails(String(other._id));
+    assert.equal(otherView.configured, false);
+    assert.equal(JSON.stringify(otherView).includes("123456789012"), false);
+    let payload: { data?: { payoutDetails?: { configured?: boolean } } } | undefined;
+    await getPayoutDetails(
+      { userId: String(other._id), body: { hostId } } as AuthedRequest,
+      { json(body: unknown) { payload = body as typeof payload; } } as never
+    );
+    assert.equal(payload?.data?.payoutDetails?.configured, false);
+    const listed = await listPayoutBeneficiaries();
+    assert.equal(listed.some((row) => row.hostId === hostId && row.accountLast4 === "9012"), true);
+    assert.equal(JSON.stringify(listed).includes("123456789012"), false);
+    await User.deleteOne({ _id: other._id });
+  });
+
+  it("blocks anonymous and non-host access", async () => {
+    await new Promise<void>((resolve, reject) => {
+      authenticate({ headers: {} } as AuthedRequest, {} as never, (err) => {
+        try {
+          assert.ok(err instanceof ApiError && err.status === 401);
+          resolve();
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+    const req = { headers: { authorization: `Bearer ${signToken(driverId)}` } } as AuthedRequest;
+    await new Promise<void>((resolve, reject) => {
+      authenticate(req, {} as never, (err) => (err ? reject(err) : resolve()));
+    });
+    await new Promise<void>((resolve, reject) => {
+      hostOnly(req, {} as never, (err) => {
+        try {
+          assert.ok(err instanceof ApiError && err.status === 403);
+          resolve();
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+  });
+});
+
+describe("manual payout recording", () => {
+  it("creates one eligible payout and does not duplicate it", async () => {
+    await readyHost();
+    await seedBooking({ status: "COMPLETED" });
+    const first = await syncEligibleHostPayout(hostId);
+    const second = await syncEligibleHostPayout(hostId);
+    assert.ok(first);
+    assert.equal(second?.id, first?.id);
+    assert.equal(await HostPayout.countDocuments({ hostId }), 1);
+    await seedBooking({ status: "CANCELLED", paymentStatus: "PAID" });
+    const afterCancel = await syncEligibleHostPayout(hostId);
+    assert.equal(afterCancel?.id, first?.id);
+    assert.equal(await Booking.countDocuments({ payoutId: first?.id }), 1);
+  });
+
+  it("folds a later completed booking into the open payout", async () => {
+    await readyHost();
+    await seedBooking({ status: "COMPLETED" });
+    const first = await requestHostPayout(hostId);
+    await seedBooking({ status: "COMPLETED" });
+    const second = await requestHostPayout(hostId);
+    assert.equal(second.id, first.id);
+    assert.equal(await HostPayout.countDocuments({ hostId }), 1);
+    assert.equal(await Booking.countDocuments({ payoutId: first.id }), 2);
+    assert.equal(second.amount, first.amount * 2);
+  });
+
+  it("records a UTR once and keeps the original reference on a second mark", async () => {
+    await readyHost();
+    await seedBooking({ status: "COMPLETED" });
+    const requested = await requestHostPayout(hostId);
+    const processing = await markHostPayoutProcessing(adminId, requested.id);
+    assert.equal(processing.status, "PROCESSING");
+    const again = await markHostPayoutProcessing(adminId, requested.id);
+    assert.equal(again.id, processing.id);
+    assert.equal(await HostPayout.countDocuments({ hostId, status: "PROCESSING" }), 1);
+    const paid = await markHostPayoutPaid(adminId, requested.id, "UTR123456789", "2026-11-01");
+    assert.equal(paid.status, "PAID");
+    assert.equal(paid.reference, "UTR123456789");
+    assert.equal(String(paid.actedById), adminId);
+    const duplicate = await markHostPayoutPaid(adminId, requested.id, "UTR000000000", "2026-11-02");
+    assert.equal(duplicate.reference, "UTR123456789");
+    assert.equal(await HostPayout.countDocuments({ hostId, status: "PAID" }), 1);
   });
 });

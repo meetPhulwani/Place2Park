@@ -9,7 +9,7 @@ import { toast } from "@/components/ui/toaster";
 import { formatDate, formatINR } from "@/lib/utils";
 import { accountDigitsLabel, nextRevealedAccount, REVEAL_TTL_MS } from "@/lib/payout-reveal";
 
-const STATUSES = ["ALL", "REQUESTED", "APPROVED", "PAID", "FAILED", "REJECTED", "REVERSED"];
+const STATUSES = ["ALL", "REQUESTED", "APPROVED", "PROCESSING", "PAID", "FAILED", "REJECTED", "REVERSED"];
 
 interface AdminPayout {
   id: string;
@@ -20,18 +20,34 @@ interface AdminPayout {
   reference?: string;
   requestedAt?: string;
   paidAt?: string;
+  eligibleAmount?: number;
   hostId: { id: string; name?: string; email?: string };
   destination: {
     accountHolder: string;
+    bankName: string;
     ifsc: string;
     accountLast4: string;
     verified: boolean;
+    configured: boolean;
   };
+}
+
+interface Beneficiary {
+  hostId: string;
+  hostName: string;
+  configured: boolean;
+  verified: boolean;
+  accountHolder: string;
+  bankName: string;
+  ifsc: string;
+  accountLast4: string;
+  eligibleAmount: number;
 }
 
 export default function AdminPayoutsPage() {
   const [params, setParams] = useSearchParams();
   const [payouts, setPayouts] = React.useState<AdminPayout[] | null>(null);
+  const [beneficiaries, setBeneficiaries] = React.useState<Beneficiary[] | null>(null);
   const [listGeneration, setListGeneration] = React.useState(0);
   const status = STATUSES.includes(params.get("status") ?? "") && params.get("status") !== "ALL"
     ? params.get("status")!
@@ -45,15 +61,21 @@ export default function AdminPayoutsPage() {
         const rows = (data.data.payouts as AdminPayout[]).map((row) => ({
           ...row,
           destination: {
-            accountHolder: row.destination.accountHolder,
-            ifsc: row.destination.ifsc,
-            accountLast4: row.destination.accountLast4,
-            verified: row.destination.verified,
+            accountHolder: row.destination?.accountHolder ?? "",
+            bankName: row.destination?.bankName ?? "",
+            ifsc: row.destination?.ifsc ?? "",
+            accountLast4: row.destination?.accountLast4 ?? "",
+            verified: Boolean(row.destination?.verified),
+            configured: Boolean(row.destination?.configured),
           },
         }));
         setPayouts(rows);
       })
       .catch(() => setPayouts([]));
+    api
+      .get("/payout-beneficiaries")
+      .then(({ data }) => setBeneficiaries(data.data.beneficiaries as Beneficiary[]))
+      .catch(() => setBeneficiaries([]));
   }, [status]);
 
   React.useEffect(() => {
@@ -67,10 +89,48 @@ export default function AdminPayoutsPage() {
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0251B0]">Finance</p>
         <h1 className="mt-1 font-display text-3xl font-bold tracking-tight text-[#111827]">Payouts</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Manual settlements only. Completed bookings are not paid automatically. Record the bank or
-          UPI reference after you transfer funds outside Razorpay Route.
+          Manual settlements only. Recording a UTR does not send money. Transfer funds outside the
+          platform, then mark the payout processing or paid.
         </p>
       </div>
+
+      <section className="space-y-3" aria-label="Payout beneficiaries">
+        <h2 className="text-sm font-semibold text-[#111827]">Host payout details</h2>
+        {beneficiaries === null && <Skeleton className="h-24 rounded-2xl" />}
+        {beneficiaries?.length === 0 && (
+          <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">
+            No host has configured payout details.
+          </p>
+        )}
+        {beneficiaries && beneficiaries.length > 0 && (
+          <div className="overflow-x-auto rounded-2xl border border-line bg-white">
+            <table className="min-w-[760px] w-full text-left text-sm">
+              <thead className="bg-[#F3F5F7] text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Host</th>
+                  <th className="px-4 py-3 font-medium">Account</th>
+                  <th className="px-4 py-3 font-medium">IFSC</th>
+                  <th className="px-4 py-3 font-medium">Bank</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 text-right font-medium">Eligible earnings</th>
+                </tr>
+              </thead>
+              <tbody>
+                {beneficiaries.map((row) => (
+                  <tr key={row.hostId} className="border-t border-line">
+                    <td className="px-4 py-3 font-medium text-[#111827]">{row.hostName}</td>
+                    <td className="px-4 py-3">{row.accountHolder} · •••• {row.accountLast4}</td>
+                    <td className="px-4 py-3">{row.ifsc}</td>
+                    <td className="px-4 py-3">{row.bankName || "—"}</td>
+                    <td className="px-4 py-3">{row.verified ? "Verified" : row.configured ? "Configured" : "Not configured"}</td>
+                    <td className="px-4 py-3 text-right">{formatINR(row.eligibleAmount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       <nav className="flex flex-wrap gap-1.5" aria-label="Filter by status">
         {STATUSES.map((s) => {
@@ -118,6 +178,7 @@ function PayoutRow({
 }) {
   const [busy, setBusy] = React.useState(false);
   const [reference, setReference] = React.useState(payout.reference ?? "");
+  const [transferDate, setTransferDate] = React.useState("");
   const [revealed, setRevealed] = React.useState<string | null>(null);
 
   React.useEffect(() => {
@@ -189,9 +250,15 @@ function PayoutRow({
             {payout.hostId.name} ({payout.hostId.email}) · requested {payout.requestedAt ? formatDate(payout.requestedAt) : "—"}
           </p>
           <p className="text-xs text-slate-400">
-            {payout.destination.accountHolder} · {payout.destination.ifsc} ·{" "}
-            {accountDigitsLabel(payout.destination.accountLast4, revealed)}
+            {payout.destination.accountHolder || "No account holder"} · {payout.destination.bankName || "Bank not set"} ·{" "}
+            {payout.destination.ifsc || "No IFSC"} · {accountDigitsLabel(payout.destination.accountLast4, revealed)}
+            {payout.destination.configured ? "" : " · payout details not configured"}
             {payout.destination.verified ? " · verified" : " · unverified"}
+          </p>
+          <p className="text-xs text-slate-400">
+            Unclaimed eligible earnings {formatINR(payout.eligibleAmount ?? 0)}
+            {payout.paidAt ? ` · transfer date ${formatDate(payout.paidAt)}` : ""}
+            {payout.reference ? ` · UTR ${payout.reference}` : ""}
           </p>
         </div>
         <Badge variant={payout.status === "PAID" ? "success" : payout.status === "FAILED" || payout.status === "REJECTED" ? "danger" : "warning"}>
@@ -223,18 +290,36 @@ function PayoutRow({
             </Button>
           </>
         )}
-        {payout.status === "APPROVED" && (
+        {(payout.status === "REQUESTED" || payout.status === "APPROVED") && (
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={busy || !payout.destination.configured}
+            onClick={() => act("processing", {}, "Marked processing. No money was sent.")}
+          >
+            Mark processing
+          </Button>
+        )}
+        {(payout.status === "APPROVED" || payout.status === "PROCESSING") && (
           <>
             <Input
               value={reference}
               onChange={(e) => setReference(e.target.value)}
-              placeholder="NEFT / UPI reference"
+              placeholder="UTR / NEFT reference"
               className="max-w-56"
+              autoComplete="off"
+            />
+            <Input
+              type="date"
+              value={transferDate}
+              onChange={(e) => setTransferDate(e.target.value)}
+              aria-label="Transfer date"
+              className="max-w-40"
             />
             <Button
               size="sm"
-              disabled={busy}
-              onClick={() => act("mark-paid", { reference }, "Marked paid.")}
+              disabled={busy || !payout.destination.configured}
+              onClick={() => act("mark-paid", { reference, ...(transferDate ? { transferDate } : {}) }, "Marked paid.")}
             >
               Mark paid
             </Button>

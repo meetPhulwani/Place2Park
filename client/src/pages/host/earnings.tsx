@@ -161,11 +161,9 @@ export default function HostEarningsPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Request a payout</CardTitle>
-          {!data.payoutProfile.verified && (
-            <Link href="/host/settings" className="text-sm font-medium text-brand-700">
-              Add bank details
-            </Link>
-          )}
+          <Link href="/host/payout-settings" className="text-sm font-medium text-brand-700">
+            Payout settings
+          </Link>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-slate-500">

@@ -61,8 +61,8 @@ export const PENDING_HOLD_MINS = 12;
 /** Free-cancellation window: full refund if more than X mins before start. */
 export const FREE_CANCEL_BEFORE_MINS = 60;
 
-export const PAYOUT_STATUSES = ["REQUESTED", "APPROVED", "REJECTED", "PAID", "FAILED", "REVERSED"] as const;
+export const PAYOUT_STATUSES = ["REQUESTED", "APPROVED", "PROCESSING", "REJECTED", "PAID", "FAILED", "REVERSED"] as const;
 export type PayoutStatus = (typeof PAYOUT_STATUSES)[number];
-export const OPEN_PAYOUT_STATUSES = ["REQUESTED", "APPROVED"] as const;
+export const OPEN_PAYOUT_STATUSES = ["REQUESTED", "APPROVED", "PROCESSING"] as const;
 
 export const REPORT_REASONS = ["INCORRECT_INFO", "UNSAFE", "FRAUD", "UNAVAILABLE", "OTHER"] as const;

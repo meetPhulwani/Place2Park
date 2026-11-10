@@ -1,6 +1,6 @@
 import * as React from "react";
 import Link from "@/components/link";
-import { Building2, CalendarClock, CalendarDays, Plus, Wallet } from "lucide-react";
+import { Building2, CalendarClock, CalendarDays, Landmark, Plus, Wallet } from "lucide-react";
 import { api } from "@/services/api";
 import type { Booking, BookingSpaceRef } from "@/types";
 import { StatCard } from "@/components/stat-card";
@@ -184,6 +184,7 @@ export default function HostDashboardPage() {
           { href: "/host/calendar", label: "Calendar", icon: CalendarDays },
           { href: "/host/bookings", label: "Bookings", icon: CalendarClock },
           { href: "/host/earnings", label: "Earnings", icon: Wallet },
+          { href: "/host/payout-settings", label: "Payout Settings", icon: Landmark },
         ]}
       />
 

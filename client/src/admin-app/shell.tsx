@@ -124,7 +124,7 @@ export function ConsoleShell() {
             <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#D1FF42]">Admin Console</p>
           </div>
         )}
-        <nav className={`flex-1 space-y-5 px-2 pb-4 ${compact ? "overflow-hidden" : "overflow-y-auto"}`}>
+        <nav className="min-h-0 flex-1 space-y-5 overflow-y-auto px-2 pb-4">
           {groups.map((group) => (
             <div key={group.label}>
               {!compact && <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45">{group.label}</p>}

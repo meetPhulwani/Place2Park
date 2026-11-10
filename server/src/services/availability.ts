@@ -178,10 +178,24 @@ async function applyProgress(filter: Record<string, unknown>) {
     { ...filter, status: "CONFIRMED", refunded: { $ne: true }, start: { $lte: now }, end: { $gt: now } },
     { $set: { status: "ACTIVE" } }
   );
+  const completing = await Booking.find({
+    ...filter,
+    status: { $in: ["CONFIRMED", "ACTIVE"] },
+    refunded: { $ne: true },
+    end: { $lte: now },
+  }).select("hostId");
   await Booking.updateMany(
     { ...filter, status: { $in: ["CONFIRMED", "ACTIVE"] }, end: { $lte: now } },
     { $set: { status: "COMPLETED" } }
   );
+  const hostIds = [...new Set(completing.map((row) => String(row.hostId)).filter(Boolean))];
+  if (!hostIds.length) return;
+  try {
+    const payouts = await import("./payouts.js");
+    for (const hostId of hostIds) await payouts.syncEligibleHostPayout(hostId);
+  } catch {
+    // The booking is already completed. A later host or admin view can claim the payout record.
+  }
 }
 
 /** Apply expiry + time progression for one booking (any viewer). */

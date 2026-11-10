@@ -94,10 +94,12 @@ r.post("/bookings/:id/cancel", requirePermission("bookings.cancel"), requireRece
 }));
 r.get("/payments", requirePermission("payments.read"), a(admin.listPayments));
 r.get("/payouts", requirePermission("payouts.read"), a(payouts.adminListPayouts));
+r.get("/payout-beneficiaries", requirePermission("payouts.read"), a(payouts.adminListPayoutBeneficiaries));
 r.post("/payouts/:id/reveal-destination", requirePermission("payouts.reveal"), requireRecentAuth, audited("payout.reveal"), a(payouts.adminRevealPayoutDestination));
 r.get("/payouts/:id/destination-audits", requirePermission("payouts.read"), a(payouts.adminListPayoutDestinationAudits));
 r.post("/payouts/:id/approve", requirePermission("payouts.write"), requireRecentAuth, audited("payout.approve"), a(payouts.adminApprovePayout));
 r.post("/payouts/:id/reject", requirePermission("payouts.write"), requireRecentAuth, audited("payout.reject"), validate(payoutNoteSchema), a(payouts.adminRejectPayout));
+r.post("/payouts/:id/processing", requirePermission("payouts.write"), requireRecentAuth, audited("payout.processing"), a(payouts.adminMarkPayoutProcessing));
 r.post("/payouts/:id/mark-paid", requirePermission("payouts.write"), requireRecentAuth, audited("payout.mark_paid"), validate(payoutReferenceSchema), a(payouts.adminMarkPayoutPaid));
 r.post("/payouts/:id/fail", requirePermission("payouts.write"), requireRecentAuth, audited("payout.fail"), validate(payoutNoteSchema), a(payouts.adminFailPayout));
 r.post("/payouts/:id/reverse", requirePermission("payouts.write"), requireRecentAuth, audited("payout.reverse"), validate(payoutNoteSchema), a(payouts.adminReversePayout));

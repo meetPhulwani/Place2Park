@@ -9,6 +9,7 @@ const items: SidebarItem[] = [
   { href: "/host/calendar", label: "Calendar", icon: "CalendarDays" },
   { href: "/host/bookings", label: "Bookings", icon: "CalendarClock" },
   { href: "/host/earnings", label: "Earnings", icon: "Wallet" },
+  { href: "/host/payout-settings", label: "Payout Settings", icon: "Landmark" },
   { href: "/host/reviews", label: "Reviews", icon: "Star" },
   { href: "/host/settings", label: "Settings", icon: "Settings" },
   { href: "/help", label: "Help Center", icon: "CircleHelp" },

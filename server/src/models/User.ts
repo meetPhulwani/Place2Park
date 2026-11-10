@@ -22,6 +22,7 @@ const userSchema = new Schema(
     tokenVersion: { type: Number, default: 0 },
     payoutProfile: {
       accountHolder: { type: String, default: "", maxlength: 80 },
+      bankName: { type: String, default: "", maxlength: 80 },
       ifsc: { type: String, default: "", uppercase: true, maxlength: 11 },
       accountLast4: { type: String, default: "", maxlength: 4 },
       accountFingerprint: { type: String, default: "" },

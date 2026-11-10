@@ -41,7 +41,7 @@ import {
 import {
   blockSlotSchema, bookingRequestSchema, createPaymentOrderSchema, emailOtpResendSchema,
   emailOtpVerifySchema, emptyBodySchema, favoriteSchema, forgotPasswordSchema, googleLoginSchema,
-  listingSchema, listingStatusSchema, loginSchema, payoutProfileSchema,
+  listingSchema, listingStatusSchema, loginSchema, payoutDetailsUpdateSchema, payoutProfileSchema,
   profileSchema, reportSchema, resetPasswordSchema, reviewSchema, signupSchema,
   faqFeedbackSchema,
   supportTicketSchema, ticketReplySchema, userReportSchema,
@@ -143,7 +143,10 @@ r.delete("/host/calendar/block/:id", authenticate, hostOnly, a(host.unblockSlot)
 r.get("/host/bookings", authenticate, hostOnly, a(host.listBookings));
 r.get("/host/earnings", authenticate, hostOnly, a(host.earnings));
 r.get("/host/payout-profile", authenticate, hostOnly, a(payouts.getPayoutProfile));
-r.put("/host/payout-profile", authenticate, hostOnly, validate(payoutProfileSchema), a(payouts.updatePayoutProfile));
+r.put("/host/payout-profile", authenticate, hostOnly, rateLimit("payout-details", positiveIntEnv("RATE_LIMIT_PAYOUT_DETAILS", 10), positiveIntEnv("RATE_LIMIT_PAYOUT_DETAILS_WINDOW_MS", 10 * 60_000, 86_400_000)), validate(payoutProfileSchema), a(payouts.updatePayoutProfile));
+r.get("/payout-details", authenticate, hostOnly, rateLimit("payout-details-read", positiveIntEnv("RATE_LIMIT_PAYOUT_DETAILS_READ", 60), positiveIntEnv("RATE_LIMIT_PAYOUT_DETAILS_WINDOW_MS", 10 * 60_000, 86_400_000)), a(payouts.getPayoutDetails));
+r.post("/payout-details", authenticate, hostOnly, rateLimit("payout-details", positiveIntEnv("RATE_LIMIT_PAYOUT_DETAILS", 10), positiveIntEnv("RATE_LIMIT_PAYOUT_DETAILS_WINDOW_MS", 10 * 60_000, 86_400_000)), validate(payoutProfileSchema), a(payouts.createPayoutDetails));
+r.patch("/payout-details", authenticate, hostOnly, rateLimit("payout-details", positiveIntEnv("RATE_LIMIT_PAYOUT_DETAILS", 10), positiveIntEnv("RATE_LIMIT_PAYOUT_DETAILS_WINDOW_MS", 10 * 60_000, 86_400_000)), validate(payoutDetailsUpdateSchema), a(payouts.patchPayoutDetails));
 r.post("/host/payouts/request", authenticate, hostOnly, rateLimit("payout-request", positiveIntEnv("RATE_LIMIT_PAYOUT_REQUEST", 8), positiveIntEnv("RATE_LIMIT_PAYOUT_REQUEST_WINDOW_MS", 10 * 60_000, 86_400_000)), validate(emptyBodySchema), a(payouts.requestPayout));
 r.get("/host/reviews", authenticate, hostOnly, a(host.listReviews));
 
