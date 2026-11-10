@@ -21,6 +21,18 @@ function spaRewrite(config: VercelConfig) {
   const spa = rewrites.find((r) => r.destination === "/index.html");
   assert.ok(spa?.source.includes("api"), "SPA rewrite must exclude /api");
   assert.ok(!rewrites.some((r) => r.source.startsWith("/api") && r.destination === "/index.html"));
+  const match = new RegExp(`^${spa!.source}$`);
+  for (const excluded of ["/sitemap.xml", "/robots.txt", "/api/parking/search"]) {
+    assert.equal(match.test(excluded), false, `${excluded} must not be rewritten to index.html`);
+  }
+  for (const page of ["/", "/search", "/faqs", "/become-a-host", "/support", "/parking/example"]) {
+    assert.equal(match.test(page), true, `${page} remains a client route`);
+  }
+  const sitemapType = (config.headers ?? [])
+    .filter((entry) => entry.source === "/sitemap.xml")
+    .flatMap((entry) => entry.headers)
+    .find((header) => header.key === "Content-Type");
+  assert.equal(sitemapType?.value, "application/xml; charset=utf-8");
 }
 
 function cspDirective(csp: string, name: string) {
@@ -59,10 +71,64 @@ function securityHeaders(config: VercelConfig, label: string) {
   assert.equal(byKey.get("X-Frame-Options"), "DENY", `${label} must set X-Frame-Options`);
 }
 
+const PRIVATE_PATHS = [
+  "/login",
+  "/signup",
+  "/forgot-password",
+  "/reset-password",
+  "/dashboard",
+  "/bookings",
+  "/history",
+  "/saved",
+  "/payments",
+  "/profile",
+  "/settings",
+  "/help",
+  "/host",
+  "/admin",
+  "/api",
+  "/search/results",
+];
+
+function publicSitemap() {
+  const file = path.join(SERVER_ROOT, "..", "client", "public", "sitemap.xml");
+  const xml = fs.readFileSync(file, "utf8");
+  assert.equal(xml.startsWith('<?xml version="1.0" encoding="UTF-8"?>'), true);
+  assert.equal(xml.includes("<html"), false);
+  assert.equal(xml.includes('xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"'), true);
+  const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]!);
+  assert.equal(new Set(locs).size, locs.length, "sitemap URLs must be unique");
+  assert.ok(locs.length > 0);
+  for (const loc of locs) {
+    const url = new URL(loc!);
+    assert.equal(url.protocol, "https:");
+    assert.equal(url.host, "www.place2park.me");
+    assert.equal(url.search, "");
+    assert.equal(url.hash, "");
+    assert.equal(PRIVATE_PATHS.some((prefix) => url.pathname === prefix || url.pathname.startsWith(`${prefix}/`)), false, loc);
+  }
+  assert.equal(locs.includes("https://www.place2park.me/"), true);
+  assert.equal(xml.includes("<lastmod>"), false);
+  const robots = fs.readFileSync(path.join(SERVER_ROOT, "..", "client", "public", "robots.txt"), "utf8");
+  assert.equal(robots.includes("Sitemap: https://www.place2park.me/sitemap.xml"), true);
+  return locs;
+}
+
 describe("Vercel SPA rewrite", () => {
   it("rewrites client routes to index.html and does not send /api to the SPA", () => {
     spaRewrite(readVercelConfig("client/vercel.json"));
     spaRewrite(readVercelConfig("vercel.json"));
+  });
+
+  it("publishes an XML sitemap of public pages and points robots.txt at it", () => {
+    const locs = publicSitemap();
+    assert.deepEqual(locs, [
+      "https://www.place2park.me/",
+      "https://www.place2park.me/search",
+      "https://www.place2park.me/become-a-host",
+      "https://www.place2park.me/support",
+      "https://www.place2park.me/faqs",
+    ]);
   });
 
   it("sets CSP and clickjacking headers without blocking GIS, Maps, API, or Razorpay", () => {

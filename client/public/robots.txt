@@ -1,0 +1,20 @@
+User-agent: *
+Allow: /
+
+Disallow: /login
+Disallow: /signup
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /dashboard
+Disallow: /bookings
+Disallow: /history
+Disallow: /saved
+Disallow: /payments
+Disallow: /profile
+Disallow: /settings
+Disallow: /help
+Disallow: /host
+Disallow: /admin
+
+# The apex domain redirects to this host, so the sitemap URL is the one that returns 200.
+Sitemap: https://www.place2park.me/sitemap.xml
