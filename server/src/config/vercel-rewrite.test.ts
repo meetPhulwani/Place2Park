@@ -64,6 +64,9 @@ function securityHeaders(config: VercelConfig, label: string) {
   assert.ok(connectSrc.includes("https://api.place2park.me"), `${label} connect-src must allow the API domain`);
   assert.ok(csp.includes("https://www.googletagmanager.com"), `${label} must allow the GA4 tag`);
   assert.ok(connectSrc.includes("https://www.google-analytics.com"), `${label} must allow GA4 collection`);
+  assert.ok(connectSrc.includes("https://analytics.google.com"), `${label} must allow the current GA4 collection host`);
+  assert.ok(connectSrc.includes("https://www.google.com"), `${label} must allow the Google tag region check`);
+  assert.equal(connectSrc.includes("https://*.google.com"), false, `${label} must not open every Google host`);
   assert.equal(
     byKey.get("Cross-Origin-Opener-Policy"),
     "same-origin-allow-popups",

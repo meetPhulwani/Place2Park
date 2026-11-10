@@ -24,7 +24,40 @@ export function analyticsAllowed(input: {
   console: boolean;
   privacyOptOut: boolean;
 }): boolean {
-  return input.production && Boolean(input.measurementId) && !input.console && !input.privacyOptOut;
+  return analyticsSkipReason(input) == null;
+}
+
+export type AnalyticsSkipReason = "not-production" | "missing-measurement-id" | "admin-console" | "privacy-opt-out";
+
+export function analyticsSkipReason(input: {
+  production: boolean;
+  measurementId: string | null;
+  console: boolean;
+  privacyOptOut: boolean;
+}): AnalyticsSkipReason | null {
+  if (!input.production) return "not-production";
+  if (!input.measurementId) return "missing-measurement-id";
+  if (input.console) return "admin-console";
+  if (input.privacyOptOut) return "privacy-opt-out";
+  return null;
+}
+
+/** gtag.js only treats Arguments objects as config/event commands. A plain array is ignored. */
+export function isRecognizedGtagCommand(command: unknown): boolean {
+  if (command == null || typeof command !== "object") return false;
+  const record = command as { event?: unknown };
+  if (record.event) return true;
+  const isArguments =
+    Object.prototype.toString.call(command) === "[object Arguments]" ||
+    Object.prototype.hasOwnProperty.call(command, "callee");
+  if (!isArguments) return false;
+  const name = (command as ArrayLike<unknown>)[0];
+  return name === "config" || name === "event" || name === "js" || name === "get";
+}
+
+export function googleTagSrc(id: string | null): string | null {
+  if (!id) return null;
+  return `https://www.googletagmanager.com/gtag/js?id=${id}`;
 }
 
 /** Path only. Query strings can carry reset tokens and must not be sent. */

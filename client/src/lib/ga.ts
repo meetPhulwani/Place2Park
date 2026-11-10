@@ -1,8 +1,9 @@
 import {
-  analyticsAllowed,
   analyticsPagePath,
+  analyticsSkipReason,
   browserPrivacyOptOut,
   createPageTracker,
+  googleTagSrc,
   inrValue,
   listingId,
   measurementId,
@@ -33,6 +34,10 @@ const trackPage = createPageTracker((path) => {
   });
 });
 
+function diagnose(message: string) {
+  if (import.meta.env.DEV) console.info(`[ga] ${message}`);
+}
+
 function send(name: string, params?: Record<string, unknown>) {
   if (!started || typeof window.gtag !== "function") return;
   const safe = sanitizeAnalyticsParams(params);
@@ -50,17 +55,24 @@ function send(name: string, params?: Record<string, unknown>) {
 export function initGoogleAnalytics() {
   if (started || typeof document === "undefined") return;
   const id = measurementId(import.meta.env.VITE_GA_MEASUREMENT_ID);
-  const allowed = analyticsAllowed({
+  const reason = analyticsSkipReason({
     production: import.meta.env.PROD,
     measurementId: id,
     console: Boolean(document.querySelector('meta[name="console-base"]')),
     privacyOptOut: browserPrivacyOptOut(window.navigator),
   });
-  if (!allowed || !id) return;
+  if (reason || !id) {
+    diagnose(`not started: ${reason ?? "missing-measurement-id"}`);
+    return;
+  }
+  const src = googleTagSrc(id);
+  if (!src) return;
   started = true;
   window.dataLayer = window.dataLayer ?? [];
-  window.gtag = function gtag(...args: unknown[]) {
-    window.dataLayer?.push(args);
+  // Push the Arguments object. gtag.js ignores a plain array, so config and
+  // page_view would stay in dataLayer and no collection request would be sent.
+  window.gtag = function gtag() {
+    window.dataLayer?.push(arguments);
   };
   window.gtag("js", new Date());
   window.gtag("config", id, {
@@ -70,18 +82,23 @@ export function initGoogleAnalytics() {
   });
   const script = document.createElement("script");
   script.async = true;
-  script.src = `https://www.googletagmanager.com/gtag/js?id=${id}`;
+  script.src = src;
   document.head.appendChild(script);
+  diagnose("Google tag queued");
 }
 
 export function trackPageView(pathname: string) {
-  if (!started) return;
   const path = analyticsPagePath(pathname);
+  if (!started) {
+    diagnose(`page_view ${path} skipped because the tag is not running`);
+    return;
+  }
   if (path !== lastPage) {
     lastPage = path;
     lastListing = "";
   }
-  trackPage(pathname);
+  const sent = trackPage(pathname);
+  diagnose(sent ? `page_view ${path}` : `page_view ${path} duplicate skipped`);
 }
 
 export function rememberAuthMethod(method: "password" | "google") {
