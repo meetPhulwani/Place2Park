@@ -5,6 +5,7 @@ import { api, errorMessage } from "@/services/api";
 import { useAuth } from "@/context/auth";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
+import { takeAuthMethod, trackSignUp } from "@/lib/ga";
 import { clearEmailOtpChallenge, readEmailOtpChallenge, saveEmailOtpChallenge } from "@/lib/google-auth";
 import { safeNextPath } from "@/lib/safe-next";
 
@@ -78,6 +79,7 @@ export default function VerifyEmailPage() {
       const { data } = await api.post("/auth/email-otp/verify", { pendingToken: pending.pendingToken, otp });
       const next = safeNextPath(meta?.next);
       clearEmailOtpChallenge();
+      trackSignUp(takeAuthMethod());
       login(data.data.token, data.data.user);
       navigate(next);
     } catch (e2) {

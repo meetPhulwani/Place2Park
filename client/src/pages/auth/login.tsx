@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label, FieldError } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { GoogleButton } from "@/components/google-button";
+import { trackLogin } from "@/lib/ga";
 import { safeNextPath } from "@/lib/safe-next";
 
 const googleEnabled = !!import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -34,6 +35,7 @@ export default function LoginPage() {
     try {
       const { data } = await api.post("/auth/login", { email, password });
       login(data.data.token, data.data.user);
+      trackLogin("password");
       navigate(dest);
     } catch (e2) {
       setError(errorMessage(e2, "Incorrect email or password."));

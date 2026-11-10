@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
 import { ShieldCheck, KeyRound } from "lucide-react";
+import { trackBookingStart } from "@/lib/ga";
 import { api, errorMessage } from "@/services/api";
 import { Button } from "./ui/button";
 import { Label, Select, Input, FieldError } from "./ui/input";
@@ -119,6 +120,7 @@ export function BookingWidget({
         vehiclePlate: vehicleNumber,
       });
       const bookingId = data.data.bookingId as string;
+      trackBookingStart({ durationMins: duration, vehicle: vehicleType, totalPaise: totalAmount });
       navigate(`/bookings/${bookingId}?new=1`);
     } catch (e) {
       setError(errorMessage(e));

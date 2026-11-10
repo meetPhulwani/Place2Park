@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Routes, Route } from "react-router-dom";
 import { api } from "@/services/api";
+import { AnalyticsListener } from "@/components/analytics-listener";
 import { Toaster } from "@/components/ui/toaster";
 import { ScrollToTop } from "@/components/scroll-to-top";
 import { AuthLayout } from "@/layouts/auth-layout";
@@ -60,6 +61,7 @@ export default function App() {
   return (
     <>
       <PublicNotice />
+      <AnalyticsListener />
       <ScrollToTop />
       <Routes>
         <Route path="/" element={<LandingPage />} />

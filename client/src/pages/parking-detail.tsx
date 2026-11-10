@@ -5,6 +5,7 @@ import {
   BadgeCheck, Bike, Car, Cctv, DoorOpen, ExternalLink, KeyRound, MapPin,
   Ruler, ShieldCheck, Umbrella, UserCheck, Zap,
 } from "lucide-react";
+import { trackListingView } from "@/lib/ga";
 import { api } from "@/services/api";
 import { pageErrorStatus } from "@/lib/http-error";
 import { useAuth } from "@/context/auth";
@@ -50,7 +51,11 @@ export default function ParkingDetailPage() {
     let cancelled = false;
     api
       .get(`/parking/${id}`)
-      .then(({ data: d }) => !cancelled && setData(d.data))
+      .then(({ data: d }) => {
+        if (cancelled) return;
+        setData(d.data);
+        trackListingView(id);
+      })
       .catch((e) => {
         if (cancelled) return;
         setFailure(pageErrorStatus(e));

@@ -45,6 +45,7 @@ Rate limits live in the API process memory. Render should keep a single instance
 | `VITE_GOOGLE_MAPS_API_KEY` | Yes for maps/search | Browser key, HTTP-referrer restricted |
 | `VITE_GOOGLE_CLIENT_ID` | If Google login is offered | Same GIS client as `GOOGLE_CLIENT_ID` |
 | `VITE_RAZORPAY_KEY_ID` | Yes for checkout | Public key id only. Must match server mode |
+| `VITE_GA_MEASUREMENT_ID` | Optional | GA4 measurement ID for the public site, shape `G-XXXXXXXXXX`. Leave empty to disable. Rebuild after changing it. Not used by the admin console |
 
 ## 2. Razorpay webhook
 

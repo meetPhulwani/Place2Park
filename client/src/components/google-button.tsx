@@ -2,6 +2,7 @@ import * as React from "react";
 import { useNavigate } from "react-router-dom";
 import { api, errorMessage } from "@/services/api";
 import { useAuth, type AuthUser } from "@/context/auth";
+import { rememberAuthMethod, trackLogin } from "@/lib/ga";
 import { googleSignInResult, saveEmailOtpChallenge } from "@/lib/google-auth";
 import { safeNextPath } from "@/lib/safe-next";
 import { toast } from "./ui/toaster";
@@ -112,9 +113,11 @@ export function GoogleButton({
       if (result.kind === "email") {
         const dest = safeNextPath(next);
         saveEmailOtpChallenge(result.challenge, dest);
+        rememberAuthMethod("google");
         navigate("/signup/verify-email");
         return;
       }
+      trackLogin("google");
       login(result.token, result.user);
       navigate(safeNextPath(next));
     } catch (e) {

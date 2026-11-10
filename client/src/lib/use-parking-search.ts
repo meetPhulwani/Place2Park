@@ -1,4 +1,5 @@
 import * as React from "react";
+import { trackParkingSearch } from "@/lib/ga";
 import { api } from "@/services/api";
 import type { SpaceSummary } from "@/types";
 
@@ -33,7 +34,9 @@ export function useParkingSearch(
       .get(`/parking/search?${qs.toString()}`)
       .then(({ data }) => {
         if (cancelled) return;
-        setSpaces(data.data.results);
+        const results = Array.isArray(data.data.results) ? (data.data.results as SpaceSummary[]) : [];
+        setSpaces(results);
+        if (qs.get("q") || (qs.get("lat") && qs.get("lng"))) trackParkingSearch(results.length);
         const center = data.data.center as { lat: number; lng: number } | null;
         setApiDestination(center ? { ...center, name: data.data.resolvedArea ?? qs.get("q") ?? undefined } : null);
       })

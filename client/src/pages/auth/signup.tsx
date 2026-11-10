@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label, FieldError } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { GoogleButton } from "@/components/google-button";
+import { rememberAuthMethod } from "@/lib/ga";
 import { saveEmailOtpChallenge } from "@/lib/google-auth";
 import type { SignupRole } from "@/pages/auth/signup-role";
 
@@ -95,6 +96,7 @@ export default function SignupPage() {
     try {
       const { data } = await api.post("/auth/signup", { ...form, role });
       saveEmailOtpChallenge(data.data);
+      rememberAuthMethod("password");
       navigate("/signup/verify-email");
     } catch (e2) {
       const flat = fieldErrorsFrom(e2);

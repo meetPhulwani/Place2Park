@@ -62,6 +62,8 @@ function securityHeaders(config: VercelConfig, label: string) {
   assert.ok(imgSrc.includes("https://api.place2park.me"), `${label} img-src must allow API demo images`);
   assert.ok(connectSrc.includes("https://*.onrender.com"), `${label} connect-src must keep the Render API origin`);
   assert.ok(connectSrc.includes("https://api.place2park.me"), `${label} connect-src must allow the API domain`);
+  assert.ok(csp.includes("https://www.googletagmanager.com"), `${label} must allow the GA4 tag`);
+  assert.ok(connectSrc.includes("https://www.google-analytics.com"), `${label} must allow GA4 collection`);
   assert.equal(
     byKey.get("Cross-Origin-Opener-Policy"),
     "same-origin-allow-popups",

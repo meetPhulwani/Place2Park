@@ -1,4 +1,5 @@
 import * as React from "react";
+import { trackBookingConfirmed } from "@/lib/ga";
 import { api, errorMessage } from "@/services/api";
 import { useAuth } from "@/context/auth";
 import { Button } from "./ui/button";
@@ -92,6 +93,7 @@ export function PayNowButton({ bookingId, bookingCode, onPaid }: Props) {
         checkout.open();
       });
 
+      trackBookingConfirmed(order.amount);
       setStatus("success");
       setMessage("Payment verified. Your booking is confirmed.");
       onPaid();

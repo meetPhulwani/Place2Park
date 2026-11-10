@@ -69,6 +69,7 @@ Seed listings are fictional Mumbai-inspired demo data.
 | `VITE_GOOGLE_MAPS_API_KEY` | Maps JS API (HTTP-referrer restricted) |
 | `VITE_GOOGLE_CLIENT_ID` | Google Identity Services button |
 | `VITE_RAZORPAY_KEY_ID` | Optional public key (API also returns `keyId`) |
+| `VITE_GA_MEASUREMENT_ID` | Optional GA4 ID. Public production site only; leave empty to disable |
 
 Never put `JWT_SECRET`, `GOOGLE_CLIENT_SECRET`, or `RAZORPAY_KEY_SECRET` in the client.
 
