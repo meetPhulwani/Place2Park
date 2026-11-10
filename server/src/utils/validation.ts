@@ -57,6 +57,14 @@ export const googleLoginSchema = z.object({
 
 export const emptyBodySchema = z.object({}).strict();
 
+export const deleteAccountSchema = z
+  .object({
+    confirmation: z.literal("DELETE MY ACCOUNT"),
+    password: z.string().max(100).optional(),
+    credential: z.string().max(8000).optional(),
+  })
+  .strict();
+
 export const objectIdSchema = z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid id.");
 
 export const createPaymentOrderSchema = z.object({

@@ -3,6 +3,7 @@ import Link from "@/components/link";
 import { BadgeCheck, ChevronRight, Landmark, ShieldAlert, User } from "lucide-react";
 import { useAuth } from "@/context/auth";
 import { api } from "@/services/api";
+import { AccountManagement } from "@/components/account-management";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -99,6 +100,10 @@ export default function HostSettingsPage() {
         </span>
         <ChevronRight className="size-5 text-slate-300" aria-hidden />
       </Link>
+
+      <div className="border-t border-line pt-6">
+        <AccountManagement />
+      </div>
     </div>
   );
 }

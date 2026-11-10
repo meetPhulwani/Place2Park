@@ -43,6 +43,7 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
     const user = await User.findById(payload.sub).select("role status tokenVersion");
     if (!user) throw new ApiError(401, "Account not found.");
     if (!tokenVersionOf(user, payload)) throw new ApiError(401, "Your session has expired. Please log in again.");
+    if (user.status === "DELETED") throw new ApiError(401, "Your session has expired. Please log in again.");
     if (user.status === "SUSPENDED") throw new ApiError(403, "This account has been suspended.");
     (req as AuthedRequest).userId = String(user._id);
     (req as AuthedRequest).userRole = user.role;
@@ -60,7 +61,7 @@ export async function maybeAuthenticate(req: Request, _res: Response, next: Next
     const payload = jwt.verify(token, env.JWT_SECRET, { algorithms: ["HS256"] }) as jwt.JwtPayload;
     if (payload.purpose) return next();
     const user = await User.findById(payload.sub).select("role status tokenVersion");
-    if (user && user.status !== "SUSPENDED" && tokenVersionOf(user, payload)) {
+    if (user && user.status === "ACTIVE" && tokenVersionOf(user, payload)) {
       (req as AuthedRequest).userId = String(user._id);
       (req as AuthedRequest).userRole = user.role;
     }

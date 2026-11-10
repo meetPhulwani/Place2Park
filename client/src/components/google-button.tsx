@@ -85,7 +85,15 @@ function GoogleMark() {
  * One Tap's prompt() is often skipped and shows nothing, so the clickable control is
  * the GIS button. That button returns the ID token in its callback.
  */
-export function GoogleButton({ next }: { next?: string }) {
+export function GoogleButton({
+  next,
+  onConfirm,
+  unavailableMessage,
+}: {
+  next?: string;
+  onConfirm?: (credential: string) => void;
+  unavailableMessage?: string;
+}) {
   const hostRef = React.useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { login } = useAuth();
@@ -94,6 +102,10 @@ export function GoogleButton({ next }: { next?: string }) {
   const onCredential = React.useRef<(credential: string) => Promise<void>>(async () => {});
 
   onCredential.current = async (credential: string) => {
+    if (onConfirm) {
+      onConfirm(credential);
+      return;
+    }
     try {
       const { data } = await api.post("/auth/google", { credential });
       const result = googleSignInResult<AuthUser>(data.data);
@@ -171,6 +183,7 @@ export function GoogleButton({ next }: { next?: string }) {
   }, []);
 
   if (!GOOGLE_CLIENT_ID) {
+    if (unavailableMessage) return <p className="text-sm text-muted">{unavailableMessage}</p>;
     return (
       <button
         type="button"

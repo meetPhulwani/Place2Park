@@ -57,6 +57,7 @@ export async function login(req: Request, res: Response) {
   const user = await User.findOne({ email }).select("+passwordHash");
   if (!user?.passwordHash || !(await bcrypt.compare(password, user.passwordHash)))
     throw new ApiError(401, "Incorrect email or password.");
+  if (user.status === "DELETED") throw new ApiError(401, "Incorrect email or password.");
   if (user.status === "SUSPENDED")
     throw new ApiError(403, "This account has been suspended. Contact support for help.");
   res.json({ success: true, data: { token: issueToken(user), user: publicUser(user) } });

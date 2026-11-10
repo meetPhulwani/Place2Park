@@ -28,6 +28,7 @@ import HistoryPage from "@/pages/account/history";
 import SavedPage from "@/pages/account/saved";
 import PaymentsPage from "@/pages/account/payments";
 import ProfilePage from "@/pages/account/profile";
+import AccountSettingsPage from "@/pages/account/settings";
 import HelpCenterPage from "@/pages/help/center";
 import ReportUserPage from "@/pages/help/report-form";
 import ContactSupportPage from "@/pages/help/ticket-form";
@@ -86,6 +87,7 @@ export default function App() {
           <Route path="/saved" element={<SavedPage />} />
           <Route path="/payments" element={<PaymentsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/settings" element={<AccountSettingsPage />} />
           <Route path="/help" element={<HelpCenterPage />} />
           <Route path="/help/faqs" element={<HelpFaqsPage />} />
           <Route path="/help/report" element={<ReportUserPage />} />

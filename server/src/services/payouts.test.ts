@@ -497,7 +497,7 @@ describe("payout beneficiary details", () => {
     await User.deleteOne({ _id: other._id });
   });
 
-  it("lets a signed-in driver save their own bank details and blocks anonymous access", async () => {
+  it("blocks drivers and anonymous users from payout details", async () => {
     await new Promise<void>((resolve, reject) => {
       authenticate({ headers: {} } as AuthedRequest, {} as never, (err) => {
         try {
@@ -508,30 +508,9 @@ describe("payout beneficiary details", () => {
         }
       });
     });
-    const driverAccount = "987654321098";
-    const saved = await createHostPayoutDetails(driverId, {
-      ...PAYOUT_INPUT,
-      accountHolder: "Aarav Mehta",
-      accountNumber: driverAccount,
-      confirmAccountNumber: driverAccount,
-    });
-    assert.equal(saved.accountLast4, "1098");
-    assert.equal(JSON.stringify(saved).includes(driverAccount), false);
-    const own = await getHostPayoutDetails(driverId);
-    assert.equal(own.configured, true);
-    assert.equal(own.hasPassword, false);
-    const hostView = await getHostPayoutDetails(hostId);
-    assert.equal(hostView.configured, false);
-    await assert.rejects(
-      () => updateHostPayoutDetails(driverId, { ...PAYOUT_INPUT, bankName: "State Bank" }),
-      (err: unknown) => err instanceof ApiError && err.status === 400 && /password/i.test(err.message)
-    );
-    const req = { headers: { authorization: `Bearer ${signToken(driverId)}` } } as AuthedRequest;
+    const driverReq = { headers: { authorization: `Bearer ${signToken(driverId)}` }, userRole: "DRIVER" } as AuthedRequest;
     await new Promise<void>((resolve, reject) => {
-      authenticate(req, {} as never, (err) => (err ? reject(err) : resolve()));
-    });
-    await new Promise<void>((resolve, reject) => {
-      hostOnly(req, {} as never, (err) => {
+      hostOnly(driverReq, {} as never, (err) => {
         try {
           assert.ok(err instanceof ApiError && err.status === 403);
           resolve();
@@ -539,6 +518,14 @@ describe("payout beneficiary details", () => {
           reject(error);
         }
       });
+    });
+    const hostReq = { userRole: "HOST" } as AuthedRequest;
+    await new Promise<void>((resolve, reject) => {
+      hostOnly(hostReq, {} as never, (err) => (err ? reject(err) : resolve()));
+    });
+    const bothReq = { userRole: "BOTH" } as AuthedRequest;
+    await new Promise<void>((resolve, reject) => {
+      hostOnly(bothReq, {} as never, (err) => (err ? reject(err) : resolve()));
     });
   });
 });

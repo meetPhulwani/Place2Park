@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Bike, Car, Plus, Trash2 } from "lucide-react";
 import { api, errorMessage, fieldErrors } from "@/services/api";
-import { useAuth } from "@/context/auth";
+import { isHostRole, useAuth } from "@/context/auth";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,7 +28,7 @@ interface ProfileData {
 }
 
 export default function ProfilePage() {
-  const { refresh } = useAuth();
+  const { refresh, user: sessionUser } = useAuth();
   const [data, setData] = React.useState<ProfileData | null>(null);
 
   React.useEffect(() => {
@@ -55,7 +55,7 @@ export default function ProfilePage() {
           }}
         />
       )}
-      <BankDetailsCard />
+      {isHostRole(sessionUser?.role) && <BankDetailsCard />}
     </div>
   );
 }

@@ -9,7 +9,8 @@ const userSchema = new Schema(
     googleId: { type: String, index: true, sparse: true },
     image: { type: String },
     role: { type: String, enum: ROLES, default: "DRIVER", index: true },
-    status: { type: String, enum: ["ACTIVE", "SUSPENDED"], default: "ACTIVE" },
+    status: { type: String, enum: ["ACTIVE", "SUSPENDED", "DELETED"], default: "ACTIVE" },
+    deletedAt: { type: Date },
     hostVerified: { type: Boolean, default: false },
     // Profile (embedded — always loaded with the user)
     phone: { type: String, default: "" },
