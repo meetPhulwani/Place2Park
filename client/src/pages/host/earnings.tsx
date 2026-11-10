@@ -161,15 +161,17 @@ export default function HostEarningsPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Request a payout</CardTitle>
-          <Link href="/host/payout-settings" className="text-sm font-medium text-brand-700">
-            Payout settings
+          <Link href="/profile#bank-details" className="text-sm font-medium text-brand-700">
+            Bank details
           </Link>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-slate-500">
-            {data.automaticTransfers
-              ? "Automatic transfers are not enabled for this account."
-              : "Razorpay Route is not used. An admin pays eligible earnings after reviewing your request."}
+            {!data.payoutProfile.submitted
+              ? "Add your bank details in Profile to receive your parking earnings."
+              : !data.payoutProfile.verified
+                ? "Your bank details are awaiting verification. An admin pays eligible earnings after that review."
+                : "An admin pays eligible earnings after reviewing your request. Place2Park does not transfer money automatically."}
           </p>
           <Button
             disabled={busy || data.eligibleAmount <= 0 || !data.payoutProfile.verified}

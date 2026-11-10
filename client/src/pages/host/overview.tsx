@@ -1,6 +1,7 @@
 import * as React from "react";
 import Link from "@/components/link";
-import { Building2, CalendarClock, CalendarDays, Landmark, Plus, Wallet } from "lucide-react";
+import { Building2, CalendarClock, CalendarDays, Plus, Wallet } from "lucide-react";
+import { BankDetailsReminder } from "@/components/bank-details-card";
 import { api } from "@/services/api";
 import type { Booking, BookingSpaceRef } from "@/types";
 import { StatCard } from "@/components/stat-card";
@@ -153,6 +154,8 @@ export default function HostDashboardPage() {
         }
       />
 
+      <BankDetailsReminder />
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard icon="CalendarClock" label="Today's bookings" value={data.todays.length} format="integer" />
         <StatCard
@@ -184,7 +187,7 @@ export default function HostDashboardPage() {
           { href: "/host/calendar", label: "Calendar", icon: CalendarDays },
           { href: "/host/bookings", label: "Bookings", icon: CalendarClock },
           { href: "/host/earnings", label: "Earnings", icon: Wallet },
-          { href: "/host/payout-settings", label: "Payout Settings", icon: Landmark },
+          { href: "/profile#bank-details", label: "Bank details", icon: Wallet },
         ]}
       />
 

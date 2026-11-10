@@ -13,6 +13,7 @@ import { Rating } from "@/components/ui/rating";
 import { toast } from "@/components/ui/toaster";
 import { getDisplayLocation } from "@/lib/location";
 import { formatINR } from "@/lib/utils";
+import { BankDetailsReminder } from "@/components/bank-details-card";
 
 type Listing = ParkingSpaceFull & { upcomingBookings: number; availabilitySummary?: string };
 
@@ -64,6 +65,8 @@ export default function HostListingsPage() {
           </Button>
         </Link>
       </div>
+
+      <BankDetailsReminder />
 
       {listings.length === 0 ? (
         <EmptyState

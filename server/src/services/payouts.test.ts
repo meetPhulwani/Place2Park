@@ -134,8 +134,8 @@ beforeEach(async () => {
   await Payment.deleteMany({});
   await HostPayout.deleteMany({});
   await AdminAudit.deleteMany({});
-  await User.updateOne(
-    { _id: hostId },
+  await User.updateMany(
+    { _id: { $in: [hostId, driverId] } },
     { $unset: { payoutProfile: 1 } }
   );
 });
@@ -147,7 +147,23 @@ describe("payout eligibility and commission", () => {
     assert.equal(summary.calculatedCompleted, booking.hostEarning);
     assert.equal(summary.paidAmount, 0);
     assert.equal(summary.automaticTransfers, false);
-    assert.equal(summary.eligibleAmount, booking.hostEarning);
+    assert.equal(summary.eligibleAmount, 0);
+    assert.equal(summary.eligibleCount, 0);
+  });
+
+  it("keeps completed earnings ineligible for payout until bank details are saved", async () => {
+    const booking = await seedBooking({ status: "COMPLETED" });
+    const before = await summarizeHostEarnings(hostId);
+    assert.equal(before.eligibleAmount, 0);
+    assert.equal(before.paidAmount, 0);
+    await saveHostPayoutProfile(hostId, PAYOUT_INPUT);
+    const after = await summarizeHostEarnings(hostId);
+    assert.equal(after.eligibleAmount, booking.hostEarning);
+    assert.equal(after.paidAmount, 0);
+    await assert.rejects(
+      () => requestHostPayout(hostId),
+      (err: unknown) => err instanceof ApiError && err.status === 400 && err.message.includes("verify")
+    );
   });
 
   it("uses computeQuote hostEarning (10% host commission) as the payout amount", async () => {
@@ -481,7 +497,7 @@ describe("payout beneficiary details", () => {
     await User.deleteOne({ _id: other._id });
   });
 
-  it("blocks anonymous and non-host access", async () => {
+  it("lets a signed-in driver save their own bank details and blocks anonymous access", async () => {
     await new Promise<void>((resolve, reject) => {
       authenticate({ headers: {} } as AuthedRequest, {} as never, (err) => {
         try {
@@ -492,6 +508,24 @@ describe("payout beneficiary details", () => {
         }
       });
     });
+    const driverAccount = "987654321098";
+    const saved = await createHostPayoutDetails(driverId, {
+      ...PAYOUT_INPUT,
+      accountHolder: "Aarav Mehta",
+      accountNumber: driverAccount,
+      confirmAccountNumber: driverAccount,
+    });
+    assert.equal(saved.accountLast4, "1098");
+    assert.equal(JSON.stringify(saved).includes(driverAccount), false);
+    const own = await getHostPayoutDetails(driverId);
+    assert.equal(own.configured, true);
+    assert.equal(own.hasPassword, false);
+    const hostView = await getHostPayoutDetails(hostId);
+    assert.equal(hostView.configured, false);
+    await assert.rejects(
+      () => updateHostPayoutDetails(driverId, { ...PAYOUT_INPUT, bankName: "State Bank" }),
+      (err: unknown) => err instanceof ApiError && err.status === 400 && /password/i.test(err.message)
+    );
     const req = { headers: { authorization: `Bearer ${signToken(driverId)}` } } as AuthedRequest;
     await new Promise<void>((resolve, reject) => {
       authenticate(req, {} as never, (err) => (err ? reject(err) : resolve()));

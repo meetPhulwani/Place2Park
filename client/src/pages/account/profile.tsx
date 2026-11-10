@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/toaster";
+import { BankDetailsCard } from "@/components/bank-details-card";
 
 interface Vehicle {
   id: string;
@@ -35,15 +36,6 @@ export default function ProfilePage() {
     api.get("/users/me/profile").then(({ data: d }) => setData(d.data)).catch(() => undefined);
   }, []);
 
-  if (!data) {
-    return (
-      <div className="max-w-2xl space-y-6">
-        <Skeleton className="h-9 w-40" />
-        <Skeleton className="h-96 rounded-2xl" />
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-2xl space-y-6 animate-fade-in">
       <div>
@@ -52,13 +44,18 @@ export default function ProfilePage() {
           Your account details and preferences. We only ask for what we need.
         </p>
       </div>
-      <ProfileForm
-        data={data}
-        onSaved={(d) => {
-          setData(d);
-          void refresh();
-        }}
-      />
+      {!data ? (
+        <Skeleton className="h-96 rounded-2xl" />
+      ) : (
+        <ProfileForm
+          data={data}
+          onSaved={(d) => {
+            setData(d);
+            void refresh();
+          }}
+        />
+      )}
+      <BankDetailsCard />
     </div>
   );
 }

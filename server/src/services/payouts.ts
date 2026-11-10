@@ -158,8 +158,11 @@ function appendEvent(
 }
 
 export async function getHostPayoutDetails(hostId: string) {
-  const user = await User.findById(hostId).select("payoutProfile");
-  return publicPayoutProfile(user?.payoutProfile);
+  const user = await User.findById(hostId).select("+passwordHash payoutProfile");
+  return {
+    ...publicPayoutProfile(user?.payoutProfile),
+    hasPassword: Boolean(user?.passwordHash),
+  };
 }
 
 export async function saveHostPayoutProfile(hostId: string, input: PayoutProfileInput) {
@@ -271,7 +274,8 @@ export async function summarizeHostEarnings(hostId: string) {
     listEligibleBookings(hostId),
   ]);
   const byStatus = Object.fromEntries(payoutAgg.map((row) => [row._id, row]));
-  const eligibleAmount = eligible.reduce((sum, b) => sum + (b.hostEarning ?? 0), 0);
+  const payoutConfigured = Boolean(profileUser?.payoutProfile?.accountLast4);
+  const eligibleAmount = payoutConfigured ? eligible.reduce((sum, b) => sum + (b.hostEarning ?? 0), 0) : 0;
   return {
     calculatedCompleted: completed[0]?.earning ?? 0,
     platformFees: completed[0]?.fees ?? 0,
@@ -286,7 +290,7 @@ export async function summarizeHostEarnings(hostId: string) {
       ])
     )[0]?.earning ?? 0,
     eligibleAmount,
-    eligibleCount: eligible.length,
+    eligibleCount: payoutConfigured ? eligible.length : 0,
     pendingTransferAmount: OPEN_PAYOUT_STATUSES.reduce((sum, status) => sum + (byStatus[status]?.amount ?? 0), 0),
     pendingTransferCount: OPEN_PAYOUT_STATUSES.reduce((sum, status) => sum + (byStatus[status]?.count ?? 0), 0),
     paidAmount: byStatus.PAID?.amount ?? 0,
@@ -304,7 +308,7 @@ async function requireVerifiedProfile(hostId: string) {
   if (!user) throw new ApiError(404, "Account not found.");
   const profile = user.payoutProfile;
   if (!profile?.accountLast4 || !profile.accountNumberEnc) {
-    throw new ApiError(400, "Add your bank details before requesting a payout.");
+    throw new ApiError(400, "Add your bank details in Profile to receive your parking earnings.");
   }
   if (!profile.verified) throw new ApiError(400, "An admin must verify your payout details first.");
   return { user, profile };

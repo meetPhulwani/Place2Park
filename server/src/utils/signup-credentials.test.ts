@@ -23,6 +23,27 @@ describe("signup credentials", () => {
     assert.equal(normalizeIndianMobile("5876543210"), null);
   });
 
+  it("accepts signup without bank details and rejects bank fields on the payload", () => {
+    const ok = signupSchema.safeParse({
+      name: "Aarav Mehta",
+      email: "aarav@example.com",
+      password: "GoodPass1!",
+      phone: "9876543210",
+      role: "DRIVER",
+    });
+    assert.equal(ok.success, true);
+    if (ok.success) assert.equal("accountNumber" in ok.data, false);
+    const withBank = signupSchema.safeParse({
+      name: "Aarav Mehta",
+      email: "aarav@example.com",
+      password: "GoodPass1!",
+      phone: "9876543210",
+      accountNumber: "123456789012",
+      ifsc: "HDFC0001234",
+    });
+    assert.equal(withBank.success, false);
+  });
+
   it("rejects a weak password or a missing phone and accepts a valid signup", () => {
     const weak = signupSchema.safeParse({
       name: "Aarav Mehta",
