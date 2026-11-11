@@ -4,6 +4,7 @@ import { ApiError } from "../middleware/error.js";
 import {
   EXPECTED_RAZORPAY_WEBHOOK_EVENTS,
   checkoutSignature,
+  fetchRazorpayPayment,
   razorpayConfigured,
   razorpayOrderCreatePayload,
   razorpayRefundParams,
@@ -149,6 +150,58 @@ describe("Razorpay refund settlement", () => {
       },
     });
     assert.equal(result.refundId, "rfnd_pay_from_order");
+  });
+
+  it("does not retry a refund when the provider times out", async () => {
+    let refunds = 0;
+    await assert.rejects(
+      () =>
+        settleRazorpayRefund({
+          paymentId: "pay_once",
+          amountPaise: 7350,
+          timeoutMs: 20,
+          payments: {
+            fetch: async () => ({ status: "captured" }),
+            capture: async () => ({}),
+            refund: () => {
+              refunds += 1;
+              return new Promise(() => undefined);
+            },
+          },
+        }),
+      /timeout contacting Razorpay/
+    );
+    assert.equal(refunds, 1);
+  });
+
+  it("retries a payment status read once and does not mark it failed", async () => {
+    let reads = 0;
+    await assert.rejects(
+      () =>
+        fetchRazorpayPayment(
+          "pay_unknown",
+          () => {
+            reads += 1;
+            return new Promise(() => undefined);
+          },
+          20
+        ),
+      /timeout contacting Razorpay/
+    );
+    assert.equal(reads, 2);
+    let lateReads = 0;
+    const found = await fetchRazorpayPayment(
+      "pay_late",
+      () => {
+        lateReads += 1;
+        if (lateReads === 1) return new Promise(() => undefined);
+        return Promise.resolve({ amount: 7350, currency: "INR" });
+      },
+      20
+    );
+    assert.equal(lateReads, 2);
+    assert.equal(found.amount, 7350);
+    assert.equal(found.currency, "INR");
   });
 
   it("times out a hung Razorpay refund call without treating it as success", async () => {

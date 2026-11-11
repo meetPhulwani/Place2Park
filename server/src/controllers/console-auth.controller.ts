@@ -9,6 +9,7 @@ import {
   reauthenticate,
   resendAdminOtp,
   revokeConsoleSession,
+  CONSOLE_ABSOLUTE_MS,
   startAdminLogin,
   verifyAdminAnswer,
   verifyAdminOtp,
@@ -16,7 +17,6 @@ import {
 } from "../services/admin-auth.js";
 import { SECURITY_QUESTIONS } from "../utils/admin-access.js";
 
-const ABSOLUTE_MS = 8 * 60 * 60 * 1000;
 const STEP_MS = 15 * 60 * 1000;
 
 function cookie(res: Response, name: string, value: string, maxAge: number, httpOnly: boolean) {
@@ -58,8 +58,8 @@ export async function question(req: Request, res: Response) {
 export async function totp(req: Request, res: Response) {
   const result = await verifyAdminTotp(readCookie(req, STEP_COOKIE), String((req.body as { code?: string }).code ?? ""), req);
   clearCookie(res, STEP_COOKIE);
-  cookie(res, SESSION_COOKIE, result.session.token, ABSOLUTE_MS, true);
-  cookie(res, CSRF_COOKIE, result.session.csrf, ABSOLUTE_MS, false);
+  cookie(res, SESSION_COOKIE, result.session.token, CONSOLE_ABSOLUTE_MS, true);
+  cookie(res, CSRF_COOKIE, result.session.csrf, CONSOLE_ABSOLUTE_MS, false);
   res.json({ success: true, data: { admin: result.admin } });
 }
 

@@ -5,6 +5,7 @@ import routes from "./routes/index.js";
 import consoleRoutes from "./routes/console.js";
 import { registerConsoleSpa } from "./console-spa.js";
 import { errorHandler, notFoundHandler } from "./middleware/error.js";
+import { requestTimeout } from "./middleware/request-timeout.js";
 import { allowedCorsOrigins } from "./config/cors.js";
 import { env, isProd } from "./config/env.js";
 import { DEMO_DIR, UPLOADS_DIR } from "./config/paths.js";
@@ -37,6 +38,7 @@ export function createApp() {
     })
   );
 
+  app.use(requestTimeout);
   app.get("/api/health", (_req, res) => res.json({ success: true, data: { status: "ok" } }));
   if (e2eHooksEnabled()) app.use("/api/__e2e", e2eHookRouter);
   app.use("/api/console", consoleRoutes);

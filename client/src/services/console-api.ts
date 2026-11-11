@@ -1,4 +1,5 @@
 import axios, { AxiosError } from "axios";
+import { API_TIMEOUT_MS, isRequestTimeout } from "@/lib/request-timeout";
 
 const CSRF_COOKIE = "p2p_adm_csrf";
 
@@ -11,7 +12,7 @@ function readCsrf() {
 /** Cookie session client for the isolated admin console. Tokens stay in HttpOnly cookies. */
 export const consoleApi = axios.create({
   baseURL: "/api/console",
-  timeout: 25_000,
+  timeout: API_TIMEOUT_MS,
   withCredentials: true,
 });
 
@@ -31,6 +32,7 @@ export function consoleError(err: unknown, fallback = "Something went wrong. Ple
   if (err instanceof AxiosError) {
     const msg = (err.response?.data as { message?: string } | undefined)?.message;
     if (msg) return msg;
+    if (isRequestTimeout(err)) return "The server took too long to respond. Please try again.";
   }
   return fallback;
 }

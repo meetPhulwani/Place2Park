@@ -1,7 +1,8 @@
 import type { Request, Response } from "express";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
-import { OAuth2Client } from "google-auth-library";
+import { isTimeoutError } from "../utils/async.js";
+import { verifyGoogleIdToken } from "../services/google-identity.js";
 import { User } from "../models/index.js";
 import { ApiError } from "../middleware/error.js";
 import { signToken, type AuthedRequest } from "../middleware/auth.js";
@@ -70,12 +71,12 @@ export async function login(req: Request, res: Response) {
 export async function googleLogin(req: Request, res: Response) {
   if (!env.GOOGLE_CLIENT_ID) throw new ApiError(503, "Google login isn't configured.");
   const { credential } = req.body as { credential: string };
-  const client = new OAuth2Client(env.GOOGLE_CLIENT_ID);
   let payload;
   try {
-    const ticket = await client.verifyIdToken({ idToken: credential, audience: env.GOOGLE_CLIENT_ID });
+    const ticket = await verifyGoogleIdToken(credential, env.GOOGLE_CLIENT_ID);
     payload = ticket.getPayload();
-  } catch {
+  } catch (err) {
+    if (isTimeoutError(err)) throw new ApiError(503, "Google sign-in took too long. Try again.");
     throw new ApiError(401, "Google sign-in failed. Try again.");
   }
   if (!payload?.email || !payload.sub || payload.email_verified !== true)

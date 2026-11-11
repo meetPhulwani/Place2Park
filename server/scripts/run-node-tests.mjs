@@ -15,6 +15,7 @@ fs.mkdirSync(tempDir, { recursive: true });
 const UNIT = [
   "src/utils/pricing.test.ts",
   "src/utils/async.test.ts",
+  "src/middleware/request-timeout.test.ts",
   "src/utils/rate-limit.test.ts",
   "src/utils/listing-schema.test.ts",
   "src/utils/signup-credentials.test.ts",

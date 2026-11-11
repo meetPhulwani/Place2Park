@@ -3,6 +3,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import mongoose from "mongoose";
 import { env } from "../config/env.js";
+import { timeouts } from "../config/timeouts.js";
+import { withTimeout } from "../utils/async.js";
 import { UPLOADS_DIR } from "../config/paths.js";
 import { ApiError } from "../middleware/error.js";
 import { ParkingSpace, PendingUpload } from "../models/index.js";
@@ -251,12 +253,16 @@ async function defaultCloudinaryDestroy(publicId: string) {
 
 export async function uploadListingImage(
   file: { buffer: Buffer; mimetype: string; size?: number },
-  deps: { upload?: UploadListingImageFn; hostId?: string } = {}
+  deps: { upload?: UploadListingImageFn; hostId?: string; timeoutMs?: number } = {}
 ): Promise<{ url: string; publicId: string }> {
   validateUploadFile(file);
   const upload = deps.upload ?? ((input) => defaultCloudinaryUpload(input, deps.hostId));
   try {
-    const stored = await upload({ buffer: file.buffer, mimetype: file.mimetype });
+    const stored = await withTimeout(
+      upload({ buffer: file.buffer, mimetype: file.mimetype }),
+      deps.timeoutMs ?? timeouts.cloudinaryMs,
+      "timeout contacting Cloudinary"
+    );
     if (!stored.url || !stored.publicId) throw new Error("Cloudinary upload returned no asset");
     return stored;
   } catch (err) {

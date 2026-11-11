@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { env, isProd } from "./env.js";
+import { mongoConnectOptions } from "./timeouts.js";
 import { ParkingSpace } from "../models/ParkingSpace.js";
 
 /**
@@ -12,7 +13,7 @@ export async function connectDb(): Promise<{ inMemory: boolean }> {
   if (env.MONGODB_URI) {
     // Always use a dedicated Parkly database. Atlas URIs without a path default
     // to "test", which mixed other apps' collections and left parkingspaces empty.
-    await mongoose.connect(env.MONGODB_URI, { dbName: env.MONGODB_DB });
+    await mongoose.connect(env.MONGODB_URI, { dbName: env.MONGODB_DB, ...mongoConnectOptions() });
     console.info(`[db] connected to MongoDB (${mongoose.connection.name})`);
     await ParkingSpace.syncIndexes();
     await repairSwappedGeoJson();

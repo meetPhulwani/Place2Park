@@ -489,6 +489,47 @@ describe("Resend HTTPS delivery", () => {
     assert.equal(body.from, "Place2Park <hello@place2park.app>");
   });
 
+  it("retries a timeout once with the same idempotency key and does not retry a 403", async () => {
+    const keys: string[] = [];
+    let attempts = 0;
+    await sendMail(
+      { to: "driver@place2park.app", subject: "Code", text: "ok" },
+      {
+        cfg: resendOnly,
+        isProd: true,
+        requestId: "mail-retry-1",
+        timeoutMs: 30,
+        fetch: async (_url, init) => {
+          attempts += 1;
+          keys.push(String(new Headers(init.headers).get("Idempotency-Key")));
+          if (attempts === 1) return new Promise(() => undefined);
+          return jsonResponse(200, { id: "msg_retry" });
+        },
+      }
+    );
+    assert.equal(attempts, 2);
+    assert.deepEqual(keys, ["mail-retry-1", "mail-retry-1"]);
+
+    let forbidden = 0;
+    await assert.rejects(
+      () =>
+        sendMail(
+          { to: "driver@place2park.app", subject: "Code", text: "ok" },
+          {
+            cfg: resendOnly,
+            isProd: true,
+            requestId: "mail-403",
+            fetch: async () => {
+              forbidden += 1;
+              return jsonResponse(403, { name: "validation_error", message: "domain not verified" });
+            },
+          }
+        ),
+      /Resend 403/
+    );
+    assert.equal(forbidden, 1);
+  });
+
   it("times out a hung Resend request without treating it as sent", async () => {
     await assert.rejects(
       () =>

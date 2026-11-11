@@ -1,4 +1,5 @@
 import { createRequire } from "node:module";
+import { timeouts } from "../config/timeouts.js";
 import { ApiError } from "../middleware/error.js";
 
 export type CounterHit = { totalHits: number; resetTime: Date };
@@ -117,7 +118,8 @@ function connectRedis(url: string): RedisLike {
   const client = new Redis(url, {
     maxRetriesPerRequest: 1,
     enableOfflineQueue: false,
-    connectTimeout: 2000,
+    connectTimeout: timeouts.redisConnectMs,
+    commandTimeout: timeouts.redisCommandMs,
   });
   client.on("error", () => {
     console.error("[rate-limit] shared counter unavailable");

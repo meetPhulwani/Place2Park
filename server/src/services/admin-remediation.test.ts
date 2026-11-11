@@ -61,6 +61,21 @@ describe("shared rate counters", () => {
     assert.match(response.body, /couldn't complete that step/);
     assert.equal(response.body.includes("redis"), false);
   });
+
+  it("fails closed when the shared counter times out", async () => {
+    const backend: MemorySharedCounter = Object.create(MemorySharedCounter.prototype);
+    backend.increment = async () => {
+      throw Object.assign(new Error("timeout contacting Redis"), { code: "ETIMEDOUT" });
+    };
+    const app = express();
+    app.use(rateLimit("console-step", 5, 60_000, { key: () => "ip", counter: backend, failClosed: true }));
+    app.post("/step", (_req, res) => res.json({ ok: true }));
+    app.use(errorHandler);
+    const response = await post(app, "/step");
+    assert.equal(response.status, 503);
+    assert.match(response.body, /couldn't complete that step/);
+    assert.equal(response.body.includes("Redis"), false);
+  });
 });
 
 describe("stored security records", { concurrency: 1 }, () => {

@@ -1,18 +1,19 @@
 import crypto from "node:crypto";
 import mongoose from "mongoose";
 import { env } from "../config/env.js";
+import { timeouts } from "../config/timeouts.js";
 import { ApiError } from "../middleware/error.js";
 import { Booking, Payment } from "../models/index.js";
 import { expireStalePendingBookings } from "./availability.js";
 import { applyRouteTransferEvent, markBookingRefunded } from "./payouts.js";
-import { withTimeout } from "../utils/async.js";
+import { retryIdempotent, withTimeout } from "../utils/async.js";
 import { e2eHooksEnabled } from "../testing/e2e-gate.js";
 import { localCapture, localPaymentOrder, localRefund } from "../testing/e2e-payments.js";
 
 /** Per Razorpay HTTP call. Cancel/refund must not wait forever. */
-export const RAZORPAY_CALL_TIMEOUT_MS = 8_000;
+export const RAZORPAY_CALL_TIMEOUT_MS = timeouts.razorpayMs;
 /** Whole refund attempt (fetch + optional capture + refund). */
-export const RAZORPAY_REFUND_TIMEOUT_MS = 20_000;
+export const RAZORPAY_REFUND_TIMEOUT_MS = timeouts.razorpayRefundMs;
 
 /**
  * Payment provider boundary. Razorpay is used when credentials exist.
@@ -153,14 +154,27 @@ export function captureMatchesStored(
   return Number.isInteger(amount) && amount === stored.amount && currency === expected;
 }
 
-export async function fetchRazorpayPayment(paymentId: string): Promise<{ amount: number; currency: string }> {
-  if (e2eHooksEnabled()) return localCapture(paymentId);
-  if (!razorpayConfigured()) {
-    throw new ApiError(503, "We couldn't verify that payment. Try again shortly.");
+export async function fetchRazorpayPayment(
+  paymentId: string,
+  fetchPayment?: (paymentId: string) => Promise<{ amount?: number; currency?: string }>,
+  timeoutMs = RAZORPAY_CALL_TIMEOUT_MS
+): Promise<{ amount: number; currency: string }> {
+  if (!fetchPayment) {
+    if (e2eHooksEnabled()) return localCapture(paymentId);
+    if (!razorpayConfigured()) {
+      throw new ApiError(503, "We couldn't verify that payment. Try again shortly.");
+    }
   }
-  const Razorpay = (await import("razorpay")).default;
-  const rzp = new Razorpay({ key_id: env.RAZORPAY_KEY_ID, key_secret: env.RAZORPAY_KEY_SECRET });
-  const payment = (await rzp.payments.fetch(paymentId)) as { amount?: number; currency?: string };
+  const read = async () => {
+    if (fetchPayment) return fetchPayment(paymentId);
+    const Razorpay = (await import("razorpay")).default;
+    const rzp = new Razorpay({ key_id: env.RAZORPAY_KEY_ID, key_secret: env.RAZORPAY_KEY_SECRET });
+    return rzp.payments.fetch(paymentId) as Promise<{ amount?: number; currency?: string }>;
+  };
+  const payment = await retryIdempotent(
+    () => withTimeout(read(), timeoutMs, "timeout contacting Razorpay"),
+    { attempts: timeouts.readAttempts, baseDelayMs: 15 }
+  );
   return { amount: Number(payment.amount), currency: String(payment.currency ?? "") };
 }
 

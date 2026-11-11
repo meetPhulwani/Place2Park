@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
-import { OAuth2Client } from "google-auth-library";
+import { isTimeoutError } from "../utils/async.js";
+import { verifyGoogleIdToken } from "./google-identity.js";
 import { env } from "../config/env.js";
 import { ApiError } from "../middleware/error.js";
 import {
@@ -43,9 +44,8 @@ type DeleteDeps = {
 
 async function defaultGoogleSub(credential: string) {
   if (!env.GOOGLE_CLIENT_ID) throw new ApiError(503, "Google confirmation isn't available.");
-  const client = new OAuth2Client(env.GOOGLE_CLIENT_ID);
   try {
-    const ticket = await client.verifyIdToken({ idToken: credential, audience: env.GOOGLE_CLIENT_ID });
+    const ticket = await verifyGoogleIdToken(credential, env.GOOGLE_CLIENT_ID);
     const payload = ticket.getPayload();
     if (!payload?.sub || payload.email_verified !== true) {
       throw new ApiError(401, "Google confirmation didn't match this account.");
@@ -53,6 +53,7 @@ async function defaultGoogleSub(credential: string) {
     return payload.sub;
   } catch (err) {
     if (err instanceof ApiError) throw err;
+    if (isTimeoutError(err)) throw new ApiError(503, "Google confirmation took too long. Try again.");
     throw new ApiError(401, "Google confirmation didn't match this account.");
   }
 }

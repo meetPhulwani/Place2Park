@@ -68,6 +68,16 @@ These areas already have node:test files and were not rewritten:
 - Admin console email, password, email code, security question, and authenticator login, plus logout, idle expiry, CSRF, a support permission denial, listing approval, payout approval, and the audit log
 - Local checkout success, a rejected signature, a closed checkout, a duplicate webhook, an invalid webhook signature, and the disabled mock-confirm route
 
+## Timeouts
+
+Defaults live in `server/src/config/timeouts.ts` and can be overridden with the variables in `server/.env.example`. The client uses `VITE_API_TIMEOUT_MS` (default 25 seconds) and does not retry a request on its own.
+
+A normal API request ends after 30 seconds with HTTP 503 and "The request took too long. Please try again." Payment verification, webhooks, order creation, booking creation, and cancellation keep a 50 second budget. MongoDB selection and connect wait 10 seconds, and a socket waits 45 seconds. Redis connect and commands wait 2 seconds. Razorpay reads wait 8 seconds and may be tried twice. A refund waits 20 seconds and is not retried. Resend and SMTP wait 10 seconds. A timed-out email may be tried twice with the same idempotency key. Google waits 8 seconds and may be tried twice. A listing photo upload waits 25 seconds and is not retried. Uploads stay at 5 MB.
+
+A provider timeout does not mark a payment failed. The booking stays pending until Razorpay's payment record or a webhook shows the result. Admin sessions still idle out after 30 minutes, end after 8 hours, and keep the 5 minute single-use email code. If Redis times out, console, login, signup, and OTP limits stay closed.
+
+These cases use mocked providers and the in-memory database. The suite does not create a Razorpay charge or a bank transfer.
+
 ## Not covered by an automated browser session
 
 - Google sign-in and a live mailbox or SMS provider

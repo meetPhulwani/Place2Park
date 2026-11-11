@@ -19,12 +19,17 @@ import { randomBase32, totpMatches, totpUri } from "../utils/totp.js";
 import { passwordIssue } from "../utils/password.js";
 import type { Request } from "express";
 
-const OTP_TTL_MS = 5 * 60 * 1000;
-const CHALLENGE_TTL_MS = 15 * 60 * 1000;
+export const CONSOLE_OTP_TTL_MS = 5 * 60 * 1000;
+export const CONSOLE_CHALLENGE_TTL_MS = 15 * 60 * 1000;
+export const CONSOLE_MAX_STEP_ATTEMPTS = 5;
+export const CONSOLE_IDLE_MS = 30 * 60 * 1000;
+export const CONSOLE_ABSOLUTE_MS = 8 * 60 * 60 * 1000;
+const OTP_TTL_MS = CONSOLE_OTP_TTL_MS;
+const CHALLENGE_TTL_MS = CONSOLE_CHALLENGE_TTL_MS;
 const RESEND_MS = 60 * 1000;
-const MAX_STEP_ATTEMPTS = 5;
-const IDLE_MS = 30 * 60 * 1000;
-const ABSOLUTE_MS = 8 * 60 * 60 * 1000;
+const MAX_STEP_ATTEMPTS = CONSOLE_MAX_STEP_ATTEMPTS;
+const IDLE_MS = CONSOLE_IDLE_MS;
+const ABSOLUTE_MS = CONSOLE_ABSOLUTE_MS;
 const REAUTH_MS = 10 * 60 * 1000;
 const BCRYPT_ROUNDS = 12;
 
