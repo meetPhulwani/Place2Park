@@ -133,6 +133,8 @@ describe("Vercel SPA rewrite", () => {
       "https://www.place2park.me/become-a-host",
       "https://www.place2park.me/support",
       "https://www.place2park.me/faqs",
+      "https://www.place2park.me/privacy",
+      "https://www.place2park.me/terms",
     ]);
   });
 

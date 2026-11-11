@@ -19,6 +19,8 @@ import SearchResultsPage from "@/pages/search-results";
 import ParkingDetailPage from "@/pages/parking-detail";
 import BecomeAHostPage from "@/pages/become-a-host";
 import SupportPage from "@/pages/support";
+import PrivacyPage from "@/pages/privacy";
+import TermsPage from "@/pages/terms";
 import PublicFaqsPage from "@/pages/faqs";
 import NotFoundPage from "@/pages/not-found";
 
@@ -70,6 +72,8 @@ export default function App() {
         <Route path="/parking/:id" element={<ParkingDetailPage />} />
         <Route path="/become-a-host" element={<BecomeAHostPage />} />
         <Route path="/support" element={<SupportPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
         <Route path="/faqs" element={<PublicFaqsPage />} />
 
         <Route element={<AuthLayout />}>

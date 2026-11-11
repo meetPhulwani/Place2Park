@@ -14,7 +14,7 @@ export async function getProfile(req: AuthedRequest, res: Response) {
   res.json({
     success: true,
     data: {
-      user: { name: user.name, email: user.email, image: user.image, phone: user.phone, role: user.role },
+      user: { name: user.name, email: user.email, image: user.image, phone: user.phone, role: user.role, createdAt: user.createdAt },
       profile: {
         preferredVehicleType: user.preferredVehicleType ?? "CAR",
         notifyEmail: user.notifyEmail ?? true,
@@ -30,7 +30,7 @@ export async function updateProfile(req: AuthedRequest, res: Response) {
   const current = await User.findById(req.userId);
   if (!current) throw new ApiError(404, "Account not found.");
   if (phone && phone !== (current.phone ?? "")) {
-    throw new ApiError(400, "Confirm a new phone number from Settings.");
+    throw new ApiError(400, "Confirm a new phone number from Profile.");
   }
   const user = await User.findByIdAndUpdate(
     req.userId,

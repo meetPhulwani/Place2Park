@@ -1,19 +1,10 @@
 import { Outlet } from "react-router-dom";
 import { Navbar } from "@/components/navbar";
 import { DashboardSidebar, type SidebarItem } from "@/components/dashboard-sidebar";
+import { accountNavItems } from "@/lib/account-nav";
 import { GuardGate } from "./guards";
 
-const items: SidebarItem[] = [
-  { href: "/dashboard", label: "Overview", icon: "LayoutDashboard", exact: true },
-  { href: "/search", label: "Find Parking", icon: "Search" },
-  { href: "/bookings", label: "Upcoming", icon: "CalendarClock" },
-  { href: "/history", label: "History", icon: "History" },
-  { href: "/saved", label: "Saved", icon: "Heart" },
-  { href: "/payments", label: "Payments", icon: "CreditCard" },
-  { href: "/profile", label: "Profile", icon: "User" },
-  { href: "/settings", label: "Settings", icon: "Settings", exact: true },
-  { href: "/help", label: "Help Center", icon: "CircleHelp" },
-];
+const items: SidebarItem[] = accountNavItems.map((item) => ({ ...item }));
 
 export function AccountLayout() {
   return (

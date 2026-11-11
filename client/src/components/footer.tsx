@@ -24,6 +24,8 @@ const columns = [
     links: [
       { href: "/#trust", label: "Safety" },
       { href: "/support", label: "Support" },
+      { href: "/privacy", label: "Privacy" },
+      { href: "/terms", label: "Terms" },
     ],
   },
 ];
