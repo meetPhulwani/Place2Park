@@ -230,7 +230,7 @@ export async function seed() {
     details: "Gate was locked when I arrived; no one answered the intercom.",
   });
   console.log(`Seeded ${spaces.length} demo parking spaces, 12 bookings, reviews, favorites.`);
-  console.log("Demo accounts (password: password123): driver@parkly.dev · host@parkly.dev · admin@parkly.dev");
+  console.log("Demo accounts: driver@parkly.dev · host@parkly.dev · admin@parkly.dev");
 }
 
 // Standalone run: connect using env, seed, exit.

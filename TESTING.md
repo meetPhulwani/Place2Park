@@ -1,0 +1,76 @@
+# Place2Park tests
+
+The API and client already use Node’s built-in test runner (`node:test`) through `tsx`. That suite is unchanged. Vitest and Supertest are not added, because rewriting the working files would duplicate coverage that already talks to an in-memory MongoDB and the Express app.
+
+Browser journeys use Playwright. They boot a separate API on port 5055 with an in-memory database and blank mail, payment, and storage credentials. That process also raises its own request cap so one browser can finish the journeys. The Vite dev server on port 4173 proxies `/api` to that process. Nothing in this path reads the production database.
+
+## Commands
+
+From the repository root:
+
+| Command | What it runs |
+| --- | --- |
+| `npm test` | Server unit + integration, then client unit tests |
+| `npm run test:unit` | Pure server tests and client tests |
+| `npm run test:integration` | Server tests that use an in-memory database or HTTP |
+| `npm run test:e2e` | Playwright browser journeys |
+| `npm run test:coverage` | The same server and client tests with coverage |
+| `npm run test:ci` | Tests, typechecks, browser tests, public build, and admin console build |
+
+Server-only and client-only variants live in `server/package.json` and `client/package.json`.
+
+The test runner sets `MONGODB_URI` empty, `REDIS_URL` to a single space, and clears mail and Razorpay variables before the app loads. `dotenv` does not override variables that are already set.
+
+`npm run test:payments` and `npm run test:booking-flow` in `server/` are older manual scripts. They are not part of `npm test` or CI. Do not point them at production.
+
+## Browser tests
+
+`npm run test:e2e` installs nothing by itself. Install the browser once:
+
+```bash
+npx playwright install chromium
+```
+
+Failed tests keep a screenshot, a video, and a trace. Open the HTML report with:
+
+```bash
+npx playwright show-report
+```
+
+The report is written to `playwright-report/` and is gitignored.
+
+The browser server turns on `E2E_TEST_HOOKS` after it has blanked the real database, mail, and payment credentials. That flag is ignored when `NODE_ENV` is `production`. Verification codes stay in memory for `@place2park.test` addresses and are never written to the server log. Checkout uses a local order and a stubbed Razorpay script, so the suite does not create a charge or a transfer. The admin console is mounted only on this process at `/e2e-console`, and its two administrators exist only in the in-memory database.
+
+Chromium runs the full browser suite. A Pixel 5 project repeats the journeys that create their own accounts or bookings. The seeded driver reservation and the host editor stay on desktop, because those journeys change one shared listing.
+
+## CI
+
+`.github/workflows/tests.yml` runs on pushes to `main`, `master`, `develop`, `development`, and `dev/**`, and on pull requests. The job installs dependencies, runs the server and client suites with coverage, typechecks both packages, runs Playwright, builds the public site, then builds the admin console with `CONSOLE_BUILD=1`. Coverage is printed as a table. This Node release does not accept a separate lcov reporter, so the table in the job log is the report. On failure, the Playwright HTML report, screenshots, and traces are uploaded. The job does not receive production secrets.
+
+## Coverage already in the server suite
+
+These areas already have node:test files and were not rewritten:
+
+- Price quotes, the 5% driver fee, and the 10% host fee
+- Booking overlap, cancellation, and refunds
+- Payment signatures and webhook checks
+- Payout encryption, masking, and eligibility
+- Signup, login, OTP, and session revocation
+- Listing moderation
+- Admin console authentication, permissions, payout ledger actions, and audit rows
+- Account deletion, including the exact `CONFIRM` string, reauthentication, blockers, and a repeated delete
+- Account settings and the client confirmation helpers
+
+## Browser journeys added for the remaining gaps
+
+- Signup through an in-memory code: a wrong code, an expired code, resend, and a completed verification
+- Settings deletion of a disposable account, including typed `CONFIRM`, blocked paste, password reauthentication, a failed later login, and retained booking, payment, and audit rows
+- Admin console email, password, email code, security question, and authenticator login, plus logout, idle expiry, CSRF, a support permission denial, listing approval, payout approval, and the audit log
+- Local checkout success, a rejected signature, a closed checkout, a duplicate webhook, an invalid webhook signature, and the disabled mock-confirm route
+
+## Not covered by an automated browser session
+
+- Google sign-in and a live mailbox or SMS provider
+- A live Razorpay charge, refund, or bank transfer
+- Provisioning a production Super Admin, or the 30-minute idle timer without the test hook that ages the session
+- The seeded driver reservation and the host listing editor on a phone-sized viewport, because both change one shared listing

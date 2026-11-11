@@ -6,6 +6,8 @@ import { Booking, Payment } from "../models/index.js";
 import { expireStalePendingBookings } from "./availability.js";
 import { applyRouteTransferEvent, markBookingRefunded } from "./payouts.js";
 import { withTimeout } from "../utils/async.js";
+import { e2eHooksEnabled } from "../testing/e2e-gate.js";
+import { localCapture, localPaymentOrder, localRefund } from "../testing/e2e-payments.js";
 
 /** Per Razorpay HTTP call. Cancel/refund must not wait forever. */
 export const RAZORPAY_CALL_TIMEOUT_MS = 8_000;
@@ -44,6 +46,7 @@ export function razorpayRefundParams(amountPaise: number) {
 }
 
 export async function createPaymentOrder(bookingId: string, amountPaise: number): Promise<PaymentOrder> {
+  if (e2eHooksEnabled()) return localPaymentOrder(amountPaise);
   if (!razorpayConfigured()) {
     throw new ApiError(503, "Razorpay isn't configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.");
   }
@@ -151,6 +154,7 @@ export function captureMatchesStored(
 }
 
 export async function fetchRazorpayPayment(paymentId: string): Promise<{ amount: number; currency: string }> {
+  if (e2eHooksEnabled()) return localCapture(paymentId);
   if (!razorpayConfigured()) {
     throw new ApiError(503, "We couldn't verify that payment. Try again shortly.");
   }
@@ -203,6 +207,7 @@ function asRefundResult(row: { id?: string; refundId?: string; status?: string }
 
 export async function listRazorpayRefunds(paymentId: string, listFn?: ListRefundsFn): Promise<RazorpayRefundResult[]> {
   if (listFn) return listFn(paymentId);
+  if (e2eHooksEnabled()) return [];
   if (!razorpayConfigured() || !paymentId) return [];
   const Razorpay = (await import("razorpay")).default;
   const rzp = new Razorpay({ key_id: env.RAZORPAY_KEY_ID, key_secret: env.RAZORPAY_KEY_SECRET });
@@ -320,6 +325,7 @@ export async function refundRazorpayPayment(
   extras?: { orderId?: string }
 ): Promise<RazorpayRefundResult> {
   if (refundFn) return refundFn(paymentId, amountPaise);
+  if (e2eHooksEnabled()) return localRefund();
   if (!razorpayConfigured()) {
     throw new ApiError(503, "We couldn't process the refund. Try again shortly.");
   }
@@ -347,6 +353,7 @@ export async function cancelUnpaidRazorpayOrder(
 ): Promise<CancelOrderResult> {
   if (!orderId) return "skipped";
   if (cancelFn) return cancelFn(orderId);
+  if (e2eHooksEnabled()) return "skipped";
   if (!razorpayConfigured()) return "skipped";
   try {
     const Razorpay = (await import("razorpay")).default;

@@ -26,6 +26,10 @@ async function main() {
   if (!isProd && !process.env.REDIS_URL) console.warn("[rate-limit] REDIS_URL is not set; counters stay on this process.");
   if (!process.env.AUDIT_ARCHIVE_URL) console.warn("[audit] No external archive is configured. A database administrator can still change audit rows.");
   if (!isProd && !adminConsolePath()) console.warn("[console] UI is not mounted.");
+  if (!isProd && process.env.E2E_TEST_HOOKS === "1") {
+    const { prepareE2eFixtures } = await import("./testing/e2e-fixtures.js");
+    await prepareE2eFixtures();
+  }
   const app = createApp();
   startBackgroundMaintenance();
   app.listen(env.PORT, () => console.info(`[server] Parkly API on http://localhost:${env.PORT}`));

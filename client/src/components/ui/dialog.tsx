@@ -21,12 +21,16 @@ export function Dialog({
 }) {
   const [mounted, setMounted] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
+  const onCloseRef = React.useRef(onClose);
+  onCloseRef.current = onClose;
 
   React.useEffect(() => setMounted(true), []);
 
   React.useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCloseRef.current();
+    };
     document.addEventListener("keydown", onKey);
     document.body.style.overflow = "hidden";
     ref.current?.focus();
@@ -34,7 +38,7 @@ export function Dialog({
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = "";
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!mounted || !open) return null;
 

@@ -8,6 +8,8 @@ import { errorHandler, notFoundHandler } from "./middleware/error.js";
 import { allowedCorsOrigins } from "./config/cors.js";
 import { env, isProd } from "./config/env.js";
 import { DEMO_DIR, UPLOADS_DIR } from "./config/paths.js";
+import { e2eHooksEnabled } from "./testing/e2e-gate.js";
+import { e2eHookRouter } from "./testing/e2e-router.js";
 
 export function createApp() {
   const app = express();
@@ -36,6 +38,7 @@ export function createApp() {
   );
 
   app.get("/api/health", (_req, res) => res.json({ success: true, data: { status: "ok" } }));
+  if (e2eHooksEnabled()) app.use("/api/__e2e", e2eHookRouter);
   app.use("/api/console", consoleRoutes);
   app.use("/api", routes);
   // Static: uploaded photos + demo images

@@ -17,8 +17,8 @@ import { errorHandler } from "../middleware/error.js";
 describe("shared rate counters", () => {
   it("shares a counter across two stores and expires old hits", async () => {
     const backend = new MemorySharedCounter();
-    const first = rateLimit("unit-shared", 2, 50, { key: () => "same", counter: backend, failClosed: true });
-    const second = rateLimit("unit-shared", 2, 50, { key: () => "same", counter: backend, failClosed: true });
+    const first = rateLimit("unit-shared", 2, 2_000, { key: () => "same", counter: backend, failClosed: true });
+    const second = rateLimit("unit-shared", 2, 2_000, { key: () => "same", counter: backend, failClosed: true });
     const app = express();
     app.use(first);
     app.post("/a", (_req, res) => res.json({ ok: true }));
@@ -31,7 +31,7 @@ describe("shared rate counters", () => {
     assert.equal(left.status, 200);
     assert.equal(right.status, 200);
     assert.equal(blocked.status, 429);
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    await new Promise((resolve) => setTimeout(resolve, 2_100));
     const again = await post(app, "/a");
     assert.equal(again.status, 200);
     await backend.increment("console-password:account", 60_000);
@@ -97,6 +97,50 @@ describe("stored security records", { concurrency: 1 }, () => {
     const check = await verifyConsoleAuditChain();
     assert.equal(check.ok, true, check.problems.join("; "));
     assert.equal(check.count, 6);
+  });
+
+  it("appends every event while the head lock is still held", async () => {
+    await ConsoleAudit.collection.deleteMany({});
+    await ConsoleAuditHead.deleteMany({});
+    await ConsoleAuditHead.create({
+      _id: "head",
+      seq: 0,
+      eventHash: "genesis",
+      lockedAt: new Date(Date.now() + 60_000),
+    });
+    await Promise.all(Array.from({ length: 6 }, (_item, index) => writeConsoleAudit({ action: `locked.${index}`, outcome: "SUCCESS" })));
+    const check = await verifyConsoleAuditChain();
+    assert.equal(check.ok, true, check.problems.join("; "));
+    assert.equal(check.count, 6);
+    const actions = (await ConsoleAudit.find().select("action").lean()).map((row) => row.action).sort();
+    assert.deepEqual(actions, ["locked.0", "locked.1", "locked.2", "locked.3", "locked.4", "locked.5"]);
+  });
+
+  it("links both events when two writers choose the same sequence", { timeout: 20_000 }, async () => {
+    await ConsoleAudit.collection.deleteMany({});
+    await ConsoleAuditHead.deleteMany({});
+    const chosen: number[] = [];
+    let waiting = 0;
+    let openGate: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      openGate = resolve;
+    });
+    const beforeInsert = async (seq: number) => {
+      chosen.push(seq);
+      waiting += 1;
+      if (waiting === 2) openGate();
+      if (waiting <= 2) await gate;
+    };
+    await Promise.all([
+      writeConsoleAudit({ action: "race.left", outcome: "SUCCESS" }, { beforeInsert }),
+      writeConsoleAudit({ action: "race.right", outcome: "SUCCESS" }, { beforeInsert }),
+    ]);
+    assert.equal(chosen[0], chosen[1]);
+    const check = await verifyConsoleAuditChain();
+    assert.equal(check.ok, true, check.problems.join("; "));
+    assert.equal(check.count, 2);
+    const actions = (await ConsoleAudit.find().select("action").lean()).map((row) => row.action).sort();
+    assert.deepEqual(actions, ["race.left", "race.right"]);
   });
 
   it("makes review and the public banner do something", async () => {

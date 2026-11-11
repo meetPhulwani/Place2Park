@@ -8,6 +8,16 @@
     "dev:client": "npm run dev --prefix client",
     "seed": "npm run seed --prefix server",
     "build": "npm run build --prefix client && npm run build --prefix server",
-    "install:all": "npm install --prefix server && npm install --prefix client"
+    "build:console": "node ./scripts/build-console.mjs",
+    "install:all": "npm install --prefix server && npm install --prefix client && npm install",
+    "test": "npm test --prefix server && npm test --prefix client",
+    "test:unit": "npm run test:unit --prefix server && npm run test:unit --prefix client",
+    "test:integration": "npm run test:integration --prefix server",
+    "test:e2e": "playwright test --config e2e/playwright.config.ts",
+    "test:coverage": "npm run test:coverage --prefix server && npm run test:coverage --prefix client",
+    "test:ci": "npm test --prefix server && npm test --prefix client && npm run typecheck --prefix server && npm run typecheck --prefix client && npm run test:e2e && npm run build --prefix client && npm run build:console"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.0"
   }
 }

@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import nodemailer from "nodemailer";
 import { env, isProd, unwrapEnvValue } from "../config/env.js";
 import { withTimeout } from "../utils/async.js";
+import { e2eHooksEnabled } from "../testing/e2e-gate.js";
+import { rememberTestCode } from "../testing/e2e-mailbox.js";
 
 export type SmtpAuthConfig = {
   SMTP_HOST: string;
@@ -493,6 +495,10 @@ export async function deliverVerificationCode(
   input: { email: string; code: string },
   deps: OutboundMailDeps = {}
 ): Promise<MailDelivery> {
+  if (e2eHooksEnabled()) {
+    rememberTestCode(input.email, input.code);
+    return { provider: "delegate", providerStatus: null };
+  }
   return sendMail(
     {
       to: input.email,

@@ -1,5 +1,4 @@
 import * as React from "react";
-import { useNavigate } from "react-router-dom";
 import { api, errorMessage } from "@/services/api";
 import { useAuth } from "@/context/auth";
 import { GoogleButton } from "@/components/google-button";
@@ -16,7 +15,6 @@ import {
 
 export function AccountManagement() {
   const { user, logout } = useAuth();
-  const navigate = useNavigate();
   const [security, setSecurity] = React.useState({ hasPassword: true, googleOnly: false });
   const [step, setStep] = React.useState<"closed" | "warning" | "confirm">("closed");
   const [password, setPassword] = React.useState("");
@@ -47,9 +45,9 @@ export function AccountManagement() {
         ...(security.hasPassword ? { password } : {}),
         ...(security.googleOnly ? { credential } : {}),
       });
-      logout();
       toast.success("Your account has been deleted.");
-      navigate("/");
+      sessionStorage.setItem("p2p_after_delete", "1");
+      logout();
     } catch (err) {
       toast.error(errorMessage(err, "We couldn't delete this account."));
     } finally {

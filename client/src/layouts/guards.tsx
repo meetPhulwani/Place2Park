@@ -17,12 +17,16 @@ export function useGuard(requirement?: "host" | "admin") {
   const { user, loading } = useAuth();
   const location = useLocation();
   if (loading) return { state: "loading" as const, user: null, redirect: null };
-  if (!user)
+  if (!user) {
+    if (sessionStorage.getItem("p2p_after_delete") === "1") {
+      return { state: "redirect" as const, user: null, redirect: "/" };
+    }
     return {
       state: "redirect" as const,
       user: null,
       redirect: `/login?next=${encodeURIComponent(location.pathname + location.search)}`,
     };
+  }
   if (requirement === "host" && !isHostRole(user.role))
     return { state: "redirect" as const, user: null, redirect: "/become-a-host" };
   if (requirement === "admin" && user.role !== "ADMIN")

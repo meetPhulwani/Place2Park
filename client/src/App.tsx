@@ -4,51 +4,61 @@ import { api } from "@/services/api";
 import { AnalyticsListener } from "@/components/analytics-listener";
 import { Toaster } from "@/components/ui/toaster";
 import { ScrollToTop } from "@/components/scroll-to-top";
+import { Navbar } from "@/components/navbar";
 import { AuthLayout } from "@/layouts/auth-layout";
 import { AccountLayout } from "@/layouts/account-layout";
 import { HostLayout } from "@/layouts/host-layout";
+import { lazyRoute, RouteFallback } from "@/lib/route-page";
 import LandingPage from "@/pages/landing";
-import LoginPage from "@/pages/auth/login";
-import SignupRolePage from "@/pages/auth/signup-role";
-import SignupPage from "@/pages/auth/signup";
-import VerifyEmailPage from "@/pages/auth/verify-email";
-import ForgotPasswordPage from "@/pages/auth/forgot-password";
-import ResetPasswordPage from "@/pages/auth/reset-password";
-import SearchPage from "@/pages/search";
-import SearchResultsPage from "@/pages/search-results";
-import ParkingDetailPage from "@/pages/parking-detail";
-import BecomeAHostPage from "@/pages/become-a-host";
-import SupportPage from "@/pages/support";
-import PrivacyPage from "@/pages/privacy";
-import TermsPage from "@/pages/terms";
-import PublicFaqsPage from "@/pages/faqs";
 import NotFoundPage from "@/pages/not-found";
 
-import DashboardPage from "@/pages/account/dashboard";
-import BookingsPage from "@/pages/account/bookings";
-import BookingDetailPage from "@/pages/account/booking-detail";
-import HistoryPage from "@/pages/account/history";
-import SavedPage from "@/pages/account/saved";
-import PaymentsPage from "@/pages/account/payments";
-import ProfilePage from "@/pages/account/profile";
-import AccountSettingsPage from "@/pages/account/settings";
-import HelpCenterPage from "@/pages/help/center";
-import ReportUserPage from "@/pages/help/report-form";
-import ContactSupportPage from "@/pages/help/ticket-form";
-import MyTicketsPage from "@/pages/help/tickets";
-import TicketDetailPage from "@/pages/help/ticket-detail";
-import HelpFaqsPage from "@/pages/help/faqs";
+function PublicFallback() {
+  return (
+    <>
+      <Navbar />
+      <RouteFallback />
+    </>
+  );
+}
 
-import HostOverviewPage from "@/pages/host/overview";
-import HostListingsPage from "@/pages/host/listings";
-import HostNewListingPage from "@/pages/host/listing-new";
-import HostEditListingPage from "@/pages/host/listing-edit";
-import HostCalendarPage from "@/pages/host/calendar";
-import HostBookingsPage from "@/pages/host/bookings";
-import HostEarningsPage from "@/pages/host/earnings";
-import HostPayoutSettingsPage from "@/pages/host/payout-settings";
-import HostReviewsPage from "@/pages/host/reviews";
-import HostSettingsPage from "@/pages/host/settings";
+const LoginPage = lazyRoute(() => import("@/pages/auth/login"));
+const SignupRolePage = lazyRoute(() => import("@/pages/auth/signup-role"));
+const SignupPage = lazyRoute(() => import("@/pages/auth/signup"));
+const VerifyEmailPage = lazyRoute(() => import("@/pages/auth/verify-email"));
+const ForgotPasswordPage = lazyRoute(() => import("@/pages/auth/forgot-password"));
+const ResetPasswordPage = lazyRoute(() => import("@/pages/auth/reset-password"));
+const SearchPage = lazyRoute(() => import("@/pages/search"), PublicFallback);
+const SearchResultsPage = lazyRoute(() => import("@/pages/search-results"), PublicFallback);
+const ParkingDetailPage = lazyRoute(() => import("@/pages/parking-detail"), PublicFallback);
+const BecomeAHostPage = lazyRoute(() => import("@/pages/become-a-host"), PublicFallback);
+const SupportPage = lazyRoute(() => import("@/pages/support"), PublicFallback);
+const PrivacyPage = lazyRoute(() => import("@/pages/privacy"), PublicFallback);
+const TermsPage = lazyRoute(() => import("@/pages/terms"), PublicFallback);
+const PublicFaqsPage = lazyRoute(() => import("@/pages/faqs"), PublicFallback);
+const DashboardPage = lazyRoute(() => import("@/pages/account/dashboard"));
+const BookingsPage = lazyRoute(() => import("@/pages/account/bookings"));
+const BookingDetailPage = lazyRoute(() => import("@/pages/account/booking-detail"));
+const HistoryPage = lazyRoute(() => import("@/pages/account/history"));
+const SavedPage = lazyRoute(() => import("@/pages/account/saved"));
+const PaymentsPage = lazyRoute(() => import("@/pages/account/payments"));
+const ProfilePage = lazyRoute(() => import("@/pages/account/profile"));
+const AccountSettingsPage = lazyRoute(() => import("@/pages/account/settings"));
+const HelpCenterPage = lazyRoute(() => import("@/pages/help/center"));
+const ReportUserPage = lazyRoute(() => import("@/pages/help/report-form"));
+const ContactSupportPage = lazyRoute(() => import("@/pages/help/ticket-form"));
+const MyTicketsPage = lazyRoute(() => import("@/pages/help/tickets"));
+const TicketDetailPage = lazyRoute(() => import("@/pages/help/ticket-detail"));
+const HelpFaqsPage = lazyRoute(() => import("@/pages/help/faqs"));
+const HostOverviewPage = lazyRoute(() => import("@/pages/host/overview"));
+const HostListingsPage = lazyRoute(() => import("@/pages/host/listings"));
+const HostNewListingPage = lazyRoute(() => import("@/pages/host/listing-new"));
+const HostEditListingPage = lazyRoute(() => import("@/pages/host/listing-edit"));
+const HostCalendarPage = lazyRoute(() => import("@/pages/host/calendar"));
+const HostBookingsPage = lazyRoute(() => import("@/pages/host/bookings"));
+const HostEarningsPage = lazyRoute(() => import("@/pages/host/earnings"));
+const HostPayoutSettingsPage = lazyRoute(() => import("@/pages/host/payout-settings"));
+const HostReviewsPage = lazyRoute(() => import("@/pages/host/reviews"));
+const HostSettingsPage = lazyRoute(() => import("@/pages/host/settings"));
 
 function PublicNotice() {
   const [message, setMessage] = useState("");

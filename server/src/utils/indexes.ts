@@ -36,6 +36,10 @@ export type IndexApplyResult = IndexInspection & {
   dropped: false;
 };
 
+function mongoCode(err: unknown) {
+  return typeof err === "object" && err && "code" in err ? Number((err as { code?: unknown }).code) : 0;
+}
+
 function indexKey(fields: string[]) {
   return Object.fromEntries(fields.map((field) => [field, 1 as const]));
 }
@@ -56,7 +60,11 @@ async function findDuplicates(connection: Connection, spec: UniqueIndexSpec) {
       { $group: { _id: groupId, n: { $sum: 1 } } },
       { $match: { n: { $gt: 1 }, _id: { $ne: null } } },
     ])
-    .toArray();
+    .toArray()
+    .catch((err: unknown) => {
+      if (mongoCode(err) === 26) return [];
+      throw err;
+    });
   return rows.map((row) => ({
     key: typeof row._id === "string" ? row._id : JSON.stringify(row._id),
     n: row.n,
@@ -73,8 +81,14 @@ function missingOrNullFilter(fields: string[]) {
 async function findMissingOrNull(connection: Connection, spec: UniqueIndexSpec) {
   const coll = connection.db!.collection(spec.collection);
   const filter = missingOrNullFilter(spec.fields);
-  const missingOrNullCount = await coll.countDocuments(filter);
-  const samples = await coll.find(filter).project({ _id: 1 }).limit(20).toArray();
+  const missingOrNullCount = await coll.countDocuments(filter).catch((err: unknown) => {
+    if (mongoCode(err) === 26) return 0;
+    throw err;
+  });
+  const samples = await coll.find(filter).project({ _id: 1 }).limit(20).toArray().catch((err: unknown) => {
+    if (mongoCode(err) === 26) return [];
+    throw err;
+  });
   return {
     missingOrNullCount,
     missingOrNullIds: samples.map((row) => String(row._id)),
@@ -118,7 +132,10 @@ function reconcileMessage(
 export async function inspectUniqueIndexes(connection: Connection): Promise<IndexInspection[]> {
   const out: IndexInspection[] = [];
   for (const spec of REQUIRED_UNIQUE_INDEXES) {
-    const indexes = await connection.db!.collection(spec.collection).indexes();
+    const indexes = await connection.db!.collection(spec.collection).indexes().catch((err: unknown) => {
+      if (mongoCode(err) === 26) return [{ key: { _id: 1 }, name: "_id_" }];
+      throw err;
+    });
     const existing = classifyExistingIndex(
       indexes as { key: Record<string, unknown>; unique?: boolean; name?: string }[],
       spec.fields
@@ -195,12 +212,31 @@ export async function applyUniqueIndexes(
       });
       continue;
     }
-    await connection.db!.collection(spec.collection).createIndex(indexKey(spec.fields), {
-      unique: true,
-      background: true,
-      name: `${spec.fields.join("_")}_1`,
-    });
-    results.push({ ...inspection, created: true, alreadyExisted: false, dropped: false });
+    try {
+      await connection.db!.collection(spec.collection).createIndex(indexKey(spec.fields), {
+        unique: true,
+        background: true,
+        name: `${spec.fields.join("_")}_1`,
+      });
+      results.push({ ...inspection, created: true, alreadyExisted: false, dropped: false });
+    } catch (err) {
+      const code = mongoCode(err);
+      if (code !== 85 && code !== 86) throw err;
+      const indexes = await connection.db!.collection(spec.collection).indexes();
+      const existing = classifyExistingIndex(
+        indexes as { key: Record<string, unknown>; unique?: boolean; name?: string }[],
+        spec.fields
+      );
+      if (!existing.existingUnique) throw err;
+      results.push({
+        ...inspection,
+        existingUnique: true,
+        existingIndexName: existing.existingIndexName,
+        created: false,
+        alreadyExisted: true,
+        dropped: false,
+      });
+    }
   }
   return results;
 }

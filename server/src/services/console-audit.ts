@@ -3,7 +3,10 @@ import { ConsoleAudit, ConsoleAuditHead } from "../models/ConsoleAudit.js";
 import { sha256 } from "../utils/admin-secret.js";
 
 const GENESIS = "genesis";
+const APPEND_ATTEMPTS = 128;
 const SECRET_KEYS = /password|otp|answer|secret|token|cookie|authorization|credential/i;
+
+type AuditHead = { seq?: number; eventHash?: string } | null;
 
 export function canonicalAudit(record: Record<string, string | number | null>) {
   const keys = Object.keys(record).sort();
@@ -16,7 +19,8 @@ export async function writeConsoleAudit(input: {
   target?: string;
   outcome: "SUCCESS" | "FAILURE";
   req?: Request;
-}) {
+}, hooks?: { beforeInsert?: (seq: number) => Promise<void> | void }) {
+  await ensureChainIndexes();
   const createdAt = new Date();
   const body = {
     action: input.action.slice(0, 80),
@@ -27,45 +31,108 @@ export async function writeConsoleAudit(input: {
     userAgent: String(input.req?.headers?.["user-agent"] ?? "").slice(0, 200),
     createdAt: createdAt.toISOString(),
   };
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    const claimed = await claimAuditHead();
-    if (!claimed) {
-      await new Promise((resolve) => setTimeout(resolve, 5));
+  let linked: { seq: number; prevHash: string; eventHash: string } | null = null;
+  for (let attempt = 0; attempt < APPEND_ATTEMPTS; attempt += 1) {
+    if (linked) {
+      await repairHead();
+      if (await eventIsLinked(linked.seq, linked.eventHash)) {
+        void archiveAudit({ ...body, seq: linked.seq, prevHash: linked.prevHash, eventHash: linked.eventHash });
+        return;
+      }
       continue;
     }
-    const seq = claimed.seq + 1;
-    const prevHash = claimed.seq > 0 ? claimed.eventHash : GENESIS;
+    const head = await readHead();
+    const baseSeq = head?.seq ?? 0;
+    const prevHash = baseSeq > 0 && head?.eventHash ? head.eventHash : GENESIS;
+    const seq = baseSeq + 1;
     const eventHash = sha256(canonicalAudit({ ...body, seq, prevHash }));
-    let createdId: unknown;
+    if (hooks?.beforeInsert) await hooks.beforeInsert(seq);
     try {
-      const doc = await ConsoleAudit.create({ ...body, seq, prevHash, eventHash, createdAt });
-      createdId = doc._id;
-      await ConsoleAuditHead.updateOne({ _id: "head" }, { $set: { seq, eventHash, lockedAt: null } });
+      await ConsoleAudit.create({ ...body, seq, prevHash, eventHash, createdAt });
+    } catch (err) {
+      if (!isDuplicateKey(err)) throw err;
+      await repairHead();
+      continue;
+    }
+    linked = { seq, prevHash, eventHash };
+    if (await advanceHead(baseSeq, seq, eventHash) || await eventIsLinked(seq, eventHash)) {
       void archiveAudit({ ...body, seq, prevHash, eventHash });
       return;
-    } catch {
-      if (createdId) await ConsoleAudit.collection.deleteOne({ _id: createdId });
-      await ConsoleAuditHead.updateOne({ _id: "head", lockedAt: claimed.lockedAt }, { $set: { lockedAt: null } });
     }
   }
-  console.error("[audit] chain append failed");
+  throw new Error(`Console audit append did not commit (${body.action})`);
 }
 
-async function claimAuditHead() {
-  const lockedAt = new Date();
-  const stale = new Date(lockedAt.getTime() - 5_000);
-  const held = await ConsoleAuditHead.findOneAndUpdate(
-    { _id: "head", $or: [{ lockedAt: null }, { lockedAt: { $exists: false } }, { lockedAt: { $lt: stale } }] },
-    { $set: { lockedAt } }
-  );
-  if (held) return { seq: held.seq ?? 0, eventHash: held.eventHash || GENESIS, lockedAt };
-  if (await ConsoleAuditHead.exists({ _id: "head" })) return null;
-  try {
-    await ConsoleAuditHead.create({ _id: "head", seq: 0, eventHash: GENESIS, lockedAt });
-    return { seq: 0, eventHash: GENESIS, lockedAt };
-  } catch {
-    return null;
+let chainIndexesReady: Promise<void> | null = null;
+
+/** The seq unique index is what makes two overlapping inserts pick different events. */
+function ensureChainIndexes() {
+  if (!chainIndexesReady) {
+    chainIndexesReady = Promise.all([
+      ConsoleAudit.createIndexes(),
+      ConsoleAuditHead.createIndexes(),
+    ]).then(() => undefined).catch((err: unknown) => {
+      chainIndexesReady = null;
+      throw err;
+    });
   }
+  return chainIndexesReady;
+}
+
+function isDuplicateKey(err: unknown) {
+  if (typeof err !== "object" || err === null) return false;
+  const candidate = err as { code?: unknown; codeName?: string; cause?: { code?: unknown } };
+  return candidate.code === 11000 || candidate.code === "11000" || candidate.codeName === "DuplicateKey" || candidate.cause?.code === 11000;
+}
+
+async function readHead(): Promise<AuditHead> {
+  return ConsoleAuditHead.findById("head").select("seq eventHash").lean();
+}
+
+async function eventIsLinked(seq: number, eventHash: string) {
+  const head = await readHead();
+  if (!head || (head.seq ?? 0) < seq) return false;
+  if (head.seq === seq) return head.eventHash === eventHash;
+  const row = await ConsoleAudit.findOne({ seq }).select("eventHash").lean();
+  return row?.eventHash === eventHash;
+}
+
+/** Moves the head forward along events that are already stored. Audit rows are never deleted or rewritten. */
+async function repairHead() {
+  for (let step = 0; step < APPEND_ATTEMPTS; step += 1) {
+    const head = await readHead();
+    const baseSeq = head?.seq ?? 0;
+    const expectedPrev = baseSeq > 0 && head?.eventHash ? head.eventHash : GENESIS;
+    const next = await ConsoleAudit.findOne({ seq: baseSeq + 1 }).select("seq prevHash eventHash").lean();
+    if (!next || next.prevHash !== expectedPrev) return;
+    const moved = await advanceHead(baseSeq, next.seq, next.eventHash);
+    if (moved) continue;
+    const current = await readHead();
+    if ((current?.seq ?? 0) <= baseSeq) return;
+  }
+}
+
+async function advanceHead(baseSeq: number, seq: number, eventHash: string) {
+  if (!baseSeq) {
+    try {
+      await ConsoleAuditHead.create({ _id: "head", seq, eventHash, lockedAt: null });
+      return true;
+    } catch (err) {
+      if (!isDuplicateKey(err)) throw err;
+    }
+    const moved = await ConsoleAuditHead.updateOne(
+      { _id: "head", seq: 0 },
+      { $set: { seq, eventHash, lockedAt: null } }
+    );
+    if (moved.modifiedCount > 0) return true;
+    const current = await readHead();
+    return current?.seq === seq && current.eventHash === eventHash;
+  }
+  const moved = await ConsoleAuditHead.updateOne(
+    { _id: "head", seq: baseSeq },
+    { $set: { seq, eventHash, lockedAt: null } }
+  );
+  return moved.modifiedCount > 0;
 }
 
 export async function verifyConsoleAuditChain() {

@@ -4,6 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
 
 const consoleBuild = process.env.CONSOLE_BUILD === "1";
+const apiOrigin = process.env.E2E_API_ORIGIN || "http://localhost:5000";
 
 export default defineConfig({
   base: consoleBuild ? "/__console_base__/" : "/",
@@ -27,9 +28,9 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      "/api": { target: "http://localhost:5000", changeOrigin: true },
-      "/uploads": { target: "http://localhost:5000", changeOrigin: true },
-      "/demo": { target: "http://localhost:5000", changeOrigin: true },
+      "/api": { target: apiOrigin, changeOrigin: true },
+      "/uploads": { target: apiOrigin, changeOrigin: true },
+      "/demo": { target: apiOrigin, changeOrigin: true },
     },
   },
 });

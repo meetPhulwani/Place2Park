@@ -27,6 +27,7 @@ export default function LandingPage() {
   const [recent, setRecent] = React.useState<RecentPlace[]>(() => pickRecentPlaces([], readRecentPlaces()));
 
   React.useEffect(() => {
+    sessionStorage.removeItem("p2p_after_delete");
     document.title = "Place2Park — Find parking before you arrive";
   }, []);
 

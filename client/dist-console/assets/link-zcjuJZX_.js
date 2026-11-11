@@ -1,0 +1,1 @@
+import{r as s,j as o,L as a}from"./console-C7ykVJRp.js";const x=s.forwardRef(function({href:t,...r},n){return/^(https?:|mailto:|tel:)/.test(t)?o.jsx("a",{ref:n,href:t,target:"_blank",rel:"noreferrer",...r}):o.jsx(a,{ref:n,to:t,...r})});export{x as L};
