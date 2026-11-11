@@ -9,8 +9,9 @@ const userSchema = new Schema(
     googleId: { type: String, index: true, sparse: true },
     image: { type: String },
     role: { type: String, enum: ROLES, default: "DRIVER", index: true },
-    status: { type: String, enum: ["ACTIVE", "SUSPENDED", "DELETED"], default: "ACTIVE" },
+    status: { type: String, enum: ["ACTIVE", "SUSPENDED", "DELETION_PENDING", "DELETED"], default: "ACTIVE" },
     deletedAt: { type: Date },
+    deletionRequestedAt: { type: Date },
     hostVerified: { type: Boolean, default: false },
     // Profile (embedded — always loaded with the user)
     phone: { type: String, default: "" },
@@ -18,6 +19,11 @@ const userSchema = new Schema(
     preferredVehicleType: { type: String, enum: ["CAR", "BIKE"], default: "CAR" },
     notifyEmail: { type: Boolean, default: true },
     notifyReminders: { type: Boolean, default: true },
+    notifications: { type: Schema.Types.Mixed },
+    privacy: {
+      showPublicHostName: { type: Boolean, default: true },
+      marketingEmail: { type: Boolean, default: false },
+    },
     resetToken: { type: String, select: false },
     resetTokenExpires: { type: Date, select: false },
     tokenVersion: { type: Number, default: 0 },

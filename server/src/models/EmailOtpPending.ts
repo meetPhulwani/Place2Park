@@ -3,7 +3,8 @@ import mongoose, { Schema } from "mongoose";
 const emailOtpPendingSchema = new Schema(
   {
     tokenHash: { type: String, required: true, unique: true, select: false },
-    purpose: { type: String, enum: ["signup", "google"], required: true },
+    purpose: { type: String, enum: ["signup", "google", "email-change", "phone-change"], required: true },
+    userId: { type: Schema.Types.ObjectId, ref: "User" },
     email: { type: String, required: true, lowercase: true, trim: true },
     name: { type: String, required: true, maxlength: 80 },
     passwordHash: { type: String, select: false },

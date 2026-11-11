@@ -1,4 +1,5 @@
 import { Notification, User } from "../models/index.js";
+import { normalizeNotifications, notificationChannelAllowed } from "./account-settings.js";
 import { env, isProd } from "../config/env.js";
 import {
   describeEmailError,
@@ -22,8 +23,9 @@ export type NotificationType =
   | "TICKET_UPDATE";
 
 /**
- * Notification abstraction: always persists in-app; sends email only when
- * Resend or SMTP is configured (provider-agnostic boundary).
+ * Writes an in-app notice unless the recipient turned that type off.
+ * Booking, payment, refund, and support notices stay on.
+ * Email is sent only when a provider is configured and the recipient allows it.
  */
 export async function notify(
   userId: string,
@@ -32,17 +34,25 @@ export async function notify(
   body: string,
   data: Record<string, unknown> = {}
 ) {
-  await Notification.create({ userId, type, title, body, data });
-  await sendEmailIfConfigured(userId, title, body);
+  const user = await User.findById(userId).select("email notifications");
+  const prefs = user ? normalizeNotifications(user.notifications) : undefined;
+  if (!user || notificationChannelAllowed(prefs, type, "inApp")) {
+    await Notification.create({ userId, type, title, body, data });
+  }
+  await sendEmailIfConfigured(user, type, title, body);
 }
 
-async function sendEmailIfConfigured(userId: string, subject: string, text: string) {
+async function sendEmailIfConfigured(
+  user: { email?: string; notifications?: unknown } | null,
+  type: NotificationType,
+  subject: string,
+  text: string
+) {
   if (!isEmailConfigured()) return;
   const report = evaluateEmailDeliveryConfig(env, isProd);
   if (isProd && !report.sendEnabled) return;
   try {
-    const user = await User.findById(userId).select("email notifyEmail");
-    if (!user?.email || user.notifyEmail === false) return;
+    if (!user?.email || !notificationChannelAllowed(normalizeNotifications(user.notifications), type, "email")) return;
     if (isPlaceholderEmail(user.email)) {
       console.warn("[email] skipped user notification; stored address uses a placeholder domain");
       return;

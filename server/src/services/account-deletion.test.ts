@@ -147,7 +147,7 @@ describe("account deletion", () => {
     const mail = await notices();
     const token = signToken(driverId, 0);
 
-    const result = await deleteOwnAccount(driverId, { confirmation: "DELETE MY ACCOUNT", password }, mail);
+    const result = await deleteOwnAccount(driverId, { confirmation: "CONFIRM", password }, mail);
     assert.equal(result.deleted, true);
     assert.equal(mail.sent.length, 1);
 
@@ -195,7 +195,7 @@ describe("account deletion", () => {
 
   it("rejects the wrong password", async () => {
     await assert.rejects(
-      () => deleteOwnAccount(driverId, { confirmation: "DELETE MY ACCOUNT", password: "wrong-password" }),
+      () => deleteOwnAccount(driverId, { confirmation: "CONFIRM", password: "wrong-password" }),
       (err: unknown) => err instanceof ApiError && err.status === 401
     );
     assert.equal((await User.findById(driverId))?.status, "ACTIVE");
@@ -207,7 +207,7 @@ describe("account deletion", () => {
       () =>
         deleteOwnAccount(
           driverId,
-          { confirmation: "DELETE MY ACCOUNT", credential: "other" },
+          { confirmation: "CONFIRM", credential: "other" },
           { verifyGoogleSub: async () => "someone-else", sendNotice: async () => undefined }
         ),
       (err: unknown) => err instanceof ApiError && err.status === 401
@@ -216,7 +216,7 @@ describe("account deletion", () => {
     const mail = await notices();
     await deleteOwnAccount(
       driverId,
-      { confirmation: "DELETE MY ACCOUNT", credential: "test-credential" },
+      { confirmation: "CONFIRM", credential: "test-credential" },
       { ...mail, verifyGoogleSub: async () => "google-sub-1" }
     );
     assert.equal((await User.findById(driverId))?.status, "DELETED");
@@ -226,7 +226,7 @@ describe("account deletion", () => {
   it("blocks deletion while a booking is active", async () => {
     await booking({ status: "CONFIRMED" });
     await assert.rejects(
-      () => deleteOwnAccount(driverId, { confirmation: "DELETE MY ACCOUNT", password }),
+      () => deleteOwnAccount(driverId, { confirmation: "CONFIRM", password }),
       (err: unknown) => err instanceof ApiError && err.status === 409 && /active booking/i.test(err.message)
     );
     assert.equal((await User.findById(driverId))?.email, "driver-delete@parkly.test");
@@ -236,7 +236,7 @@ describe("account deletion", () => {
     const row = await booking();
     await Payment.create({ bookingId: row._id, amount: row.totalAmount, status: "PAID", provider: "MOCK" });
     await assert.rejects(
-      () => deleteOwnAccount(hostId, { confirmation: "DELETE MY ACCOUNT", password }),
+      () => deleteOwnAccount(hostId, { confirmation: "CONFIRM", password }),
       (err: unknown) => err instanceof ApiError && err.status === 409 && /unpaid/i.test(err.message)
     );
     await HostPayout.create({
@@ -248,7 +248,7 @@ describe("account deletion", () => {
       idempotencyKey: "open-delete-1",
     });
     await assert.rejects(
-      () => deleteOwnAccount(hostId, { confirmation: "DELETE MY ACCOUNT", password }),
+      () => deleteOwnAccount(hostId, { confirmation: "CONFIRM", password }),
       (err: unknown) => err instanceof ApiError && err.status === 409 && /payout/i.test(err.message)
     );
     assert.equal((await User.findById(hostId))?.status, "ACTIVE");
@@ -257,11 +257,11 @@ describe("account deletion", () => {
   it("does not delete an admin or another person's records", async () => {
     await User.updateOne({ _id: driverId }, { role: "ADMIN" });
     await assert.rejects(
-      () => deleteOwnAccount(driverId, { confirmation: "DELETE MY ACCOUNT", password }),
+      () => deleteOwnAccount(driverId, { confirmation: "CONFIRM", password }),
       (err: unknown) => err instanceof ApiError && err.status === 403
     );
     const parsed = deleteAccountSchema.safeParse({
-      confirmation: "DELETE MY ACCOUNT",
+      confirmation: "CONFIRM",
       password,
       userId: otherId,
     });
@@ -271,8 +271,8 @@ describe("account deletion", () => {
 
   it("treats a repeated deletion as already complete", async () => {
     const mail = await notices();
-    await deleteOwnAccount(driverId, { confirmation: "DELETE MY ACCOUNT", password }, mail);
-    const again = await deleteOwnAccount(driverId, { confirmation: "DELETE MY ACCOUNT", password }, mail);
+    await deleteOwnAccount(driverId, { confirmation: "CONFIRM", password }, mail);
+    const again = await deleteOwnAccount(driverId, { confirmation: "CONFIRM", password }, mail);
     assert.equal(again.already, true);
     assert.equal(mail.sent.length, 1);
     assert.equal(await AdminAudit.countDocuments({ action: "ACCOUNT_DELETED", actorId: driverId }), 1);
@@ -282,7 +282,7 @@ describe("account deletion", () => {
 
   it("hides a host listing and keeps the listing document", async () => {
     const mail = await notices();
-    await deleteOwnAccount(hostId, { confirmation: "DELETE MY ACCOUNT", password }, mail);
+    await deleteOwnAccount(hostId, { confirmation: "CONFIRM", password }, mail);
     const space = await ParkingSpace.findById(spaceId);
     assert.ok(space);
     assert.equal(space?.status, "HIDDEN");

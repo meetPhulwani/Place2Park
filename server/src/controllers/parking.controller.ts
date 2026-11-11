@@ -168,7 +168,13 @@ export async function detail(req: Request, res: Response) {
     success: true,
     data: {
       space: spaceJson,
-      host: host?.toJSON() ?? null,
+      host: host
+        ? {
+            id: String(host._id),
+            name: !isOwner && host.privacy?.showPublicHostName === false ? "Place2Park host" : host.name,
+            image: !isOwner && host.privacy?.showPublicHostName === false ? "" : host.image ?? "",
+          }
+        : null,
       reviews: reviews.map((r) => {
         const u = r.userId as unknown as { name?: string; image?: string } | null;
         return { ...r.toJSON(), user: { name: u?.name ?? "Driver", image: u?.image ?? null } };

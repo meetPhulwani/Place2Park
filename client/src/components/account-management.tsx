@@ -1,6 +1,5 @@
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
-import Link from "@/components/link";
 import { api, errorMessage } from "@/services/api";
 import { useAuth } from "@/context/auth";
 import { GoogleButton } from "@/components/google-button";
@@ -8,14 +7,18 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/input";
 import { toast } from "@/components/ui/toaster";
-
-const PHRASE = "DELETE MY ACCOUNT";
+import {
+  DELETE_CONFIRMATION,
+  confirmationMatches,
+  shouldBlockConfirmClipboard,
+  shouldBlockConfirmShortcut,
+} from "@/lib/confirm-deletion";
 
 export function AccountManagement() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [security, setSecurity] = React.useState({ hasPassword: true, googleOnly: false });
-  const [open, setOpen] = React.useState(false);
+  const [step, setStep] = React.useState<"closed" | "warning" | "confirm">("closed");
   const [password, setPassword] = React.useState("");
   const [credential, setCredential] = React.useState("");
   const [phrase, setPhrase] = React.useState("");
@@ -29,13 +32,14 @@ export function AccountManagement() {
   }, []);
 
   function close() {
-    setOpen(false);
+    setStep("closed");
     setPassword("");
     setCredential("");
     setPhrase("");
   }
 
   async function remove() {
+    if (!confirmationMatches(phrase)) return;
     setBusy(true);
     try {
       await api.post("/account/delete", {
@@ -53,73 +57,65 @@ export function AccountManagement() {
     }
   }
 
-  const ready = phrase === PHRASE && (security.hasPassword ? password.length > 0 : !security.googleOnly || credential.length > 0);
+  const ready =
+    confirmationMatches(phrase) && (security.hasPassword ? password.length > 0 : !security.googleOnly || credential.length > 0);
 
   return (
     <section className="space-y-4" aria-labelledby="account-management-heading">
-      <div>
-        <h2 id="account-management-heading" className="font-display text-lg font-semibold text-ink">
-          Account management
-        </h2>
-        <p className="mt-1 text-sm text-muted">Password and account closure.</p>
-      </div>
-
-      <div className="rounded-2xl border border-line bg-white p-5">
-        <h3 className="text-sm font-semibold text-ink">Change password</h3>
-        {security.googleOnly ? (
-          <p className="mt-2 text-sm text-muted">You sign in with Google. This account doesn't have a password to change.</p>
-        ) : (
-          <p className="mt-2 text-sm text-muted">
-            We'll email a link so you can choose a new password.{" "}
-            <Link href="/forgot-password" className="font-medium text-brand-600 hover:underline">
-              Change password
-            </Link>
-          </p>
-        )}
-      </div>
-
       <div className="rounded-2xl border border-red-200 bg-red-50/60 p-5">
-        <h3 className="text-sm font-semibold text-red-700">Delete account</h3>
+        <h2 id="account-management-heading" className="text-sm font-semibold text-red-700">
+          Delete account
+        </h2>
         <p className="mt-2 text-sm text-red-900/80">
-          Deleting your account is permanent. Your name, email, phone, saved places, and listing details are removed or anonymized.
-          Booking, payment, and payout records can be kept where the law or a dispute requires them.
+          Account deletion is permanent once it is finalized. Download anything you want to keep before you continue.
         </p>
         {user?.role === "ADMIN" ? (
           <p className="mt-3 text-sm text-red-800">Administrator accounts can't be deleted from this page.</p>
         ) : (
-          <Button className="mt-4" variant="danger" onClick={() => setOpen(true)}>
+          <Button className="mt-4" variant="danger" onClick={() => setStep("warning")}>
             Delete account
           </Button>
         )}
       </div>
 
-      <Dialog
-        open={open}
-        onClose={close}
-        title="Delete your account"
-        description="This cannot be undone."
-        className="max-h-[90vh] overflow-y-auto"
-      >
+      <Dialog open={step === "warning"} onClose={close} title="Delete your account" description="Read this before you continue." className="max-h-[90vh] overflow-y-auto">
+        <div className="space-y-4 text-sm text-muted">
+          <p>Account deletion is permanent once finalized. You may lose access to your profile, saved preferences, favorites, and other account features.</p>
+          <p>Active bookings, unresolved disputes, pending refunds, and unpaid host payouts can prevent immediate deletion.</p>
+          <p>Booking, payment, tax, and audit records may be retained where the law or an open obligation requires them. Those records are kept without your personal details.</p>
+          <p>Download any data you want to keep from Privacy before you continue.</p>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={close}>Cancel</Button>
+            <Button variant="danger" onClick={() => { setPhrase(""); setStep("confirm"); }}>Continue to Delete Account</Button>
+          </div>
+        </div>
+      </Dialog>
+
+      <Dialog open={step === "confirm"} onClose={close} title="Confirm account deletion" description="This request is checked on the server." className="max-h-[90vh] overflow-y-auto">
         <div className="space-y-4">
-          <p className="text-sm text-muted">
-            We delete or anonymize your profile, vehicles, favorites, notifications, and review comments. Host listings are unpublished
-            and their address, photos, and access notes are removed. Booking, payment, and payout records stay so Place2Park can
-            reconcile money, handle disputes, and meet accounting and fraud-prevention duties. Those records no longer show your name,
-            phone, or vehicle plate.
-          </p>
-          <p className="text-sm text-muted">
-            Deletion waits if you have an active booking, an open support case, a refund in progress, or host earnings that have not been paid.
-          </p>
+          <p className="text-sm text-ink">To permanently request account deletion, type CONFIRM in the box below.</p>
+          <div>
+            <Label htmlFor="delete-phrase">Confirmation</Label>
+            <Input
+              id="delete-phrase"
+              value={phrase}
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
+              onChange={(event) => setPhrase(event.target.value)}
+              onPaste={(event) => { if (shouldBlockConfirmClipboard("paste")) event.preventDefault(); }}
+              onCut={(event) => { if (shouldBlockConfirmClipboard("cut")) event.preventDefault(); }}
+              onDrop={(event) => { if (shouldBlockConfirmClipboard("drop")) event.preventDefault(); }}
+              onKeyDown={(event) => { if (shouldBlockConfirmShortcut(event)) event.preventDefault(); }}
+            />
+            {phrase.length > 0 && !confirmationMatches(phrase) ? (
+              <p className="mt-1 text-sm text-red-700">Type the exact word {DELETE_CONFIRMATION}.</p>
+            ) : null}
+          </div>
           {security.hasPassword ? (
             <div>
               <Label htmlFor="delete-password">Current password</Label>
-              <Input
-                id="delete-password"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-              />
+              <Input id="delete-password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} />
             </div>
           ) : null}
           {security.googleOnly ? (
@@ -132,17 +128,13 @@ export function AccountManagement() {
                   toast.success("Google confirmation received.");
                 }}
               />
-              {credential ? <p className="text-sm text-brand-700">Google confirmation is ready.</p> : null}
             </div>
           ) : null}
-          <div>
-            <Label htmlFor="delete-phrase">Type {PHRASE}</Label>
-            <Input id="delete-phrase" value={phrase} autoComplete="off" onChange={(event) => setPhrase(event.target.value)} />
-          </div>
+          {!security.hasPassword && !security.googleOnly ? (
+            <p className="text-sm text-muted">Set a password from the recovery link before deleting this account.</p>
+          ) : null}
           <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={close} disabled={busy}>
-              Cancel
-            </Button>
+            <Button variant="secondary" onClick={close} disabled={busy}>Cancel</Button>
             <Button variant="danger" disabled={!ready || busy} loading={busy} onClick={() => void remove()}>
               Delete account
             </Button>

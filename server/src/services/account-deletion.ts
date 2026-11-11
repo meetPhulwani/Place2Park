@@ -27,7 +27,7 @@ import { emailBelongsToAdmin } from "./admin-auth.js";
 import { sendMail } from "./email.js";
 import { OPEN_PAYOUT_STATUSES } from "../utils/constants.js";
 
-const CONFIRMATION = "DELETE MY ACCOUNT";
+const CONFIRMATION = "CONFIRM";
 const OPEN_CASES = ["OPEN", "UNDER_REVIEW", "AWAITING_USER"];
 
 export type DeleteAccountInput = {
@@ -66,7 +66,7 @@ export async function accountSecurity(userId: string) {
 
 export async function deleteOwnAccount(userId: string, input: DeleteAccountInput, deps: DeleteDeps = {}) {
   if (input.confirmation !== CONFIRMATION) {
-    throw new ApiError(400, "Type DELETE MY ACCOUNT to confirm.");
+    throw new ApiError(400, "Type CONFIRM to confirm.");
   }
   const user = await User.findById(userId).select("+passwordHash +resetToken googleId email name role status");
   if (!user) throw new ApiError(404, "Account not found.");
@@ -106,6 +106,10 @@ export async function deleteOwnAccount(userId: string, input: DeleteAccountInput
     // Deletion still proceeds. The notice address is not written to the audit log.
   }
 
+  await User.updateOne(
+    { _id: userId, status: { $nin: ["DELETED"] } },
+    { $set: { status: "DELETION_PENDING", deletionRequestedAt: new Date() } }
+  );
   await anonymizeOwnedData(userId);
   const deletedEmail = `deleted.${userId}@users.place2park.invalid`;
   const updated = await User.updateOne(
@@ -120,6 +124,8 @@ export async function deleteOwnAccount(userId: string, input: DeleteAccountInput
         deletedAt: new Date(),
         notifyEmail: false,
         notifyReminders: false,
+        "privacy.marketingEmail": false,
+        "privacy.showPublicHostName": false,
       },
       $unset: {
         passwordHash: 1,
@@ -127,6 +133,7 @@ export async function deleteOwnAccount(userId: string, input: DeleteAccountInput
         resetToken: 1,
         resetTokenExpires: 1,
         payoutProfile: 1,
+        notifications: 1,
       },
       $inc: { tokenVersion: 1 },
     }

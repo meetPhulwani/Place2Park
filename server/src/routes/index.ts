@@ -41,9 +41,10 @@ import {
 } from "../utils/rate-limit.js";
 import {
   blockSlotSchema, bookingRequestSchema, createPaymentOrderSchema, emailOtpResendSchema,
+  accountCodeSchema, accountEmailRequestSchema, accountNameSchema, accountPasswordSchema, accountPhoneRequestSchema,
   deleteAccountSchema, emailOtpVerifySchema, emptyBodySchema, favoriteSchema, forgotPasswordSchema, googleLoginSchema,
   listingSchema, listingStatusSchema, loginSchema, payoutDetailsUpdateSchema, payoutProfileSchema,
-  profileSchema, reportSchema, resetPasswordSchema, reviewSchema, signupSchema,
+  notificationPrefsSchema, privacyPrefsSchema, profileSchema, reportSchema, resetPasswordSchema, reviewSchema, signupSchema,
   faqFeedbackSchema,
   supportTicketSchema, ticketReplySchema, userReportSchema,
   vehicleSchema, verifyPaymentSchema,
@@ -85,6 +86,18 @@ r.patch("/users/me", authenticate, validate(profileSchema), a(users.updateProfil
 r.get("/users/me/profile", authenticate, a(users.getProfile));
 r.put("/users/me/profile", authenticate, validate(profileSchema), a(users.updateProfile));
 r.post("/users/me/become-host", authenticate, validate(emptyBodySchema), a(users.becomeHost));
+r.get("/account/settings", authenticate, a(account.settings));
+r.patch("/account/name", authenticate, rateLimit("account-name", positiveIntEnv("RATE_LIMIT_ACCOUNT_NAME", 20), positiveIntEnv("RATE_LIMIT_ACCOUNT_NAME_WINDOW_MS", 10 * 60_000, 86_400_000)), validate(accountNameSchema), a(account.name));
+r.post("/account/email/request", authenticate, rateLimit("account-email", positiveIntEnv("RATE_LIMIT_ACCOUNT_EMAIL", 5), positiveIntEnv("RATE_LIMIT_ACCOUNT_EMAIL_WINDOW_MS", 15 * 60_000, 86_400_000)), validate(accountEmailRequestSchema), a(account.emailRequest));
+r.post("/account/email/confirm", authenticate, rateLimit("account-email", positiveIntEnv("RATE_LIMIT_ACCOUNT_EMAIL", 5), positiveIntEnv("RATE_LIMIT_ACCOUNT_EMAIL_WINDOW_MS", 15 * 60_000, 86_400_000)), validate(accountCodeSchema), a(account.emailConfirm));
+r.post("/account/phone/request", authenticate, rateLimit("account-phone", positiveIntEnv("RATE_LIMIT_ACCOUNT_PHONE", 5), positiveIntEnv("RATE_LIMIT_ACCOUNT_PHONE_WINDOW_MS", 15 * 60_000, 86_400_000)), validate(accountPhoneRequestSchema), a(account.phoneRequest));
+r.post("/account/phone/confirm", authenticate, rateLimit("account-phone", positiveIntEnv("RATE_LIMIT_ACCOUNT_PHONE", 5), positiveIntEnv("RATE_LIMIT_ACCOUNT_PHONE_WINDOW_MS", 15 * 60_000, 86_400_000)), validate(accountCodeSchema), a(account.phoneConfirm));
+r.post("/account/password", authenticate, rateLimit("account-password", positiveIntEnv("RATE_LIMIT_ACCOUNT_PASSWORD", 5), positiveIntEnv("RATE_LIMIT_ACCOUNT_PASSWORD_WINDOW_MS", 15 * 60_000, 86_400_000)), validate(accountPasswordSchema), a(account.password));
+r.post("/account/sessions/revoke", authenticate, rateLimit("account-sessions", positiveIntEnv("RATE_LIMIT_ACCOUNT_SESSIONS", 5), positiveIntEnv("RATE_LIMIT_ACCOUNT_SESSIONS_WINDOW_MS", 15 * 60_000, 86_400_000)), validate(emptyBodySchema), a(account.sessions));
+r.put("/account/notifications", authenticate, rateLimit("account-notifications", positiveIntEnv("RATE_LIMIT_ACCOUNT_NOTIFICATIONS", 30), positiveIntEnv("RATE_LIMIT_ACCOUNT_NOTIFICATIONS_WINDOW_MS", 10 * 60_000, 86_400_000)), validate(notificationPrefsSchema), a(account.notifications));
+r.put("/account/privacy", authenticate, rateLimit("account-privacy", positiveIntEnv("RATE_LIMIT_ACCOUNT_PRIVACY", 20), positiveIntEnv("RATE_LIMIT_ACCOUNT_PRIVACY_WINDOW_MS", 10 * 60_000, 86_400_000)), validate(privacyPrefsSchema), a(account.privacy));
+r.get("/account/export", authenticate, rateLimit("account-export", positiveIntEnv("RATE_LIMIT_ACCOUNT_EXPORT", 5), positiveIntEnv("RATE_LIMIT_ACCOUNT_EXPORT_WINDOW_MS", 15 * 60_000, 86_400_000)), a(account.download));
+r.delete("/account/photo", authenticate, rateLimit("account-photo", positiveIntEnv("RATE_LIMIT_ACCOUNT_PHOTO", 10), positiveIntEnv("RATE_LIMIT_ACCOUNT_PHOTO_WINDOW_MS", 10 * 60_000, 86_400_000)), a(account.removePhoto));
 r.get("/account/security", authenticate, a(account.security));
 r.post(
   "/account/delete",
@@ -171,6 +184,7 @@ const upload = multer({
   },
 });
 r.post("/upload", authenticate, hostOnly, rateLimit("upload", positiveIntEnv("RATE_LIMIT_UPLOAD", 30), positiveIntEnv("RATE_LIMIT_UPLOAD_WINDOW_MS", 10 * 60_000, 86_400_000)), upload.single("file"), a(uploads.uploadImage));
+r.post("/account/photo", authenticate, rateLimit("account-photo", positiveIntEnv("RATE_LIMIT_ACCOUNT_PHOTO", 10), positiveIntEnv("RATE_LIMIT_ACCOUNT_PHOTO_WINDOW_MS", 10 * 60_000, 86_400_000)), upload.single("file"), a(account.photo));
 r.post("/support/evidence", authenticate, rateLimit("support-evidence", positiveIntEnv("RATE_LIMIT_SUPPORT_EVIDENCE", 20), positiveIntEnv("RATE_LIMIT_SUPPORT_EVIDENCE_WINDOW_MS", 10 * 60_000, 86_400_000)), upload.single("file"), a(support.evidence));
 
 export default r;

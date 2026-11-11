@@ -57,9 +57,43 @@ export const googleLoginSchema = z.object({
 
 export const emptyBodySchema = z.object({}).strict();
 
+export const accountNameSchema = z.object({ name: z.string().trim().min(2).max(80) }).strict();
+export const accountEmailRequestSchema = z.object({ email: z.string().trim().toLowerCase().email().max(254) }).strict();
+export const accountPhoneRequestSchema = z.object({ phone: indianMobile }).strict();
+export const accountCodeSchema = z
+  .object({
+    pendingToken: z.string().trim().min(20).max(200),
+    otp: z.string().regex(/^\d{6}$/, "Enter the 6-digit code."),
+  })
+  .strict();
+export const accountPasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1).max(100),
+    newPassword: signupPassword,
+    confirmPassword: z.string().min(1).max(100),
+  })
+  .strict()
+  .refine((value) => value.newPassword === value.confirmPassword, { message: "Passwords do not match.", path: ["confirmPassword"] });
+const notificationChannelSchema = z
+  .object({
+    bookingConfirmed: z.boolean(),
+    bookingCancelled: z.boolean(),
+    bookingReminder: z.boolean(),
+    payment: z.boolean(),
+    refund: z.boolean(),
+    hostRequest: z.boolean(),
+    hostStatus: z.boolean(),
+    payout: z.boolean(),
+    promo: z.boolean(),
+    product: z.boolean(),
+  })
+  .strict();
+export const notificationPrefsSchema = z.object({ email: notificationChannelSchema, inApp: notificationChannelSchema }).strict();
+export const privacyPrefsSchema = z.object({ showPublicHostName: z.boolean(), marketingEmail: z.boolean() }).strict();
+
 export const deleteAccountSchema = z
   .object({
-    confirmation: z.literal("DELETE MY ACCOUNT"),
+    confirmation: z.literal("CONFIRM"),
     password: z.string().max(100).optional(),
     credential: z.string().max(8000).optional(),
   })
