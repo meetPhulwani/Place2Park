@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { MapPin, Search } from "lucide-react";
+import { Calendar, Clock, MapPin, Search, Timer } from "lucide-react";
 import { ALLOWED_DURATIONS_MINS } from "@/lib/constants";
 import { formatDuration, nextHalfHour, toDateInputValue, toTimeInputValue, cn } from "@/lib/utils";
 import { selectedPlaceLabel } from "@/lib/search-summary";
@@ -158,7 +158,8 @@ export const SearchBar = React.forwardRef<
         </div>
       </div>
       <div className={dock ? "grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_1fr_auto]" : "contents"}>
-      <div>
+      <div className="flex h-11 min-w-0 items-center gap-2 rounded-lg bg-page px-3 focus-within:ring-2 focus-within:ring-brand-500/30">
+        <Calendar className="size-5 shrink-0 text-brand-500" aria-hidden />
         <label htmlFor="search-date" className="sr-only">
           Date
         </label>
@@ -168,10 +169,11 @@ export const SearchBar = React.forwardRef<
           value={date}
           min={toDateInputValue(new Date())}
           onChange={(e) => setDate(e.target.value)}
-          className="h-11 max-h-11 min-h-11 w-full rounded-lg bg-page px-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+          className="search-when"
         />
       </div>
-      <div>
+      <div className="flex h-11 min-w-0 items-center gap-2 rounded-lg bg-page px-3 focus-within:ring-2 focus-within:ring-brand-500/30">
+        <Clock className="size-5 shrink-0 text-brand-500" aria-hidden />
         <label htmlFor="search-time" className="sr-only">
           Start time
         </label>
@@ -180,10 +182,11 @@ export const SearchBar = React.forwardRef<
           type="time"
           value={time}
           onChange={(e) => setTime(e.target.value)}
-          className="h-11 max-h-11 min-h-11 w-full rounded-lg bg-page px-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+          className="search-when"
         />
       </div>
-      <div>
+      <div className="flex h-11 min-w-0 items-center gap-2 rounded-lg bg-page px-3 focus-within:ring-2 focus-within:ring-brand-500/30">
+        <Timer className="size-5 shrink-0 text-brand-500" aria-hidden />
         <label htmlFor="search-duration" className="sr-only">
           Duration
         </label>
@@ -191,7 +194,7 @@ export const SearchBar = React.forwardRef<
           id="search-duration"
           value={duration}
           onChange={(e) => setDuration(Number(e.target.value))}
-          className="h-11 w-full appearance-none rounded-lg bg-page px-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+          className="h-11 min-w-0 flex-1 appearance-none bg-transparent p-0 text-sm leading-[2.75rem] text-ink focus:outline-none"
         >
           {ALLOWED_DURATIONS_MINS.map((m) => (
             <option key={m} value={m}>

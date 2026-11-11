@@ -135,6 +135,64 @@
     opacity: 0.55;
   }
   /*
+    Search fields draw their own left icon. The native glyph is hidden because
+    appearance:none removes it on mobile, and a second indicator would sit on
+    the text. The invisible indicator still covers the field so the picker opens.
+  */
+  input.search-when[type="date"],
+  input.search-when[type="time"] {
+    position: relative;
+    display: block;
+    height: 100%;
+    max-height: none;
+    min-height: 0;
+    width: auto;
+    flex: 1 1 auto;
+    margin: 0;
+    padding: 0;
+    line-height: 2.75rem;
+    color: var(--ink);
+    background: transparent;
+    -webkit-min-logical-width: 0;
+  }
+  input.search-when[type="date"]::-webkit-datetime-edit,
+  input.search-when[type="time"]::-webkit-datetime-edit,
+  input.search-when[type="date"]::-webkit-datetime-edit-fields-wrapper,
+  input.search-when[type="time"]::-webkit-datetime-edit-fields-wrapper,
+  input.search-when[type="date"]::-webkit-datetime-edit-year-field,
+  input.search-when[type="date"]::-webkit-datetime-edit-month-field,
+  input.search-when[type="date"]::-webkit-datetime-edit-day-field,
+  input.search-when[type="time"]::-webkit-datetime-edit-hour-field,
+  input.search-when[type="time"]::-webkit-datetime-edit-minute-field,
+  input.search-when[type="time"]::-webkit-datetime-edit-ampm-field {
+    display: inline-flex;
+    align-items: center;
+    height: 100%;
+    padding: 0;
+    line-height: 2.75rem;
+  }
+  input.search-when[type="date"]::-webkit-date-and-time-value,
+  input.search-when[type="time"]::-webkit-date-and-time-value {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    line-height: 2.75rem;
+    text-align: left;
+  }
+  input.search-when[type="date"]::-webkit-calendar-picker-indicator,
+  input.search-when[type="time"]::-webkit-calendar-picker-indicator {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+  /*
     Google's zoom control defaults to the bottom-right, under the mobile search
     sheet. Keep it at the top-left, clear of the navbar and the home indicator.
   */

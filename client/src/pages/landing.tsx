@@ -160,19 +160,11 @@ export default function LandingPage() {
           </Link>
         )}
         <section className="pointer-events-auto w-full rounded-t-2xl border border-b-0 border-line bg-white pt-4 pr-[max(1rem,env(safe-area-inset-right))] pb-[max(1rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] shadow-pop sm:rounded-t-3xl sm:px-6 sm:pt-5">
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <h1 className="font-display text-lg font-semibold tracking-tight text-ink sm:text-xl">
-                Where to?
-              </h1>
-              <p className="text-xs text-muted sm:text-sm">Reserve a spot before you leave.</p>
-            </div>
-            <Link
-              href="/become-a-host"
-              className="hidden shrink-0 text-sm font-medium text-brand-600 hover:text-brand-700 sm:inline"
-            >
-              List a space
-            </Link>
+          <div>
+            <h1 className="font-display text-lg font-semibold tracking-tight text-ink sm:text-xl">
+              Where to?
+            </h1>
+            <p className="text-xs text-muted sm:text-sm">Reserve a spot before you leave.</p>
           </div>
           <div className="mt-3">
             <SearchBar ref={searchBarRef} variant="dock" />
