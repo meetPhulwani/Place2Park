@@ -6,7 +6,8 @@ import { ApiError } from "../middleware/error.js";
 import { Booking, Payment } from "../models/index.js";
 import { expireStalePendingBookings } from "./availability.js";
 import { applyRouteTransferEvent, markBookingRefunded } from "./payouts.js";
-import { retryIdempotent, withTimeout } from "../utils/async.js";
+import { withTimeout } from "../utils/async.js";
+import { retryOperation } from "../utils/retry.js";
 import { e2eHooksEnabled } from "../testing/e2e-gate.js";
 import { localCapture, localPaymentOrder, localRefund } from "../testing/e2e-payments.js";
 
@@ -171,9 +172,16 @@ export async function fetchRazorpayPayment(
     const rzp = new Razorpay({ key_id: env.RAZORPAY_KEY_ID, key_secret: env.RAZORPAY_KEY_SECRET });
     return rzp.payments.fetch(paymentId) as Promise<{ amount?: number; currency?: string }>;
   };
-  const payment = await retryIdempotent(
+  const payment = await retryOperation(
     () => withTimeout(read(), timeoutMs, "timeout contacting Razorpay"),
-    { attempts: timeouts.readAttempts, baseDelayMs: 15 }
+    {
+      service: "razorpay",
+      operation: "fetchPayment",
+      maxAttempts: timeouts.readAttempts,
+      initialDelayMs: 15,
+      deadlineMs: timeoutMs * timeouts.readAttempts + timeouts.retryMaxDelayMs,
+      retryCategories: ["timeout", "transient_network", "server", "rate_limited"],
+    }
   );
   return { amount: Number(payment.amount), currency: String(payment.currency ?? "") };
 }

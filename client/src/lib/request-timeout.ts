@@ -12,10 +12,10 @@ export function isRequestAbort(err: unknown) {
   return err instanceof AxiosError && (err.code === "ERR_CANCELED" || err.name === "CanceledError");
 }
 
-/** Non-idempotent calls are never repeated by the client. Reads are not auto-retried either. */
+/** Only safe reads are repeated. POST, PATCH, and DELETE stay single-shot. */
 export function canAutoRetry(method: string | undefined) {
-  void method;
-  return false;
+  const normalized = method?.toLowerCase();
+  return normalized === "get" || normalized === "head";
 }
 
 /** Ignores a second call while the first is still running. */

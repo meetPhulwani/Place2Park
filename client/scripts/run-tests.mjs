@@ -26,6 +26,7 @@ const files = [
   "src/lib/safe-next.test.ts",
   "src/lib/http-error.test.ts",
   "src/lib/request-timeout.test.ts",
+  "src/lib/retry.test.ts",
   "src/lib/analytics.test.ts",
   "src/lib/confirm-deletion.test.ts",
   "src/lib/account-nav.test.ts",

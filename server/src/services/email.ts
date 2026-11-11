@@ -3,6 +3,7 @@ import nodemailer from "nodemailer";
 import { env, isProd, unwrapEnvValue } from "../config/env.js";
 import { timeouts } from "../config/timeouts.js";
 import { isTimeoutError, withTimeout } from "../utils/async.js";
+import { parseRetryAfter, retryOperation } from "../utils/retry.js";
 import { e2eHooksEnabled } from "../testing/e2e-gate.js";
 import { rememberTestCode } from "../testing/e2e-mailbox.js";
 
@@ -294,47 +295,55 @@ async function deliverViaResend(
   const fetchFn = deps.fetch ?? fetch;
   const timeoutMs = deps.timeoutMs ?? RESEND_TIMEOUT_MS;
   const idempotencyKey = deps.idempotencyKey || randomUUID();
-  let res: Response | undefined;
-  let lastError: unknown;
-  for (let attempt = 1; attempt <= timeouts.emailAttempts; attempt += 1) {
-    try {
-      res = await withTimeout(
-        fetchFn(RESEND_EMAILS_URL, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-            "Idempotency-Key": idempotencyKey,
-          },
-          body: JSON.stringify({
-            from: payload.from,
-            to: [extractEmailAddress(payload.to)],
-            subject: payload.subject,
-            text: payload.text,
-            ...(payload.html ? { html: payload.html } : {}),
+  const res = await retryOperation(
+    async () => {
+      try {
+        return await withTimeout(
+          fetchFn(RESEND_EMAILS_URL, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+              "Idempotency-Key": idempotencyKey,
+            },
+            body: JSON.stringify({
+              from: payload.from,
+              to: [extractEmailAddress(payload.to)],
+              subject: payload.subject,
+              text: payload.text,
+              ...(payload.html ? { html: payload.html } : {}),
+            }),
+            signal: AbortSignal.timeout(timeoutMs),
           }),
-          signal: AbortSignal.timeout(timeoutMs),
-        }),
-        timeoutMs,
-        "timeout contacting Resend"
-      );
-      if (res.ok || res.status < 500 || attempt === timeouts.emailAttempts) break;
-      lastError = Object.assign(new Error(`Resend ${res.status}`), { provider: "resend", status: res.status });
-    } catch (err) {
-      lastError = err;
-      const retry = isTimeoutError(err) && attempt < timeouts.emailAttempts;
-      if (!retry) {
-        const name = err instanceof Error ? err.name : "";
-        const message = err instanceof Error ? err.message : String(err);
-        if (name === "TimeoutError" || name === "AbortError" || /timeout/i.test(message)) {
+          timeoutMs,
+          "timeout contacting Resend"
+        );
+      } catch (err) {
+        if (isTimeoutError(err)) {
           throw Object.assign(new Error("timeout contacting Resend"), { provider: "resend", code: "ETIMEDOUT" });
         }
+        const code = err && typeof err === "object" ? String((err as { code?: string }).code ?? "") : "";
+        if (code) throw Object.assign(err instanceof Error ? err : new Error("Resend request failed"), { provider: "resend", code });
         throw Object.assign(err instanceof Error ? err : new Error("Resend request failed"), { provider: "resend" });
       }
+    },
+    {
+      service: "resend",
+      operation: "send",
+      maxAttempts: timeouts.emailAttempts,
+      deadlineMs: timeoutMs * timeouts.emailAttempts + timeouts.retryMaxDelayMs,
+      retryCategories: ["timeout", "transient_network", "server", "rate_limited"],
+      retryableResult: (response) => {
+        if (response.ok || response.status < 500) {
+          if (response.status !== 408 && response.status !== 429) return null;
+        }
+        return {
+          status: response.status,
+          retryAfterMs: parseRetryAfter(response.headers?.get?.("retry-after")) ?? undefined,
+        };
+      },
     }
-    await new Promise((resolve) => setTimeout(resolve, 25 * attempt));
-  }
-  if (!res) throw lastError instanceof Error ? lastError : new Error("timeout contacting Resend");
+  );
 
   if (!res.ok) {
     let errorName = "";

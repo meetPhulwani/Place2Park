@@ -5,28 +5,28 @@ export function isTimeoutError(err: unknown) {
 }
 
 /**
- * Retry a read. Callers must not use this for a charge, capture, or refund
- * unless the provider honors an idempotency key the caller already sent.
+ * Retry a read through the shared backoff engine.
+ * Do not use this for a charge, capture, refund, or payout.
  */
 export async function retryIdempotent<T>(
   work: () => Promise<T>,
   options: { attempts: number; baseDelayMs: number; isRetryable?: (err: unknown) => boolean }
 ): Promise<T> {
-  const attempts = Math.max(1, Math.min(3, options.attempts));
-  const retryable = options.isRetryable ?? isTimeoutError;
-  let last: unknown;
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    try {
-      return await work();
-    } catch (err) {
-      last = err;
-      if (attempt === attempts || !retryable(err)) throw err;
-      const backoff = options.baseDelayMs * 2 ** (attempt - 1);
-      const jitter = Math.floor(Math.random() * Math.max(1, options.baseDelayMs));
-      await new Promise((resolve) => setTimeout(resolve, backoff + jitter));
-    }
-  }
-  throw last;
+  const { classifyError, retryOperation } = await import("./retry.js");
+  return retryOperation(work, {
+    service: "shared",
+    operation: "idempotent-read",
+    maxAttempts: Math.max(1, Math.min(3, options.attempts)),
+    initialDelayMs: options.baseDelayMs,
+    maxDelayMs: 10_000,
+    deadlineMs: 120_000,
+    isRetryable:
+      options.isRetryable ??
+      ((err) => {
+        const category = classifyError(err).category;
+        return category === "timeout" || category === "transient_network" || category === "server" || category === "rate_limited";
+      }),
+  });
 }
 
 /** Reject if `promise` does not settle in time. Does not abort the underlying work. */

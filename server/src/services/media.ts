@@ -5,6 +5,7 @@ import mongoose from "mongoose";
 import { env } from "../config/env.js";
 import { timeouts } from "../config/timeouts.js";
 import { withTimeout } from "../utils/async.js";
+import { retryOperation, singleAttempt } from "../utils/retry.js";
 import { UPLOADS_DIR } from "../config/paths.js";
 import { ApiError } from "../middleware/error.js";
 import { ParkingSpace, PendingUpload } from "../models/index.js";
@@ -258,10 +259,19 @@ export async function uploadListingImage(
   validateUploadFile(file);
   const upload = deps.upload ?? ((input) => defaultCloudinaryUpload(input, deps.hostId));
   try {
-    const stored = await withTimeout(
-      upload({ buffer: file.buffer, mimetype: file.mimetype }),
-      deps.timeoutMs ?? timeouts.cloudinaryMs,
-      "timeout contacting Cloudinary"
+    const stored = await retryOperation(
+      () =>
+        withTimeout(
+          upload({ buffer: file.buffer, mimetype: file.mimetype }),
+          deps.timeoutMs ?? timeouts.cloudinaryMs,
+          "timeout contacting Cloudinary"
+        ),
+      {
+        service: "cloudinary",
+        operation: "upload",
+        maxAttempts: singleAttempt.cloudinaryUpload,
+        deadlineMs: deps.timeoutMs ?? timeouts.cloudinaryMs,
+      }
     );
     if (!stored.url || !stored.publicId) throw new Error("Cloudinary upload returned no asset");
     return stored;

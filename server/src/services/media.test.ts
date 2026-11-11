@@ -60,11 +60,20 @@ describe("uploadListingImage", () => {
     );
   });
 
-  it("times out a stalled upload without storing a URL", async () => {
+  it("times out a stalled upload without storing a URL or trying twice", async () => {
+    let calls = 0;
     await assert.rejects(
-      () => uploadListingImage(jpeg, { upload: () => new Promise(() => undefined), timeoutMs: 20 }),
+      () =>
+        uploadListingImage(jpeg, {
+          upload: () => {
+            calls += 1;
+            return new Promise(() => undefined);
+          },
+          timeoutMs: 20,
+        }),
       (err: unknown) => err instanceof ApiError && err.status === 503
     );
+    assert.equal(calls, 1);
   });
 
   it("surfaces Cloudinary failures as 503 without a stored URL", async () => {

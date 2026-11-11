@@ -54,6 +54,24 @@ export const timeouts = {
   get emailAttempts() {
     return intEnv("EMAIL_RETRY_ATTEMPTS", 2, 3);
   },
+  /** First backoff window. Later waits double until retryMaxDelayMs. */
+  get retryInitialDelayMs() {
+    return intEnv("RETRY_INITIAL_DELAY_MS", 500, 10_000);
+  },
+  get retryMaxDelayMs() {
+    return intEnv("RETRY_MAX_DELAY_MS", 10_000, 30_000);
+  },
+  /** Initial try plus retries. Capped so a caller cannot multiply work. */
+  get retryMaxAttempts() {
+    return intEnv("RETRY_MAX_ATTEMPTS", 4, 4);
+  },
+  /**
+   * ioredis retries a command once. A higher value can apply INCR twice after a
+   * timeout, so configuration cannot raise it.
+   */
+  get redisCommandRetries() {
+    return intEnv("REDIS_COMMAND_RETRIES", 1, 1);
+  },
 };
 
 export function mongoConnectOptions() {
@@ -61,5 +79,7 @@ export function mongoConnectOptions() {
     serverSelectionTimeoutMS: timeouts.mongoServerSelectionMs,
     connectTimeoutMS: timeouts.mongoConnectMs,
     socketTimeoutMS: timeouts.mongoSocketMs,
+    retryReads: true,
+    retryWrites: true,
   };
 }

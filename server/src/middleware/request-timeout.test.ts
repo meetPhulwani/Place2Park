@@ -79,6 +79,8 @@ describe("database and admin session budgets", () => {
     assert.equal(options.serverSelectionTimeoutMS, timeouts.mongoServerSelectionMs);
     assert.ok(options.connectTimeoutMS > 0);
     assert.ok(options.socketTimeoutMS >= options.serverSelectionTimeoutMS);
+    assert.equal(options.retryReads, true);
+    assert.equal(options.retryWrites, true);
     assert.equal(CONSOLE_IDLE_MS, 30 * 60 * 1000);
     assert.equal(CONSOLE_ABSOLUTE_MS, 8 * 60 * 60 * 1000);
     assert.equal(CONSOLE_OTP_TTL_MS, 5 * 60 * 1000);

@@ -1,12 +1,14 @@
 import axios, { AxiosError } from "axios";
 import { resolveApiBase } from "@/lib/api-base";
+import { attachTransientGetRetry } from "@/lib/retry";
 import { API_TIMEOUT_MS, isRequestAbort, isRequestTimeout } from "@/lib/request-timeout";
 
-/** Axios instance for the Parkly Express API. There is no automatic retry. */
+/** Axios instance for the Parkly Express API. GET may retry a transient failure. POST does not. */
 export const api = axios.create({
   baseURL: resolveApiBase(import.meta.env?.VITE_API_URL),
   timeout: API_TIMEOUT_MS,
 });
+attachTransientGetRetry(api);
 
 const TOKEN_KEY = "parkly_token";
 

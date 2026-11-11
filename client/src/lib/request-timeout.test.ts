@@ -4,10 +4,12 @@ import { AxiosError } from "axios";
 import { API_TIMEOUT_MS, canAutoRetry, createSingleFlight, isRequestAbort, isRequestTimeout } from "./request-timeout.ts";
 
 describe("client request timeout", () => {
-  it("keeps a bounded client timeout and never auto-retries", () => {
+  it("keeps a bounded client timeout and retries only safe reads", () => {
     assert.ok(API_TIMEOUT_MS >= 1000);
-    assert.equal(canAutoRetry("GET"), false);
+    assert.equal(canAutoRetry("GET"), true);
+    assert.equal(canAutoRetry("HEAD"), true);
     assert.equal(canAutoRetry("POST"), false);
+    assert.equal(canAutoRetry("PATCH"), false);
     assert.equal(canAutoRetry("DELETE"), false);
   });
 

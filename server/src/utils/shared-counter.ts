@@ -116,7 +116,8 @@ function connectRedis(url: string): RedisLike {
     options: object
   ) => RedisLike & { on: (event: string, fn: () => void) => void };
   const client = new Redis(url, {
-    maxRetriesPerRequest: 1,
+    // One driver retry. The application does not add another loop around INCR.
+    maxRetriesPerRequest: timeouts.redisCommandRetries,
     enableOfflineQueue: false,
     connectTimeout: timeouts.redisConnectMs,
     commandTimeout: timeouts.redisCommandMs,

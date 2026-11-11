@@ -1,4 +1,5 @@
 import axios, { AxiosError } from "axios";
+import { attachTransientGetRetry } from "@/lib/retry";
 import { API_TIMEOUT_MS, isRequestTimeout } from "@/lib/request-timeout";
 
 const CSRF_COOKIE = "p2p_adm_csrf";
@@ -15,6 +16,7 @@ export const consoleApi = axios.create({
   timeout: API_TIMEOUT_MS,
   withCredentials: true,
 });
+attachTransientGetRetry(consoleApi);
 
 export const api = consoleApi;
 
