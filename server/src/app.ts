@@ -51,6 +51,16 @@ export function createApp() {
     res.status(404).json({ success: false, message: "Not found." });
   });
 
+  app.get("/", (_req, res) => {
+    res.json({ success: true, message: "Place2Park API is running." });
+  });
+  app.get("/health", (_req, res) => {
+    res.json({
+      success: true,
+      data: { status: "ok", service: "Place2Park API" },
+    });
+  });
+
   app.use(notFoundHandler);
   app.use(errorHandler);
   return app;
