@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { getDisplayLocation } from "@/lib/location";
 import { formatDate, formatDuration, formatINR, formatTime } from "@/lib/utils";
 
-export default function HistoryPage() {
+export default function BookingHistory() {
   const [params, setParams] = useSearchParams();
   const [data, setData] = React.useState<{ bookings: Booking[]; total: number; totalPages: number } | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -29,7 +29,6 @@ export default function HistoryPage() {
 
   const paramString = params.toString();
   React.useEffect(() => {
-    document.title = "Parking history · Place2Park";
     const qs = new URLSearchParams(paramString);
     qs.set("scope", "history");
     setData(null);
@@ -47,7 +46,7 @@ export default function HistoryPage() {
     if (sp.from) next.set("from", sp.from);
     if (sp.to) next.set("to", sp.to);
     next.set("page", String(p));
-    return `/history?${next.toString()}`;
+    return `/bookings?${next.toString()}#history`;
   };
 
   const bookings = data?.bookings ?? [];
@@ -56,11 +55,11 @@ export default function HistoryPage() {
   const page = sp.page;
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <section id="history" className="space-y-6 scroll-mt-24">
       <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">
-          Parking history
-        </h1>
+        <h2 className="font-display text-xl font-bold tracking-tight text-slate-900">
+          History
+        </h2>
         <p className="mt-1 text-sm text-slate-500">
           {data ? `${total} past booking${total === 1 ? "" : "s"}` : "Loading…"}
         </p>
@@ -170,7 +169,7 @@ export default function HistoryPage() {
           )}
         </nav>
       )}
-    </div>
+    </section>
   );
 }
 

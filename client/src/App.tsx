@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Navigate, Routes, Route, useSearchParams } from "react-router-dom";
 import { api } from "@/services/api";
 import { AnalyticsListener } from "@/components/analytics-listener";
 import { Toaster } from "@/components/ui/toaster";
@@ -35,10 +35,14 @@ const SupportPage = lazyRoute(() => import("@/pages/support"), PublicFallback);
 const PrivacyPage = lazyRoute(() => import("@/pages/privacy"), PublicFallback);
 const TermsPage = lazyRoute(() => import("@/pages/terms"), PublicFallback);
 const PublicFaqsPage = lazyRoute(() => import("@/pages/faqs"), PublicFallback);
-const DashboardPage = lazyRoute(() => import("@/pages/account/dashboard"));
+
+function HistoryRedirect() {
+  const [params] = useSearchParams();
+  const search = params.toString();
+  return <Navigate to={search ? `/bookings?${search}#history` : "/bookings#history"} replace />;
+}
 const BookingsPage = lazyRoute(() => import("@/pages/account/bookings"));
 const BookingDetailPage = lazyRoute(() => import("@/pages/account/booking-detail"));
-const HistoryPage = lazyRoute(() => import("@/pages/account/history"));
 const SavedPage = lazyRoute(() => import("@/pages/account/saved"));
 const PaymentsPage = lazyRoute(() => import("@/pages/account/payments"));
 const ProfilePage = lazyRoute(() => import("@/pages/account/profile"));
@@ -96,10 +100,10 @@ export default function App() {
         </Route>
 
         <Route element={<AccountLayout />}>
-          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/dashboard" element={<Navigate to="/bookings" replace />} />
           <Route path="/bookings" element={<BookingsPage />} />
           <Route path="/bookings/:id" element={<BookingDetailPage />} />
-          <Route path="/history" element={<HistoryPage />} />
+          <Route path="/history" element={<HistoryRedirect />} />
           <Route path="/saved" element={<SavedPage />} />
           <Route path="/payments" element={<PaymentsPage />} />
           <Route path="/profile" element={<ProfilePage />} />

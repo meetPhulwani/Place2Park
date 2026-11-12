@@ -30,7 +30,7 @@ export function useGuard(requirement?: "host" | "admin") {
   if (requirement === "host" && !isHostRole(user.role))
     return { state: "redirect" as const, user: null, redirect: "/become-a-host" };
   if (requirement === "admin" && user.role !== "ADMIN")
-    return { state: "redirect" as const, user: null, redirect: "/dashboard" };
+    return { state: "redirect" as const, user: null, redirect: "/bookings" };
   return { state: "ok" as const, user, redirect: null };
 }
 

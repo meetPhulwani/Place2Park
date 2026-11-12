@@ -29,7 +29,7 @@ async function verifiedAccount(page: Page, email: string, phone: string) {
   const code = (await mailbox.json()).data.code as string;
   await page.getByLabel("Verification code").fill(code);
   await page.getByRole("button", { name: "Verify OTP" }).click();
-  await expect(page).toHaveURL(/\/dashboard/);
+  await expect(page).toHaveURL(/\/bookings/);
 }
 
 async function userId(request: APIRequestContext, page: Page) {

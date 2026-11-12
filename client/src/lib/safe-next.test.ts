@@ -8,9 +8,9 @@ describe("safeNextPath", () => {
   });
 
   it("rejects protocol-relative and external targets", () => {
-    assert.equal(safeNextPath("//evil.example"), "/dashboard");
-    assert.equal(safeNextPath("https://evil.example"), "/dashboard");
-    assert.equal(safeNextPath("/\\evil.example"), "/dashboard");
-    assert.equal(safeNextPath(null), "/dashboard");
+    assert.equal(safeNextPath("//evil.example"), "/bookings");
+    assert.equal(safeNextPath("https://evil.example"), "/bookings");
+    assert.equal(safeNextPath("/\\evil.example"), "/bookings");
+    assert.equal(safeNextPath(null), "/bookings");
   });
 });

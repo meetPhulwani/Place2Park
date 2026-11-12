@@ -15,7 +15,7 @@ export async function login(page: Page, email: string) {
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(DEMO_PASSWORD);
   await page.getByRole("button", { name: "Log in" }).click();
-  await expect(page).toHaveURL(/\/dashboard/);
+  await expect(page).toHaveURL(/\/bookings/);
 }
 
 export const API_ORIGIN = `http://127.0.0.1:${process.env.E2E_PORT || "5055"}`;

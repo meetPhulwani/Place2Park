@@ -39,7 +39,9 @@ test.describe.serial("driver journey", () => {
     await page.goto("/bookings");
     await expect(page.getByText(/Covered basement spot near Bandra Linking Road/i).first()).toBeVisible();
     await page.goto("/history");
-    await expect(page).toHaveTitle(/Parking history/);
+    await expect(page).toHaveURL(/\/bookings/);
+    await expect(page.getByRole("heading", { name: "My bookings" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "History" })).toBeVisible();
   });
 
   test("updates profile and settings without leaving the account", async ({ page }) => {

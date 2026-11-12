@@ -4,7 +4,7 @@ import Link from "@/components/link";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/auth";
 import {
-  Menu, X, LayoutDashboard, CalendarClock, History, Heart, User,
+  Menu, X, CalendarClock, Heart, User,
   Building2, LogOut, CircleHelp, Settings,
 } from "lucide-react";
 import { Avatar } from "./ui/avatar";
@@ -45,9 +45,7 @@ export function UserMenu({
   }, [open]);
 
   const items = [
-    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/bookings", label: "My bookings", icon: CalendarClock },
-    { href: "/history", label: "History", icon: History },
     { href: "/saved", label: "Saved", icon: Heart },
     { href: "/profile", label: "Profile", icon: User },
     { href: "/settings", label: "Settings", icon: Settings },
@@ -138,12 +136,10 @@ export function MobileMenu({
   const links = [
     ...(loggedIn
       ? [
-          { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
           { href: "/bookings", label: "My bookings", icon: CalendarClock },
-          { href: "/history", label: "History", icon: History },
           { href: "/saved", label: "Saved", icon: Heart },
           { href: "/profile", label: "Profile", icon: User },
-    { href: "/settings", label: "Settings", icon: Settings },
+          { href: "/settings", label: "Settings", icon: Settings },
         ]
       : []),
     ...(showHostDashboardLink(loggedIn ? role : null)
