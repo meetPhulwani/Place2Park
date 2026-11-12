@@ -1,4 +1,3 @@
-import bcrypt from "bcryptjs";
 import { isTimeoutError } from "../utils/async.js";
 import { verifyGoogleIdToken } from "./google-identity.js";
 import { env } from "../config/env.js";
@@ -77,15 +76,10 @@ export async function deleteOwnAccount(userId: string, input: DeleteAccountInput
     throw new ApiError(403, "This account can't be deleted here.");
   }
 
-  if (user.passwordHash) {
-    const passwordOk = await bcrypt.compare(String(input.password ?? ""), user.passwordHash);
-    if (!passwordOk) throw new ApiError(401, "That password doesn't match.");
-  } else if (user.googleId) {
+  if (!user.passwordHash && user.googleId) {
     if (!input.credential) throw new ApiError(400, "Confirm with Google before deleting this account.");
     const sub = await (deps.verifyGoogleSub ?? defaultGoogleSub)(input.credential);
     if (sub !== user.googleId) throw new ApiError(401, "Google confirmation didn't match this account.");
-  } else {
-    throw new ApiError(400, "Set a password before deleting this account.");
   }
 
   const blockers = await deletionBlockers(userId);

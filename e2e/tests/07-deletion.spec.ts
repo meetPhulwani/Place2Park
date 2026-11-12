@@ -74,8 +74,7 @@ test("deletes a disposable account and keeps the financial records", async ({ pa
   await phrase.fill("");
   await phrase.pressSequentially("CONFIRM", { delay: 40 });
   await expect(phrase).toHaveValue("CONFIRM");
-  await expect(submit).toBeDisabled();
-  await page.locator("#delete-password").fill(PASSWORD);
+  await expect(page.locator("#delete-password")).toHaveCount(0);
   await expect(submit).toBeEnabled();
   const [deleted] = await Promise.all([
     page.waitForResponse((response) => response.url().includes("/account/delete")),

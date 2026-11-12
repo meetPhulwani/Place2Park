@@ -193,12 +193,11 @@ describe("account deletion", () => {
     );
   });
 
-  it("rejects the wrong password", async () => {
-    await assert.rejects(
-      () => deleteOwnAccount(driverId, { confirmation: "CONFIRM", password: "wrong-password" }),
-      (err: unknown) => err instanceof ApiError && err.status === 401
-    );
-    assert.equal((await User.findById(driverId))?.status, "ACTIVE");
+  it("deletes without asking for the account password", async () => {
+    const mail = await notices();
+    await deleteOwnAccount(driverId, { confirmation: "CONFIRM" }, mail);
+    assert.equal((await User.findById(driverId))?.status, "DELETED");
+    assert.equal(mail.sent.length, 1);
   });
 
   it("accepts a matching Google confirmation and rejects a different Google account", async () => {

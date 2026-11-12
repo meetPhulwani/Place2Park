@@ -17,7 +17,6 @@ export function AccountManagement() {
   const { user, logout } = useAuth();
   const [security, setSecurity] = React.useState({ hasPassword: true, googleOnly: false });
   const [step, setStep] = React.useState<"closed" | "warning" | "confirm">("closed");
-  const [password, setPassword] = React.useState("");
   const [credential, setCredential] = React.useState("");
   const [phrase, setPhrase] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -31,7 +30,6 @@ export function AccountManagement() {
 
   function close() {
     setStep("closed");
-    setPassword("");
     setCredential("");
     setPhrase("");
   }
@@ -42,7 +40,6 @@ export function AccountManagement() {
     try {
       await api.post("/account/delete", {
         confirmation: phrase,
-        ...(security.hasPassword ? { password } : {}),
         ...(security.googleOnly ? { credential } : {}),
       });
       toast.success("Your account has been deleted.");
@@ -55,8 +52,7 @@ export function AccountManagement() {
     }
   }
 
-  const ready =
-    confirmationMatches(phrase) && (security.hasPassword ? password.length > 0 : !security.googleOnly || credential.length > 0);
+  const ready = confirmationMatches(phrase) && (!security.googleOnly || credential.length > 0);
 
   return (
     <section className="space-y-4" aria-labelledby="account-management-heading">
@@ -110,12 +106,6 @@ export function AccountManagement() {
               <p className="mt-1 text-sm text-red-700">Type the exact word {DELETE_CONFIRMATION}.</p>
             ) : null}
           </div>
-          {security.hasPassword ? (
-            <div>
-              <Label htmlFor="delete-password">Current password</Label>
-              <Input id="delete-password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} />
-            </div>
-          ) : null}
           {security.googleOnly ? (
             <div className="space-y-2">
               <p className="text-sm font-medium text-ink">Confirm with Google</p>
@@ -127,9 +117,6 @@ export function AccountManagement() {
                 }}
               />
             </div>
-          ) : null}
-          {!security.hasPassword && !security.googleOnly ? (
-            <p className="text-sm text-muted">Set a password from the recovery link before deleting this account.</p>
           ) : null}
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={close} disabled={busy}>Cancel</Button>
