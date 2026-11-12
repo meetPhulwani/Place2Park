@@ -45,9 +45,9 @@ export function UserMenu({
   }, [open]);
 
   const items = [
+    { href: "/profile", label: "Profile", icon: User },
     { href: "/bookings", label: "My bookings", icon: CalendarClock },
     { href: "/saved", label: "Saved", icon: Heart },
-    { href: "/profile", label: "Profile", icon: User },
     { href: "/settings", label: "Settings", icon: Settings },
     ...(["HOST", "BOTH", "ADMIN"].includes(role)
       ? [{ href: "/host", label: "Host dashboard", icon: Building2 }]
@@ -136,9 +136,9 @@ export function MobileMenu({
   const links = [
     ...(loggedIn
       ? [
+          { href: "/profile", label: "Profile", icon: User },
           { href: "/bookings", label: "My bookings", icon: CalendarClock },
           { href: "/saved", label: "Saved", icon: Heart },
-          { href: "/profile", label: "Profile", icon: User },
           { href: "/settings", label: "Settings", icon: Settings },
         ]
       : []),

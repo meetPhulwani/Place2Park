@@ -6,7 +6,7 @@ describe("account sidebar", () => {
   it("keeps the dashboard items and leaves parking search off the sidebar", () => {
     assert.deepEqual(
       accountNavItems.map((item) => item.label),
-      ["My bookings", "Saved", "Payments", "Profile", "Settings", "Help Center"]
+      ["Profile", "My bookings", "Saved", "Payments", "Settings", "Help Center"]
     );
     assert.equal(accountNavItems.some((item) => item.href === "/search" || item.label === "Find Parking"), false);
   });
