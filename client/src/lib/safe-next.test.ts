@@ -8,9 +8,12 @@ describe("safeNextPath", () => {
   });
 
   it("rejects protocol-relative and external targets", () => {
-    assert.equal(safeNextPath("//evil.example"), "/bookings");
-    assert.equal(safeNextPath("https://evil.example"), "/bookings");
-    assert.equal(safeNextPath("/\\evil.example"), "/bookings");
-    assert.equal(safeNextPath(null), "/bookings");
+    assert.equal(safeNextPath("//evil.example"), "/");
+    assert.equal(safeNextPath("https://evil.example"), "/");
+    assert.equal(safeNextPath("/\\evil.example"), "/");
+    assert.equal(safeNextPath(null), "/");
+    assert.equal(safeNextPath("/bookings"), "/");
+    assert.equal(safeNextPath("/profile?tab=1"), "/");
+    assert.equal(safeNextPath("/host/listings"), "/");
   });
 });

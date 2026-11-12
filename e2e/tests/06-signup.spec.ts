@@ -73,7 +73,7 @@ test("verifies a new account after a wrong code, an expired code, and a resend",
 
   await page.getByLabel("Verification code").fill(second);
   await page.getByRole("button", { name: "Verify OTP" }).click();
-  await expect(page).toHaveURL(/\/bookings/);
+  await expect(page).toHaveURL((url) => new URL(url).pathname === "/");
   const token = await page.evaluate(() => localStorage.getItem("parkly_token"));
   expect(token).toBeTruthy();
 });
