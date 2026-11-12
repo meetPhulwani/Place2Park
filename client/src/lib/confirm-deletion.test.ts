@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   DELETE_CONFIRMATION,
+  claimDeletionSubmit,
   confirmationMatches,
+  deletionOutcome,
+  releaseDeletionSubmit,
   shouldBlockConfirmClipboard,
   shouldBlockConfirmShortcut,
 } from "./confirm-deletion.js";
@@ -23,6 +26,31 @@ describe("account deletion confirmation", () => {
     assert.equal(shouldBlockConfirmClipboard("cut"), true);
     assert.equal(shouldBlockConfirmClipboard("drop"), true);
     assert.equal(shouldBlockConfirmClipboard("input"), false);
+  });
+
+  it("shows an open-case refusal as the server explanation", () => {
+    const blocked = deletionOutcome(
+      409,
+      "A support case or report is still open. Resolve it before deleting your account.",
+      "We couldn't delete this account."
+    );
+    assert.equal(blocked.kind, "blocked");
+    assert.equal(blocked.message, "A support case or report is still open. Resolve it before deleting your account.");
+    const expired = deletionOutcome(401, "Please log in to continue.", "We couldn't delete this account.");
+    assert.equal(expired.kind, "failed");
+    assert.equal(expired.message, "Please log in to continue.");
+  });
+
+  it("ignores a second deletion submit while the first is still running", async () => {
+    const state = { current: false };
+    assert.equal(claimDeletionSubmit(state), true);
+    assert.equal(claimDeletionSubmit(state), false);
+    let started = 0;
+    if (claimDeletionSubmit(state)) started += 1;
+    assert.equal(started, 0);
+    releaseDeletionSubmit(state);
+    assert.equal(claimDeletionSubmit(state), true);
+    releaseDeletionSubmit(state);
   });
 
   it("blocks paste shortcuts on Windows and macOS", () => {

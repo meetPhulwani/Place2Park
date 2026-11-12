@@ -1,5 +1,5 @@
 import * as React from "react";
-import { api, errorMessage } from "@/services/api";
+import { api, errorMessage, errorStatus } from "@/services/api";
 import { useAuth } from "@/context/auth";
 import { GoogleButton } from "@/components/google-button";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,10 @@ import { Input, Label } from "@/components/ui/input";
 import { toast } from "@/components/ui/toaster";
 import {
   DELETE_CONFIRMATION,
+  claimDeletionSubmit,
   confirmationMatches,
+  deletionOutcome,
+  releaseDeletionSubmit,
   shouldBlockConfirmClipboard,
   shouldBlockConfirmShortcut,
 } from "@/lib/confirm-deletion";
@@ -20,6 +23,8 @@ export function AccountManagement() {
   const [credential, setCredential] = React.useState("");
   const [phrase, setPhrase] = React.useState("");
   const [busy, setBusy] = React.useState(false);
+  const [blockMessage, setBlockMessage] = React.useState<string | null>(null);
+  const deleting = React.useRef(false);
 
   React.useEffect(() => {
     api
@@ -29,14 +34,17 @@ export function AccountManagement() {
   }, []);
 
   function close() {
+    if (deleting.current) return;
     setStep("closed");
     setCredential("");
     setPhrase("");
+    setBlockMessage(null);
   }
 
   async function remove() {
-    if (!confirmationMatches(phrase)) return;
+    if (!confirmationMatches(phrase) || !claimDeletionSubmit(deleting)) return;
     setBusy(true);
+    setBlockMessage(null);
     try {
       await api.post("/account/delete", {
         confirmation: phrase,
@@ -46,8 +54,11 @@ export function AccountManagement() {
       sessionStorage.setItem("p2p_after_delete", "1");
       logout();
     } catch (err) {
-      toast.error(errorMessage(err, "We couldn't delete this account."));
+      const outcome = deletionOutcome(errorStatus(err), errorMessage(err, ""), "We couldn't delete this account.");
+      if (outcome.kind === "blocked") setBlockMessage(outcome.message);
+      else toast.error(outcome.message);
     } finally {
+      releaseDeletionSubmit(deleting);
       setBusy(false);
     }
   }
@@ -66,7 +77,7 @@ export function AccountManagement() {
         {user?.role === "ADMIN" ? (
           <p className="mt-3 text-sm text-red-800">Administrator accounts can't be deleted from this page.</p>
         ) : (
-          <Button className="mt-4" variant="danger" onClick={() => setStep("warning")}>
+          <Button className="mt-4" type="button" variant="danger" onClick={() => setStep("warning")}>
             Delete account
           </Button>
         )}
@@ -79,8 +90,8 @@ export function AccountManagement() {
           <p>Booking, payment, tax, and audit records may be retained where the law or an open obligation requires them. Those records are kept without your personal details.</p>
           <p>Download any data you want to keep from Privacy before you continue.</p>
           <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={close}>Cancel</Button>
-            <Button variant="danger" onClick={() => { setPhrase(""); setStep("confirm"); }}>Continue to Delete Account</Button>
+            <Button type="button" variant="secondary" onClick={close}>Cancel</Button>
+            <Button type="button" variant="danger" onClick={() => { setPhrase(""); setBlockMessage(null); setStep("confirm"); }}>Continue to Delete Account</Button>
           </div>
         </div>
       </Dialog>
@@ -106,6 +117,7 @@ export function AccountManagement() {
               <p className="mt-1 text-sm text-red-700">Type the exact word {DELETE_CONFIRMATION}.</p>
             ) : null}
           </div>
+          {blockMessage ? <p className="text-sm text-red-700" role="status">{blockMessage}</p> : null}
           {security.googleOnly ? (
             <div className="space-y-2">
               <p className="text-sm font-medium text-ink">Confirm with Google</p>
@@ -119,8 +131,8 @@ export function AccountManagement() {
             </div>
           ) : null}
           <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={close} disabled={busy}>Cancel</Button>
-            <Button variant="danger" disabled={!ready || busy} loading={busy} onClick={() => void remove()}>
+            <Button type="button" variant="secondary" onClick={close} disabled={busy}>Cancel</Button>
+            <Button type="button" variant="danger" disabled={!ready || busy} loading={busy} onClick={() => void remove()}>
               Delete account
             </Button>
           </div>

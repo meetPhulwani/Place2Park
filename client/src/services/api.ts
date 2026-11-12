@@ -20,9 +20,13 @@ export function setToken(token: string | null) {
   else localStorage.removeItem(TOKEN_KEY);
 }
 
+export function authorizationHeader(token: string | null) {
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 api.interceptors.request.use((config) => {
-  const token = getToken();
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  const header = authorizationHeader(getToken());
+  if (header.Authorization) config.headers.Authorization = header.Authorization;
   return config;
 });
 

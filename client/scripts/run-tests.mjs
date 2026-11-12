@@ -29,6 +29,7 @@ const files = [
   "src/lib/retry.test.ts",
   "src/lib/analytics.test.ts",
   "src/lib/confirm-deletion.test.ts",
+  "src/services/api-auth.test.ts",
   "src/lib/account-nav.test.ts",
 ];
 

@@ -28,8 +28,7 @@ test("deletion lives in Settings and the button stays disabled until CONFIRM is 
   await phrase.fill("confirm");
   await expect(submit).toBeDisabled();
   await phrase.fill("CONFIRM");
-  await expect(submit).toBeDisabled();
-  await page.locator("#delete-password").fill("x");
+  await expect(page.locator("#delete-password")).toHaveCount(0);
   await expect(submit).toBeEnabled();
   await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
 });
@@ -54,11 +53,10 @@ test("the API rejects a wrong confirmation and a repeated request leaves the acc
   });
   expect(wrongWord.status()).toBe(400);
 
-  const wrongPassword = await request.post("/api/account/delete", {
-    headers,
-    data: { confirmation: "CONFIRM", password: "WrongPass1!" },
+  const missingToken = await request.post("/api/account/delete", {
+    data: { confirmation: "CONFIRM" },
   });
-  expect(wrongPassword.status()).toBe(401);
+  expect(missingToken.status()).toBe(401);
 
   const stillThere = await request.get("/api/users/me/profile", { headers });
   expect(stillThere.ok()).toBeTruthy();

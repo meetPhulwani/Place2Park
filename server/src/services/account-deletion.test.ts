@@ -15,6 +15,7 @@ import {
   ParkingSpace,
   Payment,
   Review,
+  SupportTicket,
   User,
   Vehicle,
 } from "../models/index.js";
@@ -86,6 +87,7 @@ beforeEach(async () => {
     Favorite.deleteMany({}),
     Notification.deleteMany({}),
     Vehicle.deleteMany({}),
+    SupportTicket.deleteMany({}),
   ]);
   await User.updateOne(
     { _id: driverId },
@@ -191,6 +193,54 @@ describe("account deletion", () => {
         }),
       (err: unknown) => err instanceof ApiError && err.status === 401
     );
+  });
+
+  it("rejects deletion when the request has no authentication token", async () => {
+    await new Promise<void>((resolve, reject) => {
+      authenticate({ headers: {} } as never, {} as never, (err) => {
+        try {
+          assert.ok(err instanceof ApiError && err.status === 401);
+          assert.equal(err.message, "Please log in to continue.");
+          resolve();
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+    assert.equal((await User.findById(driverId))?.status, "ACTIVE");
+  });
+
+  it("deletes the authenticated account and leaves another account in place", async () => {
+    const mail = await notices();
+    const result = await deleteOwnAccount(driverId, { confirmation: "CONFIRM" }, mail);
+    assert.equal(result.deleted, true);
+    assert.equal((await User.findById(driverId))?.status, "DELETED");
+    assert.equal((await User.findById(otherId))?.email, "other-delete@parkly.test");
+    assert.equal((await User.findById(otherId))?.status, "ACTIVE");
+  });
+
+  it("refuses deletion while a support case is open, including a second request", async () => {
+    await SupportTicket.create({
+      reference: `SUP-${Date.now()}`,
+      userId: driverId,
+      category: "ACCOUNT",
+      subject: "Open case",
+      description: "This case is still open.",
+      status: "OPEN",
+    });
+    const mail = await notices();
+    const expected = "A support case or report is still open. Resolve it before deleting your account.";
+    await assert.rejects(
+      () => deleteOwnAccount(driverId, { confirmation: "CONFIRM" }, mail),
+      (err: unknown) => err instanceof ApiError && err.status === 409 && err.message === expected
+    );
+    await assert.rejects(
+      () => deleteOwnAccount(driverId, { confirmation: "CONFIRM" }, mail),
+      (err: unknown) => err instanceof ApiError && err.status === 409 && err.message === expected
+    );
+    assert.equal(mail.sent.length, 0);
+    assert.equal((await User.findById(driverId))?.status, "ACTIVE");
+    assert.equal((await User.findById(driverId))?.email, "driver-delete@parkly.test");
   });
 
   it("deletes without asking for the account password", async () => {
