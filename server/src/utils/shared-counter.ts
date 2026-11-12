@@ -100,7 +100,14 @@ export class RedisSharedCounter implements SharedCounter {
   }
 }
 
+type RedisClient = RedisLike & {
+  quit: () => Promise<unknown>;
+  disconnect: () => void;
+  on: (event: string, fn: () => void) => void;
+};
+
 let redisCounter: SharedCounter | null = null;
+let redisClient: RedisClient | null = null;
 
 export function sharedCounter(): SharedCounter {
   const url = String(process.env.REDIS_URL ?? "").trim();
@@ -109,12 +116,37 @@ export function sharedCounter(): SharedCounter {
   return redisCounter;
 }
 
+/** Closes the shared Redis client. A blank REDIS_URL means there is nothing to close. */
+export async function closeSharedCounter(): Promise<"closed" | "absent"> {
+  const client = redisClient;
+  redisClient = null;
+  redisCounter = null;
+  if (!client) return "absent";
+  try {
+    await client.quit();
+  } catch {
+    console.error("[server] redis close failed");
+    try {
+      client.disconnect();
+    } catch {
+      /* The socket is already closed. */
+    }
+  }
+  return "closed";
+}
+
+/** Lets a test install a fake client without opening a real connection. */
+export function useCounterClientForTests(client: RedisClient | null) {
+  redisClient = client;
+  redisCounter = null;
+}
+
 function connectRedis(url: string): RedisLike {
   const require = createRequire(import.meta.url);
   const Redis = require("ioredis") as new (
     url: string,
     options: object
-  ) => RedisLike & { on: (event: string, fn: () => void) => void };
+  ) => RedisClient;
   const client = new Redis(url, {
     // One driver retry. The application does not add another loop around INCR.
     maxRetriesPerRequest: timeouts.redisCommandRetries,
@@ -125,6 +157,7 @@ function connectRedis(url: string): RedisLike {
   client.on("error", () => {
     console.error("[rate-limit] shared counter unavailable");
   });
+  redisClient = client;
   return client;
 }
 

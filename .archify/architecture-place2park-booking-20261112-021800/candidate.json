@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Place2Park booking path",
+    "locale": "en",
+    "output": ".archify/architecture-place2park-booking-20261112-021800/place2park-booking.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "driver", "type": "external", "icon": "person", "label": "Driver", "sublabel": "Books a space", "pos": [40, 188], "size": [140, 68] },
+    { "id": "host", "type": "external", "icon": "person", "label": "Host", "sublabel": "Lists a space", "pos": [40, 400], "size": [140, 64] },
+    { "id": "google", "type": "external", "label": "Google", "sublabel": "Maps and sign-in", "pos": [250, 36], "size": [156, 56] },
+    { "id": "website", "type": "frontend", "label": "Public website", "sublabel": "Search and checkout", "pos": [250, 188], "size": [156, 68] },
+    { "id": "console", "type": "frontend", "label": "Admin console", "sublabel": "Separate sign-in", "pos": [500, 36], "size": [168, 56] },
+    { "id": "api", "type": "backend", "label": "Place2Park API", "sublabel": "Booking and payment", "pos": [500, 188], "size": [168, 84] },
+    { "id": "razorpay", "type": "external", "label": "Razorpay", "sublabel": "Checkout", "pos": [760, 188], "size": [160, 68] },
+    { "id": "mongo", "type": "database", "label": "MongoDB", "sublabel": "Holds and bookings", "pos": [512, 400], "size": [156, 64] },
+    { "id": "redis", "type": "database", "label": "Redis", "sublabel": "Rate limits", "pos": [330, 400], "size": [156, 64] },
+    { "id": "resend", "type": "external", "label": "Resend", "sublabel": "Email", "pos": [760, 400], "size": [160, 64] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Public site host", "wraps": ["website"], "pad": 14 },
+    { "kind": "region", "label": "API host", "wraps": ["console", "api"], "pad": 14 },
+    { "kind": "region", "label": "Data stores", "wraps": ["mongo", "redis"], "pad": 14 }
+  ],
+  "connections": [
+    { "id": "driver-site", "from": "driver", "to": "website", "label": "HTTPS", "variant": "emphasis" },
+    { "id": "site-api", "from": "website", "to": "api", "label": "book", "variant": "emphasis" },
+    { "id": "api-pay", "from": "api", "to": "razorpay", "label": "order", "variant": "emphasis" },
+    { "id": "api-mongo", "from": "api", "to": "mongo", "label": "hold", "variant": "emphasis", "fromSide": "bottom", "toSide": "top" },
+    { "id": "api-redis", "from": "api", "to": "redis", "label": "limit", "fromSide": "bottom", "toSide": "top" },
+    { "id": "api-mail", "from": "api", "to": "resend", "label": "receipt", "fromSide": "bottom", "toSide": "top" },
+    { "id": "host-site", "from": "host", "to": "website", "label": "listing", "fromSide": "right", "toSide": "bottom" },
+    { "id": "google-site", "from": "google", "to": "website", "label": "lookup", "fromSide": "bottom", "toSide": "top" },
+    { "id": "console-api", "from": "console", "to": "api", "label": "staff", "variant": "security", "fromSide": "bottom", "toSide": "top" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Primary path", "items": ["Driver searches on the public site and books through the API", "The API saves the hold, then opens a Razorpay order", "A timeout does not by itself mark the payment failed"] },
+    { "dot": "amber", "title": "Unknown here", "items": ["Cloud region is not specified", "MongoDB and Redis vendors are not specified", "Webhook return path is omitted from the arrows"] },
+    { "dot": "slate", "title": "Left off this path", "items": ["Listing photos go to Cloudinary", "Host payouts are approved by staff and are not sent automatically"] }
+  ]
+}

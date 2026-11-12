@@ -1,0 +1,68 @@
+server {
+  listen 8080;
+  server_name _;
+  root /usr/share/nginx/html;
+  absolute_redirect off;
+  resolver __RESOLVER__ valid=1s ipv6=off;
+  set $api_host __API_HOST__;
+  set $api_port __API_PORT__;
+
+  location = /healthz {
+    access_log off;
+    default_type text/plain;
+    return 200 'ok';
+  }
+
+  location /api/ {
+    proxy_pass http://$api_host:$api_port;
+    proxy_http_version 1.1;
+    proxy_connect_timeout 5s;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 60s;
+  }
+
+  location /uploads/ {
+    proxy_pass http://$api_host:$api_port;
+    proxy_http_version 1.1;
+    proxy_connect_timeout 5s;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
+  location /demo/ {
+    proxy_pass http://$api_host:$api_port;
+    proxy_http_version 1.1;
+    proxy_connect_timeout 5s;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
+  location = /health {
+    proxy_pass http://$api_host:$api_port/health;
+    proxy_http_version 1.1;
+    proxy_connect_timeout 5s;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
+  __CONSOLE_BLOCK__
+
+  location / {
+    try_files $uri $uri/ /index.html;
+    add_header X-Frame-Options DENY always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+    add_header Cross-Origin-Opener-Policy same-origin-allow-popups always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(self)" always;
+    add_header Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://accounts.google.com https://maps.googleapis.com https://maps.gstatic.com https://checkout.razorpay.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://res.cloudinary.com https://*.onrender.com https://api.place2park.me https://www.google-analytics.com https://analytics.google.com https://www.googletagmanager.com https://maps.gstatic.com https://maps.googleapis.com https://*.googleapis.com https://*.googleusercontent.com; connect-src 'self' https://*.onrender.com https://api.place2park.me https://www.google-analytics.com https://*.google-analytics.com https://analytics.google.com https://*.analytics.google.com https://www.google.com https://www.googletagmanager.com https://maps.googleapis.com https://maps.gstatic.com https://places.googleapis.com https://www.googleapis.com https://accounts.google.com https://checkout.razorpay.com https://api.razorpay.com https://lumberjack.razorpay.com; frame-src https://accounts.google.com https://checkout.razorpay.com https://api.razorpay.com; worker-src 'self' blob:;" always;
+  }
+}

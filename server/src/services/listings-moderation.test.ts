@@ -93,8 +93,10 @@ async function createPublishedListing(nodeEnv: string) {
 }
 
 function windowFor(status: string) {
-  const start = new Date(Date.now() + 3 * 3600000);
-  const end = new Date(start.getTime() + 60 * 60000);
+  // Fixed local afternoon. A wall-clock start three hours ahead crosses midnight after 20:00.
+  const now = new Date(2026, 5, 15, 12, 0, 0, 0);
+  const start = new Date(2026, 5, 15, 15, 0, 0, 0);
+  const end = new Date(start.getTime() + 60 * 60_000);
   return validateWindow(
     {
       status,
@@ -105,7 +107,8 @@ function windowFor(status: string) {
       blockedDates: [],
     },
     start,
-    end
+    end,
+    now
   );
 }
 

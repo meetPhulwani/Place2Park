@@ -17,6 +17,7 @@ const UNIT = [
   "src/utils/async.test.ts",
   "src/utils/retry.test.ts",
   "src/app-root.test.ts",
+  "src/shutdown.test.ts",
   "src/middleware/request-timeout.test.ts",
   "src/utils/rate-limit.test.ts",
   "src/utils/listing-schema.test.ts",

@@ -1,10 +1,12 @@
+import mongoose from "mongoose";
 import { env, isProd } from "./config/env.js";
 import { connectDb } from "./config/db.js";
 import { createApp } from "./app.js";
 import { ParkingSpace } from "./models/ParkingSpace.js";
 import { startBackgroundMaintenance } from "./services/maintenance.js";
+import { createShutdown } from "./shutdown.js";
 import { adminConsolePath, adminSessionSecret, assertAdminConsolePath, assertAdminSessionSecret, assertTotpKey } from "./utils/admin-secret.js";
-import { assertRedisUrl } from "./utils/shared-counter.js";
+import { assertRedisUrl, closeSharedCounter } from "./utils/shared-counter.js";
 
 async function main() {
   const { inMemory } = await connectDb();
@@ -31,8 +33,19 @@ async function main() {
     await prepareE2eFixtures();
   }
   const app = createApp();
-  startBackgroundMaintenance();
-  app.listen(env.PORT, () => console.info(`[server] Parkly API on http://localhost:${env.PORT}`));
+  const maintenance = startBackgroundMaintenance();
+  const server = app.listen(env.PORT, "0.0.0.0", () => {
+    console.info(`[server] Place2Park API listening on port ${env.PORT}`);
+  });
+
+  const shutdown = createShutdown({
+    server,
+    stopBackground: () => clearInterval(maintenance),
+    disconnectMongo: () => mongoose.disconnect(),
+    disconnectRedis: () => closeSharedCounter(),
+  });
+  process.once("SIGTERM", () => shutdown("SIGTERM"));
+  process.once("SIGINT", () => shutdown("SIGINT"));
 }
 
 main().catch((e) => {
