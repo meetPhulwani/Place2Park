@@ -29,12 +29,23 @@ export async function updateProfile(req: AuthedRequest, res: Response) {
   const { name, phone, preferredVehicleType, notifyEmail, notifyReminders } = req.body;
   const current = await User.findById(req.userId);
   if (!current) throw new ApiError(404, "Account not found.");
-  if (phone && phone !== (current.phone ?? "")) {
-    throw new ApiError(400, "Confirm a new phone number from Profile.");
+  const nextPhone = typeof phone === "string" ? phone : (current.phone ?? "");
+  const phoneChanged = nextPhone !== (current.phone ?? "");
+  if (nextPhone && phoneChanged && (await User.exists({ phone: nextPhone, _id: { $ne: current._id } }))) {
+    throw new ApiError(409, "That phone number is already in use.");
   }
   const user = await User.findByIdAndUpdate(
     req.userId,
-    { $set: { name, preferredVehicleType, notifyEmail, notifyReminders } },
+    {
+      $set: {
+        name,
+        phone: nextPhone,
+        phoneVerified: phoneChanged ? false : current.phoneVerified,
+        preferredVehicleType,
+        notifyEmail,
+        notifyReminders,
+      },
+    },
     { new: true }
   );
   res.json({ success: true, data: { user: user!.toJSON() } });

@@ -187,7 +187,7 @@ export default function HostDashboardPage() {
           { href: "/host/calendar", label: "Calendar", icon: CalendarDays },
           { href: "/host/bookings", label: "Bookings", icon: CalendarClock },
           { href: "/host/earnings", label: "Earnings", icon: Wallet },
-          { href: "/profile#bank-details", label: "Bank details", icon: Wallet },
+          { href: "/settings#bank-details", label: "Bank details", icon: Wallet },
         ]}
       />
 

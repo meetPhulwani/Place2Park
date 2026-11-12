@@ -161,14 +161,14 @@ export default function HostEarningsPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Request a payout</CardTitle>
-          <Link href="/profile#bank-details" className="text-sm font-medium text-brand-700">
+          <Link href="/settings#bank-details" className="text-sm font-medium text-brand-700">
             Bank details
           </Link>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-slate-500">
             {!data.payoutProfile.submitted
-              ? "Add your bank details in Profile to receive your parking earnings."
+              ? "Add your bank details in Settings to receive your parking earnings."
               : !data.payoutProfile.verified
                 ? "Your bank details are awaiting verification. An admin pays eligible earnings after that review."
                 : "An admin pays eligible earnings after reviewing your request. Place2Park does not transfer money automatically."}

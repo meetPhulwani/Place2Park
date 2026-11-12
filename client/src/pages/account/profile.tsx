@@ -84,7 +84,7 @@ function ProfileForm({ data, onSaved }: { data: ProfileData; onSaved: (d: Profil
   });
   const [email, setEmail] = React.useState(user.email);
   const [phone, setPhone] = React.useState(user.phone ?? "");
-  const [pending, setPending] = React.useState<{ kind: "email" | "phone"; token: string } | null>(null);
+  const [pendingToken, setPendingToken] = React.useState<string | null>(null);
   const [otp, setOtp] = React.useState("");
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [saving, setSaving] = React.useState(false);
@@ -108,6 +108,8 @@ function ProfileForm({ data, onSaved }: { data: ProfileData; onSaved: (d: Profil
     e.preventDefault();
     const next: Record<string, string> = {};
     if (form.name.trim().length < 2 || form.name.trim().length > 80) next.name = "Enter your name.";
+    const phoneError = profilePhoneError(phone);
+    if (phoneError) next.phone = phoneError;
     if (Object.keys(next).length) {
       setErrors(next);
       return;
@@ -117,7 +119,7 @@ function ProfileForm({ data, onSaved }: { data: ProfileData; onSaved: (d: Profil
     try {
       await api.put("/users/me/profile", {
         name: form.name,
-        phone: user.phone ?? "",
+        phone: phone.trim(),
         preferredVehicleType: form.preferredVehicleType,
         notifyEmail: profile.notifyEmail,
         notifyReminders: profile.notifyReminders,
@@ -149,20 +151,11 @@ function ProfileForm({ data, onSaved }: { data: ProfileData; onSaved: (d: Profil
     }
   }
 
-  async function startChange(kind: "email" | "phone") {
-    if (kind === "phone") {
-      const phoneError = profilePhoneError(phone);
-      if (phoneError) {
-        setErrors({ phone: phoneError });
-        return;
-      }
-    }
+  async function startEmailChange() {
     setSaving(true);
     try {
-      const path = kind === "email" ? "/account/email/request" : "/account/phone/request";
-      const payload = kind === "email" ? { email } : { phone };
-      const { data: result } = await api.post(path, payload);
-      setPending({ kind, token: result.data.pendingToken });
+      const { data: result } = await api.post("/account/email/request", { email });
+      setPendingToken(result.data.pendingToken);
       setOtp("");
       setErrors({});
       toast.success(`Code sent to ${result.data.maskedEmail}.`);
@@ -174,14 +167,13 @@ function ProfileForm({ data, onSaved }: { data: ProfileData; onSaved: (d: Profil
   }
 
   async function confirmCode() {
-    if (!pending) return;
+    if (!pendingToken) return;
     setSaving(true);
     try {
-      const path = pending.kind === "email" ? "/account/email/confirm" : "/account/phone/confirm";
-      await api.post(path, { pendingToken: pending.token, otp });
-      setPending(null);
+      await api.post("/account/email/confirm", { pendingToken, otp });
+      setPendingToken(null);
       setOtp("");
-      toast.success(pending.kind === "email" ? "Email updated." : "Phone number updated.");
+      toast.success("Email updated.");
       await reload();
       await refresh();
     } catch (err) {
@@ -274,9 +266,14 @@ function ProfileForm({ data, onSaved }: { data: ProfileData; onSaved: (d: Profil
                 </Select>
               </div>
             </div>
+            <div>
+              <Label htmlFor="p-phone">Phone</Label>
+              <Input id="p-phone" type="tel" maxLength={16} value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+91 98765 43210" />
+              <FieldError error={errors.phone} />
+            </div>
             <div className="flex justify-end">
               <Button type="submit" loading={saving}>
-                Save name
+                Save
               </Button>
             </div>
           </form>
@@ -284,20 +281,11 @@ function ProfileForm({ data, onSaved }: { data: ProfileData; onSaved: (d: Profil
             <div>
               <Label htmlFor="p-email">Email</Label>
               <Input id="p-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
-              <Button className="mt-2" type="button" variant="secondary" disabled={saving} onClick={() => void startChange("email")}>
+              <Button className="mt-2" type="button" variant="secondary" disabled={saving} onClick={() => void startEmailChange()}>
                 Send email code
               </Button>
             </div>
-            <div>
-              <Label htmlFor="p-phone">Phone</Label>
-              <Input id="p-phone" type="tel" maxLength={16} value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+91 98765 43210" />
-              <FieldError error={errors.phone} />
-              <p className="mt-1 text-xs text-slate-500">A code is emailed to your current address. Place2Park does not send SMS codes.</p>
-              <Button className="mt-2" type="button" variant="secondary" disabled={saving} onClick={() => void startChange("phone")}>
-                Send phone code
-              </Button>
-            </div>
-            {pending ? (
+            {pendingToken ? (
               <div>
                 <Label htmlFor="p-otp">Verification code</Label>
                 <Input id="p-otp" inputMode="numeric" value={otp} onChange={(event) => setOtp(event.target.value)} />

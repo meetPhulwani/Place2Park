@@ -45,7 +45,7 @@ test.describe.serial("host journey", () => {
     await page.locator("#bank-confirmAccountNumber").fill(SYNTHETIC_ACCOUNT);
     await page.locator("#bank-ifsc").fill("SBIN0001234");
     await page.getByRole("button", { name: "Save bank details" }).click();
-    await expect(page.getByText(/••••\s*1098/)).toBeVisible({ timeout: 40_000 });
+    await expect(page.getByText(/XXXXXX1098/)).toBeVisible({ timeout: 40_000 });
     await expect(page.getByText(SYNTHETIC_ACCOUNT)).toHaveCount(0);
 
     await page.getByRole("link", { name: "Settings" }).first().click();

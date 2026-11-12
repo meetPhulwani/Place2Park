@@ -321,12 +321,23 @@ export const payoutProfileSchema = z
 
 export const payoutDetailsUpdateSchema = z
   .object({
-    ...payoutAccountFields,
+    accountHolder: payoutAccountFields.accountHolder,
+    bankName: payoutAccountFields.bankName,
+    ifsc: payoutAccountFields.ifsc,
+    accountNumber: z.string().trim().max(18).optional(),
+    confirmAccountNumber: z.string().trim().max(18).optional(),
     currentPassword: z.string().min(1, "Enter your current password."),
   })
-  .refine((d) => d.accountNumber === d.confirmAccountNumber, {
-    message: "Account numbers do not match.",
-    path: ["confirmAccountNumber"],
+  .superRefine((d, ctx) => {
+    const account = (d.accountNumber ?? "").replace(/\s+/g, "");
+    const confirm = (d.confirmAccountNumber ?? "").replace(/\s+/g, "");
+    if (!account && !confirm) return;
+    if (!/^\d{9,18}$/.test(account)) {
+      ctx.addIssue({ code: "custom", message: "Enter a valid bank account number.", path: ["accountNumber"] });
+    }
+    if (account !== confirm) {
+      ctx.addIssue({ code: "custom", message: "Account numbers do not match.", path: ["confirmAccountNumber"] });
+    }
   });
 
 export const payoutReferenceSchema = z.object({

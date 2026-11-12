@@ -52,7 +52,7 @@ test.describe.serial("driver journey", () => {
     const name = page.getByLabel("Full name");
     await expect(name).toHaveValue("Aarav Mehta");
     await name.fill("Aarav Mehta");
-    await page.getByRole("button", { name: "Save name" }).click();
+    await page.getByRole("button", { name: "Save", exact: true }).click();
     await expect(page.getByText("Profile updated.")).toBeVisible();
 
     await page.goto("/settings");

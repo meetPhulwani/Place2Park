@@ -29,7 +29,11 @@ const emptyForm = {
   currentPassword: "",
 };
 
-export function BankDetailsCard() {
+function maskedAccount(last4: string) {
+  return /^\d{4}$/.test(last4) ? `XXXXXX${last4}` : "—";
+}
+
+export function BankDetailsCard({ onSaved }: { onSaved?: (details: PayoutDetails) => void } = {}) {
   const [details, setDetails] = React.useState<PayoutDetails | null>(null);
   const [editing, setEditing] = React.useState(false);
   const [form, setForm] = React.useState(emptyForm);
@@ -65,8 +69,9 @@ export function BankDetailsCard() {
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
+    const changingAccount = !details?.configured || form.accountNumber.length > 0 || form.confirmAccountNumber.length > 0;
     const nextErrors: Record<string, string> = {};
-    if (form.accountNumber !== form.confirmAccountNumber) {
+    if (changingAccount && form.accountNumber !== form.confirmAccountNumber) {
       nextErrors.confirmAccountNumber = "Account numbers do not match.";
     }
     if (details?.configured && !form.currentPassword) {
@@ -83,8 +88,9 @@ export function BankDetailsCard() {
         accountHolder: form.accountHolder,
         bankName: form.bankName,
         ifsc: form.ifsc,
-        accountNumber: form.accountNumber,
-        confirmAccountNumber: form.confirmAccountNumber,
+        ...(changingAccount
+          ? { accountNumber: form.accountNumber, confirmAccountNumber: form.confirmAccountNumber }
+          : {}),
         ...(details?.configured ? { currentPassword: form.currentPassword } : {}),
       };
       const response = details?.configured
@@ -102,6 +108,7 @@ export function BankDetailsCard() {
       });
       setEditing(false);
       setSaved(true);
+      onSaved?.(next);
       toast.success(next.verified ? "Bank details saved." : "Bank details saved. An admin will verify them before a payout.");
     } catch (err) {
       const status = (err as { response?: { status?: number } }).response?.status;
@@ -126,7 +133,7 @@ export function BankDetailsCard() {
       <CardHeader className="flex flex-row items-start justify-between gap-3">
         <CardTitle className="flex items-center gap-2">
           <Landmark className="size-5 text-[#0251B0]" aria-hidden />
-          Bank details
+          Bank Details
         </CardTitle>
         {details && (
           <Badge variant={details.verified ? "success" : details.configured ? "warning" : "outline"}>{statusLabel}</Badge>
@@ -138,10 +145,10 @@ export function BankDetailsCard() {
         {details && !details.configured && !editing && (
           <div className="space-y-3">
             <p className="text-sm text-slate-500">
-              Add your bank details in Profile to receive your parking earnings. You can use Place2Park without them.
+              Add your bank details to receive your parking earnings. You can use Place2Park without them.
             </p>
             <Button type="button" onClick={() => setEditing(true)}>
-              Add bank details
+              Add Bank Details
             </Button>
           </div>
         )}
@@ -151,7 +158,7 @@ export function BankDetailsCard() {
               <Detail label="Account holder" value={details.accountHolder || "—"} />
               <Detail label="Bank" value={details.bankName || "—"} />
               <Detail label="IFSC" value={details.ifsc || "—"} />
-              <Detail label="Account number" value={details.accountLast4 ? `•••• ${details.accountLast4}` : "—"} />
+              <Detail label="Account number" value={maskedAccount(details.accountLast4)} />
             </dl>
             {saved && (
               <p className="rounded-xl bg-[#F3F5F7] px-3 py-2 text-sm text-[#111827]" role="status">
@@ -159,7 +166,7 @@ export function BankDetailsCard() {
               </p>
             )}
             <Button type="button" variant="secondary" onClick={() => setEditing(true)}>
-              Edit bank details
+              Edit Bank Details
             </Button>
           </div>
         )}
@@ -207,22 +214,24 @@ export function BankDetailsCard() {
                 onChange={(e) => update("accountNumber", e.target.value.replace(/\D/g, "").slice(0, 18))}
                 inputMode="numeric"
                 autoComplete="off"
-                placeholder={details.configured ? `Account ending ${details.accountLast4}` : "9 to 18 digits"}
-                required
+                placeholder={details.configured ? `Leave blank to keep ${maskedAccount(details.accountLast4)}` : "9 to 18 digits"}
+                required={!details.configured}
                 aria-invalid={Boolean(errors.accountNumber)}
               />
             </Field>
-            <Field label="Confirm account number" id="bank-confirmAccountNumber" error={errors.confirmAccountNumber}>
-              <Input
-                id="bank-confirmAccountNumber"
-                value={form.confirmAccountNumber}
-                onChange={(e) => update("confirmAccountNumber", e.target.value.replace(/\D/g, "").slice(0, 18))}
-                inputMode="numeric"
-                autoComplete="off"
-                required
-                aria-invalid={Boolean(errors.confirmAccountNumber)}
-              />
-            </Field>
+            {(!details.configured || form.accountNumber.length > 0 || form.confirmAccountNumber.length > 0) && (
+              <Field label="Confirm bank account number" id="bank-confirmAccountNumber" error={errors.confirmAccountNumber}>
+                <Input
+                  id="bank-confirmAccountNumber"
+                  value={form.confirmAccountNumber}
+                  onChange={(e) => update("confirmAccountNumber", e.target.value.replace(/\D/g, "").slice(0, 18))}
+                  inputMode="numeric"
+                  autoComplete="off"
+                  required
+                  aria-invalid={Boolean(errors.confirmAccountNumber)}
+                />
+              </Field>
+            )}
             <Field label="IFSC code" id="bank-ifsc" error={errors.ifsc}>
               <Input
                 id="bank-ifsc"
@@ -290,9 +299,9 @@ export function BankDetailsReminder() {
 
   return (
     <div className="rounded-2xl border border-[#C7D1DD] bg-white p-4 shadow-card">
-      <p className="text-sm font-semibold text-[#111827]">Add your bank details in Profile to receive your parking earnings.</p>
-      <Link href="/profile#bank-details" className="mt-2 inline-block text-sm font-medium text-[#0251B0]">
-        Add bank details
+      <p className="text-sm font-semibold text-[#111827]">Add your bank details in Settings to receive your parking earnings.</p>
+      <Link href="/settings#bank-details" className="mt-2 inline-block text-sm font-medium text-[#0251B0]">
+        Add Bank Details
       </Link>
     </div>
   );

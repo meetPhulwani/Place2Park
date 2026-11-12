@@ -6,7 +6,7 @@ import { MongoMemoryServer } from "mongodb-memory-server";
 import { AdminAudit, Booking, HostPayout, ParkingSpace, Payment, User } from "../models/index.js";
 import { ApiError } from "../middleware/error.js";
 import { authenticate, authorize, hostOnly, signToken, type AuthedRequest } from "../middleware/auth.js";
-import { getPayoutDetails } from "../controllers/payouts.controller.js";
+import { getPayoutDetails, patchPayoutDetails } from "../controllers/payouts.controller.js";
 import { env } from "../config/env.js";
 import { computeQuote } from "../utils/pricing.js";
 import {
@@ -473,10 +473,65 @@ describe("payout beneficiary details", () => {
     });
     assert.equal(updated.bankName, "State Bank");
     assert.equal(updated.accountLast4, "9012");
+    const kept = await updateHostPayoutDetails(hostId, {
+      accountHolder: PAYOUT_INPUT.accountHolder,
+      bankName: "Example Bank",
+      ifsc: PAYOUT_INPUT.ifsc,
+      currentPassword: "Host1!ok",
+    });
+    assert.equal(kept.accountLast4, "9012");
+    assert.equal(JSON.stringify(kept).includes("123456789012"), false);
+    const stored = await User.findById(hostId).select("+payoutProfile.accountNumberEnc");
+    assert.equal(decryptAccountNumber(stored?.payoutProfile?.accountNumberEnc ?? ""), "123456789012");
     await assert.rejects(
       () => createHostPayoutDetails(hostId, PAYOUT_INPUT),
       (err: unknown) => err instanceof ApiError && err.status === 409
     );
+  });
+
+  it("keeps an existing payout record when bank details change", async () => {
+    await User.updateOne({ _id: hostId }, { $set: { passwordHash: await bcrypt.hash("Host1!ok", 10) } });
+    await readyHost();
+    await seedBooking({ status: "COMPLETED", paymentStatus: "PAID" });
+    const payout = await requestHostPayout(hostId);
+    assert.equal(payout.accountLast4, "9012");
+    const updated = await updateHostPayoutDetails(hostId, {
+      ...PAYOUT_INPUT,
+      accountNumber: "987654321098",
+      confirmAccountNumber: "987654321098",
+      currentPassword: "Host1!ok",
+    });
+    assert.equal(updated.accountLast4, "1098");
+    assert.equal(JSON.stringify(updated).includes("987654321098"), false);
+    const stored = await HostPayout.findById(payout.id);
+    assert.equal(stored?.accountLast4, "9012");
+    assert.equal(stored?.bankName, "HDFC Bank");
+    assert.equal(JSON.stringify(stored).includes("987654321098"), false);
+  });
+
+  it("does not let one user edit another user's bank details", async () => {
+    await createHostPayoutDetails(hostId, PAYOUT_INPUT);
+    const other = await User.create({
+      name: "Intruder",
+      email: `intruder-${Date.now()}@parkly.test`,
+      role: "HOST",
+      passwordHash: await bcrypt.hash("Host1!ok", 10),
+    });
+    await assert.rejects(
+      () => patchPayoutDetails(
+        {
+          userId: String(other._id),
+          body: { ...PAYOUT_INPUT, hostId, userId: hostId, bankName: "Stolen Bank", currentPassword: "Host1!ok" },
+        } as AuthedRequest,
+        { json() { return undefined; }, status() { return this; } } as never
+      ),
+      (err: unknown) => err instanceof ApiError && err.status === 404
+    );
+    const hostView = await getHostPayoutDetails(hostId);
+    assert.equal(hostView.bankName, "HDFC Bank");
+    assert.equal(hostView.accountLast4, "9012");
+    assert.equal(JSON.stringify(hostView).includes("123456789012"), false);
+    await User.deleteOne({ _id: other._id });
   });
 
   it("does not return another host's payout details", async () => {

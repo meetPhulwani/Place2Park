@@ -61,7 +61,7 @@ export default function HostSettingsPage() {
       </Card>
 
       <Link
-        href="/profile#bank-details"
+        href="/settings#bank-details"
         className="glass flex items-center justify-between rounded-2xl p-5 transition-shadow hover:shadow-card-hover"
       >
         <span className="flex items-center gap-3">

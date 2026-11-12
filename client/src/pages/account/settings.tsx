@@ -1,6 +1,7 @@
 import * as React from "react";
 import Link from "@/components/link";
 import { AccountManagement } from "@/components/account-management";
+import { BankDetailsCard } from "@/components/bank-details-card";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -95,6 +96,10 @@ export default function AccountSettingsPage() {
     { id: "privacy", label: "Privacy" },
     { id: "payments", label: "Payments" },
   ];
+
+  React.useEffect(() => {
+    if (window.location.hash === "#bank-details") setSection("payments");
+  }, []);
 
   React.useEffect(() => {
     document.title = "Settings · Place2Park";
@@ -339,7 +344,7 @@ export default function AccountSettingsPage() {
             {host ? (
               <div className="border-t border-line pt-4">
                 <p className="text-sm text-ink">Payout account ending {payout?.accountLast4 || "—"}. Verification: {payout?.verified ? "verified" : "not verified"}.</p>
-                <p className="mt-2 text-sm"><Link href="/profile#bank-details" className="font-medium text-brand-600">Payout settings</Link></p>
+                <BankDetailsCard onSaved={(next) => setPayout({ accountLast4: next.accountLast4, verified: next.verified })} />
                 <p className="mt-1 text-sm"><Link href="/host/earnings" className="font-medium text-brand-600">Payout history</Link></p>
               </div>
             ) : null}
