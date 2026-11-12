@@ -83,7 +83,7 @@ export async function deleteOwnAccount(userId: string, input: DeleteAccountInput
 
   const blockers = await deletionBlockers(userId);
   if (blockers.length) {
-    throw new ApiError(409, blockers[0]!);
+    throw new ApiError(409, blockers.join(" "));
   }
 
   const noticeTo = user.email;

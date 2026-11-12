@@ -388,7 +388,12 @@ describe("account deletion", () => {
     });
     await assert.rejects(
       () => deleteOwnAccount(hostId, { confirmation: "CONFIRM", password }),
-      (err: unknown) => err instanceof ApiError && err.status === 409 && /payout/i.test(err.message)
+      (err: unknown) =>
+        err instanceof ApiError &&
+        err.status === 409 &&
+        /earnings are still unpaid/i.test(err.message) &&
+        /payout is still processing/i.test(err.message) &&
+        !/support case/i.test(err.message)
     );
     assert.equal((await User.findById(hostId))?.status, "ACTIVE");
   });

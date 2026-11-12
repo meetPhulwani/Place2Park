@@ -38,7 +38,13 @@ describe("account deletion confirmation", () => {
     assert.equal(blocked.message, "You have an active booking. Finish or cancel it before deleting your account.");
     const expired = deletionOutcome(401, "Please log in to continue.", "We couldn't delete this account.");
     assert.equal(expired.kind, "failed");
+    assert.equal(expired.retry, false);
     assert.equal(expired.message, "Please log in to continue.");
+    const limited = deletionOutcome(429, "Too many requests. Try again shortly.", "We couldn't delete this account.");
+    assert.equal(limited.kind, "limited");
+    assert.equal(limited.retry, false);
+    assert.match(limited.message, /Wait 15 minutes/);
+    assert.doesNotMatch(limited.message, /support case/i);
   });
 
   it("ignores a second deletion submit while the first is still running", async () => {

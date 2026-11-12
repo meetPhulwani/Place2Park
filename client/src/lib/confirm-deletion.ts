@@ -29,6 +29,13 @@ export function releaseDeletionSubmit(state: { current: boolean }) {
  */
 export function deletionOutcome(status: number | null, serverMessage: string | undefined, fallback: string) {
   const message = serverMessage?.trim() || fallback;
-  if (status === 409) return { kind: "blocked" as const, message };
-  return { kind: "failed" as const, message };
+  if (status === 409) return { kind: "blocked" as const, retry: false as const, message };
+  if (status === 429) {
+    return {
+      kind: "limited" as const,
+      retry: false as const,
+      message: "Too many deletion attempts. Wait 15 minutes before trying again. The account was not deleted.",
+    };
+  }
+  return { kind: "failed" as const, retry: false as const, message };
 }

@@ -24,6 +24,7 @@ export function AccountManagement() {
   const [phrase, setPhrase] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [blockMessage, setBlockMessage] = React.useState<string | null>(null);
+  const [held, setHeld] = React.useState(false);
   const deleting = React.useRef(false);
 
   React.useEffect(() => {
@@ -39,6 +40,7 @@ export function AccountManagement() {
     setCredential("");
     setPhrase("");
     setBlockMessage(null);
+    setHeld(false);
   }
 
   async function remove() {
@@ -55,8 +57,10 @@ export function AccountManagement() {
       logout();
     } catch (err) {
       const outcome = deletionOutcome(errorStatus(err), errorMessage(err, ""), "We couldn't delete this account.");
-      if (outcome.kind === "blocked") setBlockMessage(outcome.message);
-      else toast.error(outcome.message);
+      if (outcome.kind === "blocked" || outcome.kind === "limited") {
+        setBlockMessage(outcome.message);
+        if (outcome.kind === "limited") setHeld(true);
+      } else toast.error(outcome.message);
     } finally {
       releaseDeletionSubmit(deleting);
       setBusy(false);
@@ -117,7 +121,13 @@ export function AccountManagement() {
               <p className="mt-1 text-sm text-red-700">Type the exact word {DELETE_CONFIRMATION}.</p>
             ) : null}
           </div>
-          {blockMessage ? <p className="text-sm text-red-700" role="status">{blockMessage}</p> : null}
+          {blockMessage ? (
+            <div className="space-y-2 text-sm text-red-700" role="status">
+              {blockMessage.split(/(?<=\.)\s+/).filter(Boolean).map((line) => (
+                <p key={line}>{line}</p>
+              ))}
+            </div>
+          ) : null}
           {security.googleOnly ? (
             <div className="space-y-2">
               <p className="text-sm font-medium text-ink">Confirm with Google</p>
@@ -132,7 +142,7 @@ export function AccountManagement() {
           ) : null}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={close} disabled={busy}>Cancel</Button>
-            <Button type="button" variant="danger" disabled={!ready || busy} loading={busy} onClick={() => void remove()}>
+            <Button type="button" variant="danger" disabled={!ready || busy || held} loading={busy} onClick={() => void remove()}>
               Delete account
             </Button>
           </div>

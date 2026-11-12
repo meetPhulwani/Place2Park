@@ -39,6 +39,17 @@ describe("client GET retry", () => {
     assert.equal(posts, 1);
   });
 
+  it("does not retry a deletion that was refused or rate limited", () => {
+    for (const status of [409, 429]) {
+      const error = new AxiosError("refused");
+      error.response = { status, data: { message: "refused" } } as AxiosError["response"];
+      assert.equal(
+        planClientRetry({ method: "post", error, attempt: 0, startedAt: 0, now: 10 }),
+        null
+      );
+    }
+  });
+
   it("does not retry a 401, a cancelled call, or a request past the deadline", async () => {
     let denied = 0;
     const client = axios.create({
