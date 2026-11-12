@@ -28,7 +28,6 @@ import { sendMail } from "./email.js";
 import { OPEN_PAYOUT_STATUSES } from "../utils/constants.js";
 
 const CONFIRMATION = "CONFIRM";
-const OPEN_CASES = ["OPEN", "UNDER_REVIEW", "AWAITING_USER"];
 
 export type DeleteAccountInput = {
   confirmation?: string;
@@ -150,23 +149,15 @@ async function deletionBlockers(userId: string) {
     $or: [{ userId }, { hostId: userId }],
     status: { $in: ["PENDING", "CONFIRMED", "ACTIVE"] },
   });
-  if (active) blockers.push("You have an active booking. Finish or cancel it before deleting your account.");
+  if (active) {
+    blockers.push("You have an active booking. Finish or cancel it before deleting your account.");
+  }
 
   const related = await Booking.find({ $or: [{ userId }, { hostId: userId }] }).select("_id");
   const relatedIds = related.map((booking) => booking._id);
   if (relatedIds.length) {
     const refund = await Payment.exists({ bookingId: { $in: relatedIds }, refundStatus: "PENDING" });
     if (refund) blockers.push("A refund is still in progress. Wait until it finishes before deleting your account.");
-  }
-
-  const openTicket = await SupportTicket.exists({ userId, status: { $in: OPEN_CASES } });
-  const openReport = await UserReport.exists({
-    $or: [{ reporterId: userId }, { reportedUserId: userId }],
-    status: { $in: OPEN_CASES },
-  });
-  const openListingReport = await Report.exists({ reporterId: userId, status: "OPEN" });
-  if (openTicket || openReport || openListingReport) {
-    blockers.push("A support case or report is still open. Resolve it before deleting your account.");
   }
 
   const openPayout = await HostPayout.exists({ hostId: userId, status: { $in: [...OPEN_PAYOUT_STATUSES] } });
@@ -205,13 +196,10 @@ async function anonymizeOwnedData(userId: string) {
   await SupportEvidence.deleteMany({ userId });
   await Review.updateMany({ userId }, { $set: { comment: "" } });
   await Booking.updateMany({ userId }, { $set: { vehiclePlate: "", accessCode: "" } });
-  await Report.updateMany({ reporterId: userId, status: { $ne: "OPEN" } }, { $set: { details: "" } });
-  await UserReport.updateMany(
-    { $or: [{ reporterId: userId }, { reportedUserId: userId }], status: { $nin: OPEN_CASES } },
-    { $set: { description: "Removed.", evidence: [] } }
-  );
+  await Report.updateMany({ reporterId: userId }, { $set: { details: "" } });
+  await UserReport.updateMany({ reporterId: userId }, { $set: { description: "Removed.", evidence: [] } });
   await SupportTicket.updateMany(
-    { userId, status: { $nin: OPEN_CASES } },
+    { userId },
     { $set: { description: "Removed.", subject: "Removed", evidence: [] } }
   );
   const ticketIds = await SupportTicket.find({ userId }).select("_id");

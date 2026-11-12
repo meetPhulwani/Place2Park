@@ -86,7 +86,7 @@ export function AccountManagement() {
       <Dialog open={step === "warning"} onClose={close} title="Delete your account" description="Read this before you continue." className="max-h-[90vh] overflow-y-auto">
         <div className="space-y-4 text-sm text-muted">
           <p>Account deletion is permanent once finalized. You may lose access to your profile, saved preferences, favorites, and other account features.</p>
-          <p>Active bookings, unresolved disputes, pending refunds, and unpaid host payouts can prevent immediate deletion.</p>
+          <p>An active booking, a refund that is still processing, or a host payout that has not been paid can prevent deletion. Finish or cancel the booking, or wait until the refund or payout is complete. Open support requests, bug reports, and complaints do not stop deletion.</p>
           <p>Booking, payment, tax, and audit records may be retained where the law or an open obligation requires them. Those records are kept without your personal details.</p>
           <p>Download any data you want to keep from Privacy before you continue.</p>
           <div className="flex justify-end gap-2">

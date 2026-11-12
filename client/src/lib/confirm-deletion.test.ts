@@ -31,11 +31,11 @@ describe("account deletion confirmation", () => {
   it("shows an open-case refusal as the server explanation", () => {
     const blocked = deletionOutcome(
       409,
-      "A support case or report is still open. Resolve it before deleting your account.",
+      "You have an active booking. Finish or cancel it before deleting your account.",
       "We couldn't delete this account."
     );
     assert.equal(blocked.kind, "blocked");
-    assert.equal(blocked.message, "A support case or report is still open. Resolve it before deleting your account.");
+    assert.equal(blocked.message, "You have an active booking. Finish or cancel it before deleting your account.");
     const expired = deletionOutcome(401, "Please log in to continue.", "We couldn't delete this account.");
     assert.equal(expired.kind, "failed");
     assert.equal(expired.message, "Please log in to continue.");

@@ -14,9 +14,12 @@ import {
   Notification,
   ParkingSpace,
   Payment,
+  Report,
   Review,
   SupportTicket,
+  TicketMessage,
   User,
+  UserReport,
   Vehicle,
 } from "../models/index.js";
 import { deleteAccountSchema } from "../utils/validation.js";
@@ -88,6 +91,9 @@ beforeEach(async () => {
     Notification.deleteMany({}),
     Vehicle.deleteMany({}),
     SupportTicket.deleteMany({}),
+    UserReport.deleteMany({}),
+    Report.deleteMany({}),
+    TicketMessage.deleteMany({}),
   ]);
   await User.updateOne(
     { _id: driverId },
@@ -219,28 +225,112 @@ describe("account deletion", () => {
     assert.equal((await User.findById(otherId))?.status, "ACTIVE");
   });
 
-  it("refuses deletion while a support case is open, including a second request", async () => {
-    await SupportTicket.create({
+  it("deletes an account that still has ordinary support tickets, bug reports, and complaints", async () => {
+    const row = await booking();
+    await Payment.create({ bookingId: row._id, amount: row.totalAmount, status: "PAID", provider: "MOCK" });
+    const ticket = await SupportTicket.create({
       reference: `SUP-${Date.now()}`,
       userId: driverId,
       category: "ACCOUNT",
-      subject: "Open case",
-      description: "This case is still open.",
+      subject: "Need help with my name",
+      description: "Please call me on 9876543210.",
+      status: "OPEN",
+      evidence: [{ url: "https://example.test/ticket.jpg", publicId: "ticket" }],
+    });
+    const bug = await SupportTicket.create({
+      reference: `BUG-${Date.now()}`,
+      userId: driverId,
+      category: "BUG",
+      subject: "Map pin is wrong",
+      description: "The pin is on the wrong street near my house.",
       status: "OPEN",
     });
+    const complaint = await UserReport.create({
+      reference: `UR-${Date.now()}`,
+      reporterId: driverId,
+      reportedUserId: hostId,
+      bookingId: row._id,
+      direction: "DRIVER_REPORTS_HOST",
+      category: "OTHER",
+      description: "The host was rude. My phone is 9876543210.",
+      status: "OPEN",
+      evidence: [{ url: "https://example.test/report.jpg", publicId: "report" }],
+    });
+    const againstDriver = await UserReport.create({
+      reference: `UR-host-${Date.now()}`,
+      reporterId: hostId,
+      reportedUserId: driverId,
+      bookingId: row._id,
+      direction: "HOST_REPORTS_DRIVER",
+      category: "DRIVER_NO_SHOW",
+      description: "The driver did not arrive.",
+      status: "UNDER_REVIEW",
+    });
+    const listingReport = await Report.create({
+      spaceId,
+      reporterId: driverId,
+      reason: "OTHER",
+      details: "This listing is noisy.",
+      status: "OPEN",
+    });
+    await TicketMessage.create({
+      ticketKind: "SUPPORT",
+      ticketId: ticket._id,
+      authorId: driverId,
+      body: "My email is driver-delete@parkly.test.",
+    });
     const mail = await notices();
-    const expected = "A support case or report is still open. Resolve it before deleting your account.";
+    const result = await deleteOwnAccount(driverId, { confirmation: "CONFIRM" }, mail);
+    assert.equal(result.deleted, true);
+    assert.equal((await User.findById(driverId))?.status, "DELETED");
+    assert.equal((await User.findById(driverId))?.phone, "");
+    assert.equal((await Payment.findOne({ bookingId: row._id }))?.amount, row.totalAmount);
+    assert.equal((await Booking.findById(row._id))?.totalAmount, 3675);
+
+    const keptTicket = await SupportTicket.findById(ticket._id);
+    assert.equal(String(keptTicket?.userId), driverId);
+    assert.equal(keptTicket?.status, "OPEN");
+    assert.equal(keptTicket?.subject, "Removed");
+    assert.equal(keptTicket?.description, "Removed.");
+    assert.equal(keptTicket?.evidence.length, 0);
+    const keptBug = await SupportTicket.findById(bug._id);
+    assert.equal(keptBug?.category, "BUG");
+    assert.equal(keptBug?.subject, "Removed");
+    assert.equal(JSON.stringify(keptBug).includes("9876543210"), false);
+
+    const keptComplaint = await UserReport.findById(complaint._id);
+    assert.equal(String(keptComplaint?.reporterId), driverId);
+    assert.equal(String(keptComplaint?.reportedUserId), hostId);
+    assert.equal(keptComplaint?.description, "Removed.");
+    assert.equal(keptComplaint?.evidence.length, 0);
+    const keptAgainst = await UserReport.findById(againstDriver._id);
+    assert.equal(keptAgainst?.description, "The driver did not arrive.");
+    assert.equal(String(keptAgainst?.reportedUserId), driverId);
+
+    const keptListing = await Report.findById(listingReport._id);
+    assert.equal(String(keptListing?.reporterId), driverId);
+    assert.equal(keptListing?.status, "OPEN");
+    assert.equal(keptListing?.details, "");
+    const message = await TicketMessage.findOne({ ticketId: ticket._id, authorId: driverId });
+    assert.equal(message?.body, "Removed.");
+    assert.equal(JSON.stringify(message).includes("driver-delete@parkly.test"), false);
+    assert.equal((await User.findById(hostId))?.email, "host-delete@parkly.test");
+  });
+
+  it("blocks deletion while a refund is still pending and keeps the payment", async () => {
+    const row = await booking();
+    await Payment.create({ bookingId: row._id, amount: row.totalAmount, status: "PAID", provider: "MOCK", refundStatus: "PENDING" });
+    const mail = await notices();
     await assert.rejects(
       () => deleteOwnAccount(driverId, { confirmation: "CONFIRM" }, mail),
-      (err: unknown) => err instanceof ApiError && err.status === 409 && err.message === expected
+      (err: unknown) =>
+        err instanceof ApiError &&
+        err.status === 409 &&
+        err.message === "A refund is still in progress. Wait until it finishes before deleting your account."
     );
-    await assert.rejects(
-      () => deleteOwnAccount(driverId, { confirmation: "CONFIRM" }, mail),
-      (err: unknown) => err instanceof ApiError && err.status === 409 && err.message === expected
-    );
-    assert.equal(mail.sent.length, 0);
     assert.equal((await User.findById(driverId))?.status, "ACTIVE");
-    assert.equal((await User.findById(driverId))?.email, "driver-delete@parkly.test");
+    assert.equal((await Payment.findOne({ bookingId: row._id }))?.refundStatus, "PENDING");
+    assert.equal(mail.sent.length, 0);
   });
 
   it("deletes without asking for the account password", async () => {
