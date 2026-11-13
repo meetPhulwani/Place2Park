@@ -128,26 +128,26 @@ export function BankDetailsCard({ onSaved }: { onSaved?: (details: PayoutDetails
       : "Awaiting verification";
 
   return (
-    <Card id="bank-details" className="overflow-hidden scroll-mt-24">
-      <div className="h-1.5 bg-[#D1FF42]" aria-hidden />
-      <CardHeader className="flex flex-row items-start justify-between gap-3">
-        <CardTitle className="flex items-center gap-2">
-          <Landmark className="size-5 text-[#0251B0]" aria-hidden />
-          Bank Details
+    <Card id="bank-details" className="box-border w-full min-w-0 max-w-full overflow-hidden scroll-mt-24">
+      <div className="h-1.5 w-full bg-[#D1FF42]" aria-hidden />
+      <CardHeader className="flex min-w-0 flex-row items-center justify-between gap-3">
+        <CardTitle className="flex min-w-0 items-center gap-2">
+          <Landmark className="size-5 shrink-0 text-[#0251B0]" aria-hidden />
+          <span className="min-w-0">Bank Details</span>
         </CardTitle>
         {details && (
-          <Badge variant={details.verified ? "success" : details.configured ? "warning" : "outline"}>{statusLabel}</Badge>
+          <Badge className="shrink-0" variant={details.verified ? "success" : details.configured ? "warning" : "outline"}>{statusLabel}</Badge>
         )}
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="min-w-0 space-y-4">
         {!details && !loadError && <Skeleton className="h-28 rounded-xl" />}
         {loadError && <p className="text-sm text-red-600">{loadError}</p>}
         {details && !details.configured && !editing && (
           <div className="space-y-3">
-            <p className="text-sm text-slate-500">
+            <p className="min-w-0 text-sm break-words text-slate-500">
               Add your bank details to receive your parking earnings. You can use Place2Park without them.
             </p>
-            <Button type="button" onClick={() => setEditing(true)}>
+            <Button type="button" className="w-full sm:w-auto" onClick={() => setEditing(true)}>
               Add Bank Details
             </Button>
           </div>
@@ -165,7 +165,7 @@ export function BankDetailsCard({ onSaved }: { onSaved?: (details: PayoutDetails
                 Bank details saved. The account number stays encrypted.
               </p>
             )}
-            <Button type="button" variant="secondary" onClick={() => setEditing(true)}>
+            <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={() => setEditing(true)}>
               Edit Bank Details
             </Button>
           </div>
