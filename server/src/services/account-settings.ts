@@ -150,7 +150,7 @@ async function checkCode(doc: { email: string; codeHash?: string; attempts: numb
 }
 
 export async function getAccountSettings(userId: string) {
-  const user = await User.findById(userId).select("+passwordHash googleId privacy notifications createdAt");
+  const user = await User.findById(userId).select("+passwordHash googleId privacy notifications createdAt role status");
   if (!user || user.status === "DELETED") throw new ApiError(401, "Your session has expired. Please log in again.");
   return {
     name: user.name,

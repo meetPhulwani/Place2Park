@@ -145,6 +145,12 @@ describe("account settings", () => {
     const loaded = await getAccountSettings(ownerId);
     assert.equal(loaded.notifications.inApp.bookingReminder, false);
     assert.equal(loaded.notifications.email.bookingCancelled, true);
+    assert.equal(loaded.role, "DRIVER");
+    await User.updateOne({ _id: ownerId }, { role: "HOST" });
+    assert.equal((await getAccountSettings(ownerId)).role, "HOST");
+    await User.updateOne({ _id: ownerId }, { role: "BOTH" });
+    assert.equal((await getAccountSettings(ownerId)).role, "BOTH");
+    await User.updateOne({ _id: ownerId }, { role: "DRIVER" });
   });
 
   it("revokes every signed login", async () => {

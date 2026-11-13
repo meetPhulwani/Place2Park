@@ -27,10 +27,11 @@ interface ProfileData {
 }
 
 function roleLabel(role: string) {
-  if (role === "HOST") return "Host";
-  if (role === "BOTH") return "Driver and host";
-  if (role === "ADMIN") return "Administrator";
-  return "Driver";
+  const value = role?.toUpperCase();
+  if (value === "BOTH") return "All-Rounder";
+  if (value === "HOST") return "Keeper";
+  if (value === "ADMIN") return "Administrator";
+  return "Seeker";
 }
 
 export default function ProfilePage() {
