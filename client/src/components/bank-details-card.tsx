@@ -2,7 +2,7 @@ import * as React from "react";
 import { Landmark } from "lucide-react";
 import Link from "@/components/link";
 import { api, errorMessage, fieldErrors } from "@/services/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,7 +33,13 @@ function maskedAccount(last4: string) {
   return /^\d{4}$/.test(last4) ? `XXXXXX${last4}` : "—";
 }
 
-export function BankDetailsCard({ onSaved }: { onSaved?: (details: PayoutDetails) => void } = {}) {
+export function BankDetailsCard({
+  onSaved,
+  embedded = false,
+}: {
+  onSaved?: (details: PayoutDetails) => void;
+  embedded?: boolean;
+} = {}) {
   const [details, setDetails] = React.useState<PayoutDetails | null>(null);
   const [editing, setEditing] = React.useState(false);
   const [form, setForm] = React.useState(emptyForm);
@@ -127,19 +133,20 @@ export function BankDetailsCard({ onSaved }: { onSaved?: (details: PayoutDetails
       ? "Verified"
       : "Awaiting verification";
 
-  return (
-    <Card id="bank-details" className="box-border w-full min-w-0 max-w-full overflow-hidden scroll-mt-24">
-      <div className="h-1.5 w-full bg-[#D1FF42]" aria-hidden />
-      <CardHeader className="flex min-w-0 flex-row items-center justify-between gap-3">
-        <CardTitle className="flex min-w-0 items-center gap-2">
-          <Landmark className="size-5 shrink-0 text-[#0251B0]" aria-hidden />
-          <span className="min-w-0">Bank Details</span>
-        </CardTitle>
-        {details && (
-          <Badge className="shrink-0" variant={details.verified ? "success" : details.configured ? "warning" : "outline"}>{statusLabel}</Badge>
-        )}
-      </CardHeader>
-      <CardContent className="min-w-0 space-y-4">
+  const heading = (
+    <div className="flex w-full min-w-0 items-center justify-between gap-3">
+      <h2 className="flex min-w-0 items-center gap-2 text-base font-semibold text-ink">
+        <Landmark className="size-5 shrink-0 text-[#0251B0]" aria-hidden />
+        <span className="min-w-0">Bank Details</span>
+      </h2>
+      {details && (
+        <Badge className="shrink-0" variant={details.verified ? "success" : details.configured ? "warning" : "outline"}>{statusLabel}</Badge>
+      )}
+    </div>
+  );
+
+  const body = (
+    <div className="min-w-0 space-y-4">
         {!details && !loadError && <Skeleton className="h-28 rounded-xl" />}
         {loadError && <p className="text-sm text-red-600">{loadError}</p>}
         {details && !details.configured && !editing && (
@@ -280,7 +287,26 @@ export function BankDetailsCard({ onSaved }: { onSaved?: (details: PayoutDetails
             </div>
           </form>
         )}
-      </CardContent>
+    </div>
+  );
+
+  if (embedded) {
+    return (
+      <section id="bank-details" className="box-border w-full min-w-0 max-w-full scroll-mt-24">
+        <div className="h-1 w-10 rounded-full bg-[#D1FF42]" aria-hidden />
+        <div className="mt-3">{heading}</div>
+        <div className="mt-4">{body}</div>
+      </section>
+    );
+  }
+
+  return (
+    <Card id="bank-details" className="box-border w-full min-w-0 max-w-full overflow-hidden scroll-mt-24">
+      <div className="h-1.5 w-full bg-[#D1FF42]" aria-hidden />
+      <CardHeader className="flex min-w-0 flex-row items-center justify-between gap-3">
+        {heading}
+      </CardHeader>
+      <CardContent>{body}</CardContent>
     </Card>
   );
 }

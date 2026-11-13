@@ -193,7 +193,7 @@ export default function AccountSettingsPage() {
 
   return (
     <div className="box-border grid w-full min-w-0 max-w-full gap-6 lg:grid-cols-[13rem_minmax(0,1fr)]">
-      <nav className="flex w-full min-w-0 max-w-full gap-2 overflow-x-auto lg:flex-col" aria-label="Settings sections">
+      <nav className="scrollbar-none flex w-full min-w-0 max-w-full gap-2 overflow-x-auto overscroll-x-contain lg:flex-col" aria-label="Settings sections">
         {sections.map((item) => (
           <button
             key={item.id}
@@ -345,7 +345,7 @@ export default function AccountSettingsPage() {
             {host ? (
               <div className="box-border w-full min-w-0 space-y-4 border-t border-line pt-4">
                 <p className="min-w-0 text-sm break-words text-ink">Payout account ending {payout?.accountLast4 || "—"}. Verification: {payout?.verified ? "verified" : "not verified"}.</p>
-                <BankDetailsCard onSaved={(next) => setPayout({ accountLast4: next.accountLast4, verified: next.verified })} />
+                <BankDetailsCard embedded onSaved={(next) => setPayout({ accountLast4: next.accountLast4, verified: next.verified })} />
                 <p className="text-sm"><Link href="/host/earnings" className="font-medium text-brand-600">Payout history</Link></p>
               </div>
             ) : null}
