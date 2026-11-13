@@ -17,6 +17,7 @@ import {
   ALLOWED_DURATIONS_MINS, COMMON_RULES, LEVELS, LEVEL_LABELS,
   PLATFORM_FEE_PCT, PROPERTY_TYPES, PROPERTY_TYPE_LABELS, SERVICE_FEE_PCT,
 } from "@/lib/constants";
+import { acceptedImages } from "@/lib/image-upload";
 import { cn, formatDuration, formatINR } from "@/lib/utils";
 import type { SpaceSummary } from "@/types";
 
@@ -301,12 +302,15 @@ export function ListingWizard({
 
   async function uploadFiles(files: FileList | null) {
     if (!files?.length) return;
-    if (data.images.length + files.length > 8) {
+    const { ok, error } = acceptedImages(Array.from(files), 8);
+    if (error) toast.error(error);
+    if (!ok.length) return;
+    if (data.images.length + ok.length > 8) {
       toast.error("You can add up to 8 photos.");
       return;
     }
     setUploading(true);
-    for (const file of Array.from(files)) {
+    for (const file of ok) {
       const form = new FormData();
       form.append("file", file);
       try {

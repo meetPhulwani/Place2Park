@@ -6,7 +6,7 @@ import { ApiError } from "../middleware/error.js";
 import { cancelBooking, createBooking } from "../services/bookings.js";
 import { expireStalePendingBookings, progressBookingStatuses, progressOneBooking } from "../services/availability.js";
 import { razorpayConfigured } from "../services/payments.js";
-import { redactBooking, revealBookingSecrets } from "../utils/privacy.js";
+import { publicPaymentView, redactBooking, revealBookingSecrets } from "../utils/privacy.js";
 import { boundedText, dayQuery, historyBookingStatus, pageQuery } from "../utils/request-input.js";
 
 const withSpace = {
@@ -167,7 +167,7 @@ export async function detail(req: AuthedRequest, res: Response) {
     success: true,
     data: {
       booking: bookingJson,
-      payment,
+      payment: publicPaymentView(payment ? (payment.toJSON() as Record<string, unknown>) : null, isOwner),
       review,
       isOwner,
       revealExactLocation: reveal,

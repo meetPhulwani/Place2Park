@@ -22,6 +22,7 @@ const UNIT = [
   "src/utils/rate-limit.test.ts",
   "src/utils/listing-schema.test.ts",
   "src/utils/signup-credentials.test.ts",
+  "src/utils/privacy.test.ts",
   "src/utils/console-asset.test.ts",
   "src/config/env.test.ts",
   "src/testing/e2e-gate.test.ts",

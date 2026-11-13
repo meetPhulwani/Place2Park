@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/toaster";
 import { BankDetailsCard } from "@/components/bank-details-card";
+import { imageUploadError } from "@/lib/image-upload";
 
 interface Vehicle {
   id: string;
@@ -137,6 +138,11 @@ function ProfileForm({ data, onSaved }: { data: ProfileData; onSaved: (d: Profil
   }
 
   async function uploadPhoto(file: File) {
+    const problem = imageUploadError(file);
+    if (problem) {
+      toast.error(problem);
+      return;
+    }
     const body = new FormData();
     body.append("file", file);
     setSaving(true);
@@ -231,6 +237,7 @@ function ProfileForm({ data, onSaved }: { data: ProfileData; onSaved: (d: Profil
             <Avatar name={user.name} image={user.image} size={56} />
             <label className="text-sm font-medium text-brand-600">
               Change photo
+              <span className="mt-0.5 block text-xs font-normal text-slate-500">JPEG, PNG or WebP, up to 5 MB.</span>
               <input
                 className="sr-only"
                 type="file"

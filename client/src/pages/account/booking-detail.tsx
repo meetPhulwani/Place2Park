@@ -230,7 +230,7 @@ export default function BookingDetailPage() {
                 {paymentStatusText}
               </span>
             </div>
-            {payment?.paymentId && (
+            {data.isOwner && payment?.paymentId && (
               <p className="text-xs text-slate-400">Payment ID: {payment.paymentId}</p>
             )}
             {data.isOwner && booking.status === "PENDING" && !paid && (

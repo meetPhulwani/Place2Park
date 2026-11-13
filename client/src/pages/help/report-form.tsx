@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { toast } from "@/components/ui/toaster";
 import { api, errorMessage } from "@/services/api";
+import { acceptedImages } from "@/lib/image-upload";
 import { DRIVER_REPORTS, HOST_REPORTS } from "@/lib/support-labels";
 import { CalendarClock } from "lucide-react";
 
@@ -52,8 +53,14 @@ export default function ReportUserPage() {
     }
     setBusy(true);
     try {
+      const chosen = acceptedImages(files, 4);
+      if (chosen.error) {
+        setError(chosen.error);
+        setBusy(false);
+        return;
+      }
       const evidenceIds: string[] = [];
-      for (const file of files.slice(0, 4)) {
+      for (const file of chosen.ok) {
         const body = new FormData();
         body.append("file", file);
         const uploaded = await api.post("/support/evidence", body);
@@ -117,7 +124,12 @@ export default function ReportUserPage() {
           </label>
           <label className="block text-sm font-medium text-ink">
             Evidence
-            <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="mt-1 block w-full text-sm" onChange={(e) => setFiles([...(e.target.files ?? [])].slice(0, 4))} />
+            <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="mt-1 block w-full text-sm" onChange={(e) => {
+              const chosen = acceptedImages([...(e.target.files ?? [])], 4);
+              setFiles(chosen.ok);
+              if (chosen.error) setError(chosen.error);
+            }} />
+            <span className="mt-1 block text-xs font-normal text-muted">JPEG, PNG or WebP, up to 5 MB each.</span>
           </label>
           {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
           <Button type="submit" disabled={busy}>{busy ? "Submitting…" : "Submit report"}</Button>

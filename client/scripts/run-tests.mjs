@@ -10,6 +10,7 @@ const coverage = process.argv.includes("--coverage");
 
 const files = [
   "src/lib/media-url.test.ts",
+  "src/lib/image-upload.test.ts",
   "src/lib/payout-reveal.test.ts",
   "src/lib/demo-accounts.test.ts",
   "src/lib/cancel-booking.test.ts",
