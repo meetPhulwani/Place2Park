@@ -7,6 +7,7 @@ import { takeAuthMethod, trackSignUp } from "@/lib/ga";
 import { clearGoogleRegistration, readGoogleRegistration } from "@/lib/google-auth";
 import { safeNextPath } from "@/lib/safe-next";
 import { signupRoles, type SignupRole } from "@/pages/auth/signup-role";
+import { AuthLegalLinks } from "@/components/auth-legal-links";
 import { cn } from "@/lib/utils";
 
 function isSignupRole(value: unknown): value is SignupRole {
@@ -97,6 +98,7 @@ export default function GoogleSignupPage() {
           Create account
         </Button>
       </form>
+      <AuthLegalLinks />
     </div>
   );
 }

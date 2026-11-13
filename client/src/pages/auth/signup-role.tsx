@@ -2,6 +2,7 @@ import * as React from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeftRight, Building2, Car } from "lucide-react";
 import Link from "@/components/link";
+import { AuthLegalLinks } from "@/components/auth-legal-links";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -73,6 +74,7 @@ export default function SignupRolePage() {
           Log in
         </Link>
       </p>
+      <AuthLegalLinks />
     </div>
   );
 }

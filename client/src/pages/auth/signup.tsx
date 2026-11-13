@@ -10,6 +10,7 @@ import { GoogleButton } from "@/components/google-button";
 import { rememberAuthMethod } from "@/lib/ga";
 import { saveEmailOtpChallenge } from "@/lib/google-auth";
 import type { SignupRole } from "@/pages/auth/signup-role";
+import { AuthLegalLinks } from "@/components/auth-legal-links";
 
 const googleEnabled = !!import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
@@ -220,6 +221,7 @@ export default function SignupPage() {
           Log in
         </Link>
       </p>
+      <AuthLegalLinks />
     </div>
   );
 }
