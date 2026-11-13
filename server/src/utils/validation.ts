@@ -55,6 +55,11 @@ export const googleLoginSchema = z.object({
   credential: z.string().min(10).max(8000),
 }).strict();
 
+export const googleRegistrationSchema = z.object({
+  registrationToken: z.string().trim().min(20).max(200),
+  role: z.enum(["DRIVER", "HOST", "BOTH"]),
+}).strict();
+
 export const emptyBodySchema = z.object({}).strict();
 
 export const accountNameSchema = z.object({ name: z.string().trim().min(2).max(80) }).strict();

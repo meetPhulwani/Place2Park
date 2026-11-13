@@ -8,7 +8,7 @@ import { ApiError } from "../middleware/error.js";
 import { signToken, type AuthedRequest } from "../middleware/auth.js";
 import { env, isProd } from "../config/env.js";
 import { deliverPasswordResetLink, isEmailConfigured } from "../services/email.js";
-import { beginGoogleSignIn, completeEmailOtp, resendEmailOtp, startSignupEmailOtp } from "../services/email-otp.js";
+import { beginGoogleSignIn, completeEmailOtp, completeGoogleRegistration, completeLoginOtp, otpPurpose, resendEmailOtp, startPasswordLogin, startSignupEmailOtp } from "../services/email-otp.js";
 import { passwordIssue } from "../utils/password.js";
 import { emailBelongsToAdmin, rejectAdminPassword } from "../services/admin-auth.js";
 
@@ -45,30 +45,27 @@ export async function requestEmailOtpResend(req: Request, res: Response) {
 
 export async function verifyEmailOtp(req: Request, res: Response) {
   const { pendingToken, otp } = req.body as { pendingToken: string; otp: string };
+  if ((await otpPurpose(pendingToken)) === "login") {
+    const user = await completeLoginOtp(pendingToken, otp);
+    res.json({ success: true, data: { token: issueToken(user), user: publicUser(user) } });
+    return;
+  }
   const user = await completeEmailOtp(pendingToken, otp);
   res.status(201).json({ success: true, data: { token: issueToken(user), user: publicUser(user) } });
 }
 
 export async function login(req: Request, res: Response) {
   const { email, password } = req.body as { email: string; password: string };
-  if (await emailBelongsToAdmin(email)) {
-    await rejectAdminPassword(password);
-    throw new ApiError(401, "Incorrect email or password.");
-  }
-  const user = await User.findOne({ email }).select("+passwordHash");
-  if (!user?.passwordHash || !(await bcrypt.compare(password, user.passwordHash)))
-    throw new ApiError(401, "Incorrect email or password.");
-  if (user.status === "DELETED" || user.status === "DELETION_PENDING") {
-    throw new ApiError(401, "Incorrect email or password.");
-  }
-  if (user.status === "SUSPENDED")
-    throw new ApiError(403, "This account has been suspended. Contact support for help.");
-  res.json({ success: true, data: { token: issueToken(user), user: publicUser(user) } });
+  const challenge = await startPasswordLogin(email, password);
+  res.json({
+    success: true,
+    data: { emailVerificationRequired: true, purpose: "login", ...challenge },
+  });
 }
 
 /**
  * Google login: the client obtains an ID token via Google Identity Services.
- * Existing accounts receive a session. New Google users must verify an email code first.
+ * Existing accounts receive an email code. New Google identities must finish registration.
  */
 export async function googleLogin(req: Request, res: Response) {
   if (!env.GOOGLE_CLIENT_ID) throw new ApiError(503, "Google login isn't configured.");
@@ -92,20 +89,29 @@ export async function googleLogin(req: Request, res: Response) {
     name: payload.name,
     picture: payload.picture,
   });
-  if (result.kind === "email") {
+  if (result.kind === "registration") {
     res.json({
       success: true,
       data: {
-        emailVerificationRequired: true,
-        pendingToken: result.pendingToken,
+        registrationRequired: true,
+        registrationToken: result.registrationToken,
         maskedEmail: result.maskedEmail,
         expiresAt: result.expiresAt,
-        resendAvailableAt: result.resendAvailableAt,
       },
     });
     return;
   }
-  res.json({ success: true, data: { token: issueToken(result.user), user: publicUser(result.user) } });
+  res.json({
+    success: true,
+    data: { emailVerificationRequired: true, purpose: "login", ...result },
+  });
+}
+
+/** Finishes Google registration with the role the person selected. */
+export async function googleRegister(req: Request, res: Response) {
+  const { registrationToken, role } = req.body as { registrationToken: string; role: "DRIVER" | "HOST" | "BOTH" };
+  const user = await completeGoogleRegistration(registrationToken, role);
+  res.status(201).json({ success: true, data: { token: issueToken(user), user: publicUser(user) } });
 }
 
 /** Always responds success when no send is attempted; never reveals whether the email exists. */

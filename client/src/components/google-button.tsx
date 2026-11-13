@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { api, errorMessage } from "@/services/api";
 import { useAuth, type AuthUser } from "@/context/auth";
 import { rememberAuthMethod, trackLogin } from "@/lib/ga";
-import { googleSignInResult, saveEmailOtpChallenge } from "@/lib/google-auth";
+import { googleSignInResult, saveEmailOtpChallenge, saveGoogleRegistration } from "@/lib/google-auth";
+import type { SignupRole } from "@/pages/auth/signup-role";
 import { safeNextPath } from "@/lib/safe-next";
 import { toast } from "./ui/toaster";
 
@@ -81,17 +82,19 @@ function GoogleMark() {
 
 /**
  * Google login via Google Identity Services. The backend verifies the ID token.
- * Existing accounts get a session. New Google users verify an email code first.
+ * Existing accounts get a session. New Google users choose a role before an account is created.
  *
  * One Tap's prompt() is often skipped and shows nothing, so the clickable control is
  * the GIS button. That button returns the ID token in its callback.
  */
 export function GoogleButton({
   next,
+  role,
   onConfirm,
   unavailableMessage,
 }: {
   next?: string;
+  role?: SignupRole;
   onConfirm?: (credential: string) => void;
   unavailableMessage?: string;
 }) {
@@ -110,11 +113,17 @@ export function GoogleButton({
     try {
       const { data } = await api.post("/auth/google", { credential });
       const result = googleSignInResult<AuthUser>(data.data);
+      if (result.kind === "registration") {
+        saveGoogleRegistration(result.registration, next);
+        rememberAuthMethod("google");
+        navigate("/signup/google", { state: { role: role ?? null } });
+        return;
+      }
       if (result.kind === "email") {
         const dest = safeNextPath(next);
-        saveEmailOtpChallenge(result.challenge, dest);
+        saveEmailOtpChallenge(result.challenge, dest, "login");
         rememberAuthMethod("google");
-        navigate("/signup/verify-email");
+        navigate("/login/verify");
         return;
       }
       trackLogin("google");

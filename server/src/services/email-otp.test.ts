@@ -12,10 +12,14 @@ import { User } from "../models/User.js";
 import { ApiError } from "../middleware/error.js";
 import { authenticate, signToken, type AuthedRequest } from "../middleware/auth.js";
 import { env } from "../config/env.js";
+import { googleLoginSchema, googleRegistrationSchema, loginSchema } from "../utils/validation.js";
 import {
   beginGoogleSignIn,
   completeEmailOtp,
+  completeGoogleRegistration,
+  completeLoginOtp,
   resendEmailOtp,
+  startPasswordLogin,
   startSignupEmailOtp,
   type MailDeps,
 } from "./email-otp.js";
@@ -297,26 +301,50 @@ describe("email OTP signup", () => {
   });
 });
 
-describe("Google email verification", () => {
-  it("holds a new Google user until the email code matches", async () => {
-    const started = await beginGoogleSignIn(
-      { sub: "google-new", email: "new.driver@gmail.com", emailVerified: true, name: "New Driver" },
-      mail
-    );
-    assert.equal(started.kind, "email");
-    if (started.kind !== "email") return;
-    const code = latestCode();
-    assert.equal(JSON.stringify(started).includes(code), false);
+describe("Google registration", () => {
+  const identity = { sub: "google-new", email: "new.driver@gmail.com", emailVerified: true, name: "New Driver" };
+
+  async function startRegistration() {
+    const started = await beginGoogleSignIn(identity, mail);
+    assert.equal(started.kind, "registration");
+    if (started.kind !== "registration") throw new Error("expected registration");
     assert.equal(await User.countDocuments({}), 0);
-    const blocked = await runAuth(started.pendingToken);
+    assert.equal(mailbox.length, 0);
+    assert.equal("token" in started, false);
+    const blocked = await runAuth(started.registrationToken);
     assert.ok(blocked.err instanceof ApiError && blocked.err.status === 401);
     assert.equal(blocked.req.userId, undefined);
+    return started;
+  }
 
-    const user = await completeEmailOtp(started.pendingToken, code);
+  it("creates a DRIVER account only after registration", async () => {
+    const started = await startRegistration();
+    const user = await completeGoogleRegistration(started.registrationToken, "DRIVER");
     assert.equal(user.role, "DRIVER");
     assert.equal(user.email, "new.driver@gmail.com");
-    const access = await runAuth(signToken(String(user._id), 0));
+    assert.equal(user.googleId, "google-new");
+    const access = await runAuth(signToken(String(user._id), user.tokenVersion ?? 0));
     assert.equal(access.req.userId, String(user._id));
+  });
+
+  it("creates a HOST account from the selected role", async () => {
+    const started = await startRegistration();
+    const user = await completeGoogleRegistration(started.registrationToken, "HOST");
+    assert.equal(user.role, "HOST");
+  });
+
+  it("creates a BOTH account from the selected role", async () => {
+    const started = await startRegistration();
+    const user = await completeGoogleRegistration(started.registrationToken, "BOTH");
+    assert.equal(user.role, "BOTH");
+  });
+
+  it("does not create an account when a new Google identity signs in", async () => {
+    const started = await startRegistration();
+    assert.equal(started.registrationToken.length >= 20, true);
+    assert.equal(JSON.stringify(started).includes("new.driver@gmail.com"), false);
+    assert.equal(JSON.stringify(started).includes("google-new"), false);
+    assert.equal(await User.countDocuments({}), 0);
   });
 
   it("signs in an existing Google user and keeps their booking and listing", async () => {
@@ -355,11 +383,20 @@ describe("Google email verification", () => {
       { sub: "google-host", email: "host.person@gmail.com", emailVerified: true },
       mail
     );
-    assert.equal(started.kind, "session");
-    if (started.kind !== "session") return;
-    assert.equal(String(started.user._id), String(existing._id));
-    assert.equal(started.user.role, "HOST");
-    assert.equal(mailbox.length, 0);
+    assert.equal(started.kind, "email");
+    if (started.kind !== "email") return;
+    const code = latestCode();
+    assert.equal(JSON.stringify(started).includes(code), false);
+    assert.equal((await User.findById(existing._id))?.role, "HOST");
+    const blocked = await runAuth(started.pendingToken);
+    assert.ok(blocked.err instanceof ApiError && blocked.err.status === 401);
+    const user = await completeLoginOtp(started.pendingToken, code);
+    assert.equal(String(user._id), String(existing._id));
+    assert.equal(user.role, "HOST");
+    await assert.rejects(
+      () => completeLoginOtp(started.pendingToken, code),
+      (err: unknown) => err instanceof ApiError && err.status === 400
+    );
     assert.equal(String((await Booking.findById(booking._id))?.userId), String(existing._id));
     assert.equal(String((await ParkingSpace.findById(space._id))?.hostId), String(existing._id));
     assert.equal(await User.countDocuments({}), 1);
@@ -387,18 +424,123 @@ describe("Google email verification", () => {
     assert.equal(mailbox.length, 0);
   });
 
-  it("rejects an expired pending verification", async () => {
+  it("keeps an existing BOTH role", async () => {
+    await User.create({
+      name: "Both",
+      email: "both.person@gmail.com",
+      googleId: "google-both",
+      role: "BOTH",
+    });
     const started = await beginGoogleSignIn(
-      { sub: "google-new", email: "new.driver@gmail.com", emailVerified: true, name: "New Driver" },
+      { sub: "google-both", email: "both.person@gmail.com", emailVerified: true },
       mail
     );
-    if (started.kind !== "email") throw new Error("expected email challenge");
+    assert.equal(started.kind, "email");
+    if (started.kind !== "email") return;
+    const user = await completeLoginOtp(started.pendingToken, latestCode());
+    assert.equal(user.role, "BOTH");
+    assert.equal((await User.findOne({ googleId: "google-both" }))?.role, "BOTH");
+    assert.equal(await User.countDocuments({}), 1);
+  });
+
+  it("rejects a second use of the same registration token", async () => {
+    const started = await startRegistration();
+    await completeGoogleRegistration(started.registrationToken, "HOST");
+    await assert.rejects(
+      () => completeGoogleRegistration(started.registrationToken, "DRIVER"),
+      (err: unknown) => err instanceof ApiError && err.status === 400
+    );
+    assert.equal(await User.countDocuments({}), 1);
+    assert.equal((await User.findOne({ googleId: "google-new" }))?.role, "HOST");
+    const again = await beginGoogleSignIn(identity, mail);
+    assert.equal(again.kind, "email");
+    if (again.kind !== "email") return;
+    const signedIn = await completeLoginOtp(again.pendingToken, latestCode());
+    assert.equal(signedIn.role, "HOST");
+    assert.equal(await User.countDocuments({}), 1);
+  });
+
+  it("rejects an invalid or expired registration token", async () => {
+    await assert.rejects(
+      () => completeGoogleRegistration("a".repeat(40), "DRIVER"),
+      (err: unknown) => err instanceof ApiError && err.status === 400 && /expired/i.test(err.message)
+    );
+    const started = await startRegistration();
     await EmailOtpPending.updateMany({}, { $set: { expiresAt: new Date(Date.now() - 1000) } });
     await assert.rejects(
-      () => completeEmailOtp(started.pendingToken, latestCode()),
-      (err: unknown) => err instanceof ApiError && /expired/i.test(err.message)
+      () => completeGoogleRegistration(started.registrationToken, "DRIVER"),
+      (err: unknown) => err instanceof ApiError && err.status === 400 && /expired/i.test(err.message)
     );
     assert.equal(await User.countDocuments({}), 0);
+  });
+
+  it("rejects a tampered role and ignores a role sent with the Google credential", async () => {
+    const started = await startRegistration();
+    await assert.rejects(
+      () => completeGoogleRegistration(started.registrationToken, "ADMIN"),
+      (err: unknown) => err instanceof ApiError && err.status === 400
+    );
+    assert.equal(await User.countDocuments({}), 0);
+    const parsed = googleRegistrationSchema.safeParse({
+      registrationToken: started.registrationToken,
+      role: "ADMIN",
+      email: "attacker@gmail.com",
+      sub: "other-sub",
+    });
+    assert.equal(parsed.success, false);
+    const signIn = googleLoginSchema.safeParse({
+      credential: "a".repeat(20),
+      role: "HOST",
+      email: "attacker@gmail.com",
+    });
+    assert.equal(signIn.success, false);
+    const user = await completeGoogleRegistration(started.registrationToken, "DRIVER");
+    assert.equal(user.role, "DRIVER");
+  });
+
+  it("does not let an email code finish Google registration", async () => {
+    const started = await startRegistration();
+    await assert.rejects(
+      () => completeEmailOtp(started.registrationToken, "000000"),
+      (err: unknown) => err instanceof ApiError && err.status === 400
+    );
+    assert.equal(await User.countDocuments({}), 0);
+  });
+
+  it("requires one email code before a password login session", async () => {
+    const password = "GoodPass1!";
+    const existing = await User.create({
+      name: "Host Login",
+      email: "host.login@gmail.com",
+      passwordHash: await bcrypt.hash(password, 4),
+      role: "HOST",
+    });
+    await assert.rejects(
+      () => startPasswordLogin(existing.email, "WrongPass1!", mail),
+      (err: unknown) => err instanceof ApiError && err.status === 401
+    );
+    assert.equal(mailbox.length, 0);
+    const started = await startPasswordLogin(existing.email, password, mail);
+    assert.equal(started.kind, "email");
+    assert.equal(await User.countDocuments({}), 1);
+    assert.equal((await User.findById(existing._id))?.role, "HOST");
+    const blocked = await runAuth(started.pendingToken);
+    assert.ok(blocked.err instanceof ApiError && blocked.err.status === 401);
+    const code = latestCode();
+    assert.equal(JSON.stringify(started).includes(code), false);
+    await assert.rejects(
+      () => completeLoginOtp(started.pendingToken, "000000"),
+      (err: unknown) => err instanceof ApiError && err.status === 400
+    );
+    const user = await completeLoginOtp(started.pendingToken, code);
+    assert.equal(String(user._id), String(existing._id));
+    assert.equal(user.role, "HOST");
+    await assert.rejects(
+      () => completeLoginOtp(started.pendingToken, code),
+      (err: unknown) => err instanceof ApiError && err.status === 400
+    );
+    const signed = loginSchema.safeParse({ email: existing.email, password, role: "DRIVER", otp: "123456" });
+    assert.equal(signed.success, false);
   });
 
   it("rejects a purpose token on protected routes", async () => {

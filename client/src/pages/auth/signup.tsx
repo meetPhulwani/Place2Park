@@ -133,7 +133,7 @@ export default function SignupPage() {
       <div className="mt-6 space-y-4">
         {googleEnabled && (
           <>
-            <GoogleButton />
+            <GoogleButton role={role} />
             <div className="flex items-center gap-3">
               <span className="h-px flex-1 bg-slate-200" />
               <span className="text-xs text-slate-400">or with email</span>

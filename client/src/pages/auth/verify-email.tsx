@@ -1,11 +1,11 @@
 import * as React from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { AxiosError } from "axios";
 import { api, errorMessage } from "@/services/api";
 import { useAuth } from "@/context/auth";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
-import { takeAuthMethod, trackSignUp } from "@/lib/ga";
+import { takeAuthMethod, trackLogin, trackSignUp } from "@/lib/ga";
 import { clearEmailOtpChallenge, readEmailOtpChallenge, saveEmailOtpChallenge } from "@/lib/google-auth";
 import { safeNextPath } from "@/lib/safe-next";
 
@@ -17,8 +17,10 @@ function clock(total: number) {
 
 export default function VerifyEmailPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
   const [pending] = React.useState(() => readEmailOtpChallenge());
+  const loginFlow = pending?.meta.purpose === "login" || location.pathname.startsWith("/login");
   const [meta, setMeta] = React.useState(pending?.meta ?? null);
   const [otp, setOtp] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
@@ -27,12 +29,12 @@ export default function VerifyEmailPage() {
   const [now, setNow] = React.useState(() => Date.now());
 
   React.useEffect(() => {
-    document.title = "Verify your email · Place2Park";
-  }, []);
+    document.title = loginFlow ? "Confirm your login · Place2Park" : "Verify your email · Place2Park";
+  }, [loginFlow]);
 
   React.useEffect(() => {
-    if (!pending) navigate("/signup", { replace: true });
-  }, [navigate, pending]);
+    if (!pending) navigate(loginFlow ? "/login" : "/signup", { replace: true });
+  }, [loginFlow, navigate, pending]);
 
   React.useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 250);
@@ -54,8 +56,8 @@ export default function VerifyEmailPage() {
         expiresAt: data.data.expiresAt as string,
         resendAvailableAt: data.data.resendAvailableAt as string,
       };
-      saveEmailOtpChallenge(next, meta?.next);
-      setMeta({ ...next, next: safeNextPath(meta?.next) });
+      saveEmailOtpChallenge(next, meta?.next, meta?.purpose === "login" ? "login" : "signup");
+      setMeta({ ...next, next: safeNextPath(meta?.next), purpose: meta?.purpose === "login" ? "login" : "signup" });
       setOtp("");
     } catch (e2) {
       const message = errorMessage(e2, "Couldn't send another code.");
@@ -79,7 +81,9 @@ export default function VerifyEmailPage() {
       const { data } = await api.post("/auth/email-otp/verify", { pendingToken: pending.pendingToken, otp });
       const next = safeNextPath(meta?.next);
       clearEmailOtpChallenge();
-      trackSignUp(takeAuthMethod());
+      const method = takeAuthMethod();
+      if (loginFlow) trackLogin(method);
+      else trackSignUp(method);
       login(data.data.token, data.data.user);
       navigate(next);
     } catch (e2) {
@@ -97,8 +101,14 @@ export default function VerifyEmailPage() {
 
   return (
     <div className="animate-fade-in">
-      <h1 className="font-display text-2xl font-bold tracking-tight text-brand-500">Verify your email</h1>
-      <p className="mt-1.5 text-sm text-slate-500">We've sent a 6-digit verification code to your email.</p>
+      <h1 className="font-display text-2xl font-bold tracking-tight text-brand-500">
+        {loginFlow ? "Confirm your login" : "Verify your email"}
+      </h1>
+      <p className="mt-1.5 text-sm text-slate-500">
+        {loginFlow
+          ? "Enter the 6-digit code we emailed you. Your account stays signed out until it matches."
+          : "We've sent a 6-digit verification code to your email."}
+      </p>
       <p className="mt-3 text-sm font-medium text-slate-800">{meta.maskedEmail}</p>
       {error && (
         <p role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-800">

@@ -42,7 +42,7 @@ import {
 import {
   blockSlotSchema, bookingRequestSchema, createPaymentOrderSchema, emailOtpResendSchema,
   accountCodeSchema, accountEmailRequestSchema, accountNameSchema, accountPasswordSchema, accountPhoneRequestSchema,
-  deleteAccountSchema, emailOtpVerifySchema, emptyBodySchema, favoriteSchema, forgotPasswordSchema, googleLoginSchema,
+  deleteAccountSchema, emailOtpVerifySchema, emptyBodySchema, favoriteSchema, forgotPasswordSchema, googleLoginSchema, googleRegistrationSchema,
   listingSchema, listingStatusSchema, loginSchema, payoutDetailsUpdateSchema, payoutProfileSchema,
   notificationPrefsSchema, privacyPrefsSchema, profileSchema, reportSchema, resetPasswordSchema, reviewSchema, signupSchema,
   faqFeedbackSchema,
@@ -77,6 +77,7 @@ r.post("/auth/email-otp/resend", otpResendIpLimiter, otpResendAccountLimiter, va
 r.post("/auth/email-otp/verify", otpVerifyIpLimiter, otpVerifyChallengeLimiter, validate(emailOtpVerifySchema), a(auth.verifyEmailOtp));
 r.post("/auth/login", loginIpLimiter, loginAccountLimiter, validate(loginSchema), a(auth.login));
 r.post("/auth/google", googleAuthLimiter, validate(googleLoginSchema), a(auth.googleLogin));
+r.post("/auth/google/complete", googleAuthLimiter, validate(googleRegistrationSchema), a(auth.googleRegister));
 r.get("/auth/me", authenticate, a(auth.me));
 r.post("/auth/forgot-password", passwordResetIpLimiter, passwordResetAccountLimiter, validate(forgotPasswordSchema), a(auth.forgotPassword));
 r.post("/auth/reset-password", passwordResetIpLimiter, passwordResetTokenLimiter, validate(resetPasswordSchema), a(auth.resetPassword));

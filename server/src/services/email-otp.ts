@@ -13,6 +13,8 @@ export const OTP_RESEND_MS = 60 * 1000;
 const MAX_ATTEMPTS = 5;
 
 const EXPIRED = "This verification has expired. Start again.";
+const GOOGLE_REGISTER = "google-register";
+const ACCOUNT_ROLES = new Set(["DRIVER", "HOST", "BOTH"]);
 const CODE_EXPIRED = "That code has expired.";
 const CODE_INCORRECT = "That code is incorrect.";
 const TOO_MANY = "Too many incorrect attempts. Request a new code.";
@@ -79,6 +81,11 @@ async function sendCode(email: string, code: string, deps?: MailDeps) {
   }
 }
 
+export async function otpPurpose(token: string) {
+  const doc = await loadPending(token);
+  return doc.purpose;
+}
+
 async function loadPending(token: string) {
   const doc = await EmailOtpPending.findOne({ tokenHash: hashPendingToken(token) }).select(
     "+tokenHash +codeHash +passwordHash"
@@ -91,9 +98,10 @@ async function loadPending(token: string) {
 
 async function issuePending(
   fields: {
-    purpose: "signup" | "google";
+    purpose: "signup" | "google" | "login";
     email: string;
     name: string;
+    userId?: string;
     passwordHash?: string;
     role?: "DRIVER" | "HOST" | "BOTH";
     phone?: string;
@@ -111,12 +119,14 @@ async function issuePending(
     consumed: false,
     $or: [
       { email: fields.email, purpose: fields.purpose },
+      ...(fields.userId ? [{ userId: fields.userId, purpose: fields.purpose }] : []),
       ...(fields.googleSub ? [{ googleSub: fields.googleSub, purpose: "google" as const }] : []),
     ],
   });
   await EmailOtpPending.create({
     tokenHash: hashPendingToken(token),
     purpose: fields.purpose,
+    userId: fields.userId,
     email: fields.email,
     name: fields.name,
     passwordHash: fields.passwordHash,
@@ -191,7 +201,7 @@ export async function startSignupEmailOtp(
   );
 }
 
-/** Existing Google accounts sign in. New Google identities must verify an email code first. */
+/** Existing Google accounts receive an email code. New identities receive a registration token. */
 export async function beginGoogleSignIn(identity: VerifiedGoogleIdentity, deps?: MailDeps) {
   if (!identity.emailVerified || !identity.email || !identity.sub) {
     throw new ApiError(401, "Google account email is not verified.");
@@ -221,23 +231,111 @@ export async function beginGoogleSignIn(identity: VerifiedGoogleIdentity, deps?:
   if (user?.status === "DELETED" || user?.status === "DELETION_PENDING") {
     throw new ApiError(401, "Google sign-in failed. Try again.");
   }
-  if (user) return { kind: "session" as const, user };
+  if (user) {
+    return startLoginEmailOtp({ userId: String(user._id), email: user.email, name: user.name }, deps);
+  }
 
-  const pending = await issuePending(
-    {
-      purpose: "google",
-      email,
-      name: (identity.name || email.split("@")[0]).slice(0, 80),
-      googleSub: identity.sub,
-      image: identity.picture ?? "",
-    },
-    deps
+  return issueGoogleRegistration({
+    email,
+    name: (identity.name || email.split("@")[0]).slice(0, 80),
+    sub: identity.sub,
+    image: identity.picture ?? "",
+  });
+}
+
+export type GoogleRegistration = {
+  kind: "registration";
+  registrationToken: string;
+  maskedEmail: string;
+  expiresAt: string;
+};
+
+/** Stores the verified Google identity. Does not create a user or choose a role. */
+async function issueGoogleRegistration(identity: {
+  email: string;
+  name: string;
+  sub: string;
+  image: string;
+}): Promise<GoogleRegistration> {
+  const token = crypto.randomBytes(32).toString("hex");
+  const sentAt = new Date();
+  const expiresAt = new Date(sentAt.getTime() + PENDING_TTL_MS);
+  await EmailOtpPending.deleteMany({
+    consumed: false,
+    purpose: GOOGLE_REGISTER,
+    $or: [{ email: identity.email }, { googleSub: identity.sub }],
+  });
+  await EmailOtpPending.create({
+    tokenHash: hashPendingToken(token),
+    purpose: GOOGLE_REGISTER,
+    email: identity.email,
+    name: identity.name.slice(0, 80),
+    googleSub: identity.sub,
+    image: identity.image,
+    codeHash: hashOtp(identity.email, crypto.randomBytes(16).toString("hex")),
+    codeExpiresAt: expiresAt,
+    expiresAt,
+    sentAt,
+    attempts: 0,
+    consumed: false,
+    inert: true,
+  });
+  return {
+    kind: "registration",
+    registrationToken: token,
+    maskedEmail: maskEmail(identity.email),
+    expiresAt: expiresAt.toISOString(),
+  };
+}
+
+/** Creates the account only after the person chooses DRIVER, HOST, or BOTH. */
+export async function completeGoogleRegistration(registrationToken: string, role: string) {
+  if (!ACCOUNT_ROLES.has(role)) throw new ApiError(400, "Choose Driver, Host, or Both.");
+  const doc = await loadPending(registrationToken);
+  if (doc.purpose !== GOOGLE_REGISTER || !doc.googleSub) throw new ApiError(400, EXPIRED);
+
+  const email = doc.email.toLowerCase();
+  const existingBySub = await User.findOne({ googleId: doc.googleSub }).select("+googleId +passwordHash role email");
+  const existingByEmail = existingBySub
+    ? null
+    : await User.findOne({ email }).select("+googleId +passwordHash role email");
+  const existing = existingBySub ?? existingByEmail;
+  if (existing) {
+    const decision = resolveGoogleAccountLink(
+      { email: existing.email, googleId: existing.googleId, passwordHash: existing.passwordHash },
+      { sub: doc.googleSub, email }
+    );
+    if (decision.action !== "create") {
+      throw new ApiError(409, "An account with this email already exists. Sign in with Google.");
+    }
+  }
+
+  const locked = await EmailOtpPending.findOneAndUpdate(
+    { _id: doc._id, consumed: false, purpose: GOOGLE_REGISTER, expiresAt: { $gt: new Date() } },
+    { $set: { consumed: true } }
   );
-  return pending;
+  if (!locked) throw new ApiError(400, EXPIRED);
+
+  try {
+    return await User.create({
+      name: doc.name,
+      email,
+      googleId: doc.googleSub,
+      image: doc.image || undefined,
+      role,
+    });
+  } catch (err) {
+    if (err instanceof ApiError) throw err;
+    if (typeof err === "object" && err !== null && (err as { code?: number }).code === 11000) {
+      throw new ApiError(409, "An account with this email already exists. Sign in with Google.");
+    }
+    throw err;
+  }
 }
 
 export async function resendEmailOtp(pendingToken: string, deps?: MailDeps) {
   const doc = await loadPending(pendingToken);
+  if (doc.purpose !== "signup" && doc.purpose !== "login") throw new ApiError(400, EXPIRED);
   if (otpResendWaitMs(doc.sentAt) > 0) {
     throw new ApiError(429, "Wait a minute before requesting another code.");
   }
@@ -275,11 +373,12 @@ export async function resendEmailOtp(pendingToken: string, deps?: MailDeps) {
   };
 }
 
-export async function completeEmailOtp(pendingToken: string, otp: string) {
-  const doc = await loadPending(pendingToken);
+async function acceptOtp(
+  doc: { _id: unknown; attempts: number; codeExpiresAt: Date; codeHash: string; email: string; inert?: boolean },
+  otp: string
+) {
   if (doc.attempts >= MAX_ATTEMPTS) throw new ApiError(400, TOO_MANY);
   if (doc.codeExpiresAt.getTime() <= Date.now()) throw new ApiError(400, CODE_EXPIRED);
-
   const expected = Buffer.from(doc.codeHash, "hex");
   const actual = Buffer.from(hashOtp(doc.email, otp), "hex");
   const matches = expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
@@ -292,6 +391,67 @@ export async function completeEmailOtp(pendingToken: string, otp: string) {
     if (updated && updated.attempts >= MAX_ATTEMPTS) throw new ApiError(400, TOO_MANY);
     throw new ApiError(400, CODE_INCORRECT);
   }
+}
+
+/** Checks the password, then emails one code. No session is issued here. */
+export async function startPasswordLogin(email: string, password: string, deps?: MailDeps) {
+  const { emailBelongsToAdmin, rejectAdminPassword } = await import("./admin-auth.js");
+  if (await emailBelongsToAdmin(email)) {
+    await rejectAdminPassword(password);
+    throw new ApiError(401, "Incorrect email or password.");
+  }
+  const user = await User.findOne({ email: email.toLowerCase() }).select("+passwordHash name email status");
+  if (!user?.passwordHash || !(await bcrypt.compare(password, user.passwordHash))) {
+    throw new ApiError(401, "Incorrect email or password.");
+  }
+  if (user.status === "DELETED" || user.status === "DELETION_PENDING") {
+    throw new ApiError(401, "Incorrect email or password.");
+  }
+  if (user.status === "SUSPENDED") {
+    throw new ApiError(403, "This account has been suspended. Contact support for help.");
+  }
+  return startLoginEmailOtp({ userId: String(user._id), email: user.email, name: user.name }, deps);
+}
+
+export async function startLoginEmailOtp(
+  input: { userId: string; email: string; name: string },
+  deps?: MailDeps
+) {
+  return issuePending(
+    {
+      purpose: "login",
+      userId: input.userId,
+      email: input.email.toLowerCase(),
+      name: input.name.slice(0, 80) || "Place2Park user",
+    },
+    deps
+  );
+}
+
+/** Confirms the login code and returns the existing account. The role is not changed. */
+export async function completeLoginOtp(pendingToken: string, otp: string) {
+  const doc = await loadPending(pendingToken);
+  if (doc.purpose !== "login" || !doc.userId) throw new ApiError(400, EXPIRED);
+  await acceptOtp(doc, otp);
+  const locked = await EmailOtpPending.findOneAndUpdate(
+    { _id: doc._id, consumed: false, purpose: "login", expiresAt: { $gt: new Date() }, codeExpiresAt: { $gt: new Date() } },
+    { $set: { consumed: true } }
+  );
+  if (!locked) throw new ApiError(400, EXPIRED);
+  const user = await User.findById(doc.userId);
+  if (!user || user.status === "DELETED" || user.status === "DELETION_PENDING") {
+    throw new ApiError(401, "Your session has expired. Please log in again.");
+  }
+  if (user.status === "SUSPENDED") {
+    throw new ApiError(403, "This account has been suspended. Contact support for help.");
+  }
+  return user;
+}
+
+export async function completeEmailOtp(pendingToken: string, otp: string) {
+  const doc = await loadPending(pendingToken);
+  if (doc.purpose !== "signup") throw new ApiError(400, EXPIRED);
+  await acceptOtp(doc, otp);
 
   const locked = await EmailOtpPending.findOneAndUpdate(
     {
@@ -309,33 +469,22 @@ export async function completeEmailOtp(pendingToken: string, otp: string) {
     throw new ApiError(doc.purpose === "signup" ? 400 : 409, doc.purpose === "signup" ? SIGNUP_UNAVAILABLE : duplicateEmail(doc.purpose));
   }
 
+  if (!doc.passwordHash || !/^\+91[6-9]\d{9}$/.test(doc.phone)) throw new ApiError(400, EXPIRED);
+  if (await User.findOne({ phone: doc.phone }).select("_id")) {
+    throw new ApiError(400, SIGNUP_UNAVAILABLE);
+  }
   try {
-    if (doc.purpose === "signup") {
-      if (!doc.passwordHash || !/^\+91[6-9]\d{9}$/.test(doc.phone)) throw new ApiError(400, EXPIRED);
-      if (await User.findOne({ phone: doc.phone }).select("_id")) {
-        throw new ApiError(400, SIGNUP_UNAVAILABLE);
-      }
-      return await User.create({
-        name: doc.name,
-        email,
-        passwordHash: doc.passwordHash,
-        role: doc.role,
-        phone: doc.phone,
-      });
-    }
-
     return await User.create({
       name: doc.name,
       email,
-      googleId: doc.googleSub,
-      image: doc.image || undefined,
-      role: "DRIVER",
+      passwordHash: doc.passwordHash,
+      role: doc.role,
+      phone: doc.phone,
     });
   } catch (err) {
     if (err instanceof ApiError) throw err;
     if (typeof err === "object" && err !== null && (err as { code?: number }).code === 11000) {
-      if (doc.purpose === "signup") throw new ApiError(400, SIGNUP_UNAVAILABLE);
-      throw new ApiError(409, duplicateEmail(doc.purpose));
+      throw new ApiError(400, SIGNUP_UNAVAILABLE);
     }
     throw err;
   }

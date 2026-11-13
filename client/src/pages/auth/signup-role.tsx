@@ -5,13 +5,13 @@ import Link from "@/components/link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const roles = [
+export const signupRoles = [
   { value: "DRIVER", label: "Find parking", desc: "I need places to park", icon: Car },
   { value: "HOST", label: "List parking", desc: "I have space to rent out", icon: Building2 },
   { value: "BOTH", label: "Both", desc: "Park and earn", icon: ArrowLeftRight },
 ] as const;
 
-export type SignupRole = (typeof roles)[number]["value"];
+export type SignupRole = (typeof signupRoles)[number]["value"];
 
 export default function SignupRolePage() {
   const navigate = useNavigate();
@@ -29,7 +29,7 @@ export default function SignupRolePage() {
       <p className="mt-1.5 text-sm text-slate-500">Choose how you'll use Place2Park.</p>
 
       <div className="mt-6 space-y-2" role="radiogroup" aria-label="Account type">
-        {roles.map((option) => {
+        {signupRoles.map((option) => {
           const selected = role === option.value;
           return (
             <button

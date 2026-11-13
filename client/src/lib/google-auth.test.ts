@@ -3,7 +3,20 @@ import { describe, it } from "node:test";
 import { googleSignInResult } from "./google-auth.js";
 
 describe("Google sign-in result", () => {
-  it("keeps a new Google user on email verification and does not accept a session token", () => {
+  it("keeps a new Google user on registration and does not accept a session token", () => {
+    const result = googleSignInResult({
+      registrationRequired: true,
+      registrationToken: "registration-token",
+      maskedEmail: "a****@gmail.com",
+      expiresAt: "2026-11-01T00:15:00.000Z",
+      token: "should-not-be-used",
+      user: { id: "user-1" },
+    });
+    assert.equal(result.kind, "registration");
+    if (result.kind === "registration") assert.equal(result.registration.registrationToken, "registration-token");
+  });
+
+  it("keeps a verification challenge from becoming a session", () => {
     const result = googleSignInResult({
       emailVerificationRequired: true,
       pendingToken: "pending-token",

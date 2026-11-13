@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { DEMO_PASSWORD, DRIVER_EMAIL, SPARE_DRIVER_EMAIL, login } from "./support";
+import { apiSession, DEMO_PASSWORD, DRIVER_EMAIL, SPARE_DRIVER_EMAIL, login } from "./support";
 
 test("deletion lives in Settings and the button stays disabled until CONFIRM is typed", async ({ page }) => {
   await login(page, DRIVER_EMAIL);
@@ -34,11 +34,7 @@ test("deletion lives in Settings and the button stays disabled until CONFIRM is 
 });
 
 test("the API rejects a wrong confirmation and a repeated request leaves the account in place", async ({ request }) => {
-  const loginResponse = await request.post("/api/auth/login", {
-    data: { email: SPARE_DRIVER_EMAIL, password: DEMO_PASSWORD },
-  });
-  expect(loginResponse.ok()).toBeTruthy();
-  const token = (await loginResponse.json()).data.token as string;
+  const token = await apiSession(request, SPARE_DRIVER_EMAIL);
   const headers = { Authorization: `Bearer ${token}` };
 
   const wrongCase = await request.post("/api/account/delete", {

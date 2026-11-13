@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { DEMO_PASSWORD, HOST_EMAIL, OTHER_HOST_EMAIL, SYNTHETIC_ACCOUNT, login } from "./support";
+import { apiSession, HOST_EMAIL, OTHER_HOST_EMAIL, SYNTHETIC_ACCOUNT, login } from "./support";
 
 test.describe.serial("host journey", () => {
   test("opens listings, edits one, and reviews bookings", async ({ page }) => {
@@ -54,11 +54,7 @@ test.describe.serial("host journey", () => {
     await expect(page.getByText(/Payout account ending 1098/)).toBeVisible();
     await expect(page.getByText(SYNTHETIC_ACCOUNT)).toHaveCount(0);
 
-    const other = await page.request.post("/api/auth/login", {
-      data: { email: OTHER_HOST_EMAIL, password: DEMO_PASSWORD },
-    });
-    expect(other.ok()).toBeTruthy();
-    const otherToken = (await other.json()).data.token as string;
+    const otherToken = await apiSession(page.request, OTHER_HOST_EMAIL);
     const details = await page.request.get("/api/payout-details", {
       headers: { Authorization: `Bearer ${otherToken}` },
     });

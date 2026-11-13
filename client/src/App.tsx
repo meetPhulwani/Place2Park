@@ -25,6 +25,7 @@ const LoginPage = lazyRoute(() => import("@/pages/auth/login"));
 const SignupRolePage = lazyRoute(() => import("@/pages/auth/signup-role"));
 const SignupPage = lazyRoute(() => import("@/pages/auth/signup"));
 const VerifyEmailPage = lazyRoute(() => import("@/pages/auth/verify-email"));
+const GoogleSignupPage = lazyRoute(() => import("@/pages/auth/google-signup"));
 const ForgotPasswordPage = lazyRoute(() => import("@/pages/auth/forgot-password"));
 const ResetPasswordPage = lazyRoute(() => import("@/pages/auth/reset-password"));
 const SearchPage = lazyRoute(() => import("@/pages/search"), PublicFallback);
@@ -92,9 +93,11 @@ export default function App() {
 
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/login/verify" element={<VerifyEmailPage />} />
           <Route path="/signup" element={<SignupRolePage />} />
           <Route path="/signup/account" element={<SignupPage />} />
           <Route path="/signup/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/signup/google" element={<GoogleSignupPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
         </Route>

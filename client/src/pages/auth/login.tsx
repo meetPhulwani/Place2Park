@@ -2,12 +2,12 @@ import * as React from "react";
 import Link from "@/components/link";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, errorMessage } from "@/services/api";
-import { useAuth } from "@/context/auth";
 import { Button } from "@/components/ui/button";
 import { Input, Label, FieldError } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { GoogleButton } from "@/components/google-button";
-import { trackLogin } from "@/lib/ga";
+import { rememberAuthMethod } from "@/lib/ga";
+import { saveEmailOtpChallenge } from "@/lib/google-auth";
 import { safeNextPath } from "@/lib/safe-next";
 
 const googleEnabled = !!import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -15,7 +15,6 @@ const googleEnabled = !!import.meta.env.VITE_GOOGLE_CLIENT_ID;
 export default function LoginPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const { login } = useAuth();
   const next = params.get("next") ?? undefined;
   const justRegistered = params.get("registered") === "1";
   const [email, setEmail] = React.useState("");
@@ -34,9 +33,18 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const { data } = await api.post("/auth/login", { email, password });
-      login(data.data.token, data.data.user);
-      trackLogin("password");
-      navigate(dest);
+      saveEmailOtpChallenge(
+        {
+          pendingToken: data.data.pendingToken,
+          maskedEmail: data.data.maskedEmail,
+          expiresAt: data.data.expiresAt,
+          resendAvailableAt: data.data.resendAvailableAt,
+        },
+        dest,
+        "login"
+      );
+      rememberAuthMethod("password");
+      navigate("/login/verify");
     } catch (e2) {
       setError(errorMessage(e2, "Incorrect email or password."));
     } finally {

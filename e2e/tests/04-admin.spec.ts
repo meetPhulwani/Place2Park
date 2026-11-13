@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { DEMO_PASSWORD, DRIVER_EMAIL } from "./support";
+import { apiSession, DRIVER_EMAIL } from "./support";
 
 test("the public /admin route is not the console", async ({ page }) => {
   await page.goto("/admin");
@@ -16,11 +16,7 @@ test("console, payout, and audit routes stay hidden without a console session", 
     expect(body).toMatchObject({ success: false, message: "Not found." });
   }
 
-  const login = await request.post("/api/auth/login", {
-    data: { email: DRIVER_EMAIL, password: DEMO_PASSWORD },
-  });
-  expect(login.ok()).toBeTruthy();
-  const token = (await login.json()).data.token as string;
+  const token = await apiSession(request, DRIVER_EMAIL);
   const moderate = await request.post("/api/console/listings/000000000000000000000000/moderate", {
     headers: { Authorization: `Bearer ${token}` },
     data: { action: "approve" },
@@ -33,11 +29,7 @@ test("console, payout, and audit routes stay hidden without a console session", 
 });
 
 test("a driver cannot read host payout details", async ({ request }) => {
-  const login = await request.post("/api/auth/login", {
-    data: { email: DRIVER_EMAIL, password: DEMO_PASSWORD },
-  });
-  expect(login.ok()).toBeTruthy();
-  const token = (await login.json()).data.token as string;
+  const token = await apiSession(request, DRIVER_EMAIL);
   const details = await request.get("/api/payout-details", {
     headers: { Authorization: `Bearer ${token}` },
   });
