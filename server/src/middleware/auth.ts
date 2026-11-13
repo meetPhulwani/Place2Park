@@ -19,6 +19,19 @@ function tokenVersionOf(user: { tokenVersion?: number | null }, payload: jwt.Jwt
   return expected === provided;
 }
 
+function isAccountDeleteRequest(req: Request) {
+  if (req.method !== "POST") return false;
+  const path = `${req.originalUrl ?? ""} ${req.url ?? ""}`;
+  return path.split("?")[0].includes("/account/delete");
+}
+
+/** The token held when deletion started. It can only finish that deletion. */
+function deletionRetryToken(user: { tokenVersion?: number | null }, payload: jwt.JwtPayload) {
+  const expected = (user.tokenVersion ?? 0) - 1;
+  const provided = typeof payload.ver === "number" ? payload.ver : 0;
+  return expected >= 0 && expected === provided;
+}
+
 function extractToken(req: Request): string | null {
   const header = req.headers.authorization;
   if (header?.startsWith("Bearer ")) return header.slice(7);
@@ -42,9 +55,15 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
     if (payload.purpose) throw new ApiError(401, "Your session has expired. Please log in again.");
     const user = await User.findById(payload.sub).select("role status tokenVersion");
     if (!user) throw new ApiError(401, "Account not found.");
-    if (!tokenVersionOf(user, payload)) throw new ApiError(401, "Your session has expired. Please log in again.");
-    if (user.status === "DELETED") throw new ApiError(401, "Your session has expired. Please log in again.");
-    if (user.status === "SUSPENDED") throw new ApiError(403, "This account has been suspended.");
+    if (user.status === "DELETION_PENDING") {
+      if (!(isAccountDeleteRequest(req) && deletionRetryToken(user, payload))) {
+        throw new ApiError(401, "Your session has expired. Please log in again.");
+      }
+    } else {
+      if (!tokenVersionOf(user, payload)) throw new ApiError(401, "Your session has expired. Please log in again.");
+      if (user.status === "DELETED") throw new ApiError(401, "Your session has expired. Please log in again.");
+      if (user.status === "SUSPENDED") throw new ApiError(403, "This account has been suspended.");
+    }
     (req as AuthedRequest).userId = String(user._id);
     (req as AuthedRequest).userRole = user.role;
     next();

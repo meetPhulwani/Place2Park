@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { after, before, beforeEach, describe, it } from "node:test";
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
-import { MongoMemoryServer } from "mongodb-memory-server";
+import { MongoMemoryReplSet } from "mongodb-memory-server";
 import { env } from "../config/env.js";
+import { login } from "../controllers/auth.controller.js";
 import { authenticate, signToken } from "../middleware/auth.js";
 import { ApiError } from "../middleware/error.js";
 import {
@@ -14,6 +15,7 @@ import {
   Notification,
   ParkingSpace,
   Payment,
+  PendingUpload,
   Report,
   Review,
   SupportTicket,
@@ -26,7 +28,7 @@ import { deleteAccountSchema } from "../utils/validation.js";
 import { deleteOwnAccount } from "./account-deletion.js";
 
 const prevJwt = env.JWT_SECRET;
-let memory: MongoMemoryServer;
+let memory: MongoMemoryReplSet;
 const password = "Correct1!horse";
 let passwordHash = "";
 let driverId = "";
@@ -44,9 +46,31 @@ async function notices() {
   };
 }
 
+function attemptAuth(token: string, method = "GET", url = "/api/users/me") {
+  return new Promise<void>((resolve, reject) => {
+    void authenticate(
+      { method, url, originalUrl: url, headers: { authorization: `Bearer ${token}` } } as never,
+      {} as never,
+      (err?: unknown) => (err ? reject(err) : resolve())
+    );
+  });
+}
+
+async function attemptLogin(email: string, secret: string) {
+  try {
+    await login({ body: { email, password: secret } } as never, { json() { return this; } } as never);
+    return 200;
+  } catch (err) {
+    return err instanceof ApiError ? err.status : 0;
+  }
+}
+
 before(async () => {
   env.JWT_SECRET = prevJwt || "account-delete-test-secret-long-enough";
-  memory = await MongoMemoryServer.create({ instance: { launchTimeout: 120000 } });
+  memory = await MongoMemoryReplSet.create({
+    replSet: { count: 1, storageEngine: "wiredTiger" },
+    instanceOpts: [{ launchTimeout: 120000 }],
+  });
   await mongoose.connect(memory.getUri("parkly-account-delete"));
   passwordHash = await bcrypt.hash(password, 4);
   const hash = passwordHash;
@@ -106,11 +130,44 @@ beforeEach(async () => {
         role: "DRIVER",
         tokenVersion: 0,
         passwordHash,
+        image: "",
       },
-      $unset: { deletedAt: 1, googleId: 1 },
+      $unset: { deletedAt: 1, deletionRequestedAt: 1, googleId: 1 },
+    },
+    { upsert: true }
+  );
+  await User.updateOne(
+    { _id: hostId },
+    {
+      $set: {
+        name: "Host Person",
+        email: "host-delete@parkly.test",
+        phone: "",
+        role: "HOST",
+        status: "ACTIVE",
+        tokenVersion: 0,
+        passwordHash,
+        image: "",
+      },
+      $unset: { deletedAt: 1, deletionRequestedAt: 1, googleId: 1 },
+    },
+    { upsert: true }
+  );
+  await ParkingSpace.updateOne(
+    { _id: spaceId },
+    {
+      $set: {
+        status: "VERIFIED",
+        title: "Home driveway",
+        description: "",
+        address: "12 Private Lane",
+        formattedAddress: "12 Private Lane, Mumbai",
+        accessInstructions: "Ring the bell",
+        images: [{ url: "https://example.test/private.jpg", publicId: "private" }],
+      },
     }
   );
-  await User.updateOne({ _id: hostId }, { $set: { status: "ACTIVE", email: "host-delete@parkly.test", name: "Host Person", tokenVersion: 0 } });
+  await PendingUpload.deleteMany({});
 });
 
 function booking(overrides: Record<string, unknown> = {}) {
@@ -159,13 +216,9 @@ describe("account deletion", () => {
     assert.equal(result.deleted, true);
     assert.equal(mail.sent.length, 1);
 
-    const user = await User.findById(driverId).select("+passwordHash +googleId");
-    assert.equal(user?.status, "DELETED");
-    assert.equal(user?.name, "Deleted user");
-    assert.equal(user?.phone, "");
-    assert.equal(user?.passwordHash, undefined);
-    assert.equal(user?.tokenVersion, 1);
-    assert.match(String(user?.email), /^deleted\./);
+    assert.equal(await User.findById(driverId), null);
+    assert.equal(await User.findOne({ email: "driver-delete@parkly.test" }), null);
+    assert.equal(await attemptLogin("driver-delete@parkly.test", password), 401);
 
     const kept = await Booking.findById(row._id);
     assert.equal(kept?.totalAmount, 3675);
@@ -197,7 +250,7 @@ describe("account deletion", () => {
             (err?: unknown) => (err ? reject(err) : resolve(undefined))
           );
         }),
-      (err: unknown) => err instanceof ApiError && err.status === 401
+      (err: unknown) => err instanceof ApiError && err.status === 401 && err.message === "Account not found."
     );
   });
 
@@ -220,7 +273,7 @@ describe("account deletion", () => {
     const mail = await notices();
     const result = await deleteOwnAccount(driverId, { confirmation: "CONFIRM" }, mail);
     assert.equal(result.deleted, true);
-    assert.equal((await User.findById(driverId))?.status, "DELETED");
+    assert.equal(await User.findById(driverId), null);
     assert.equal((await User.findById(otherId))?.email, "other-delete@parkly.test");
     assert.equal((await User.findById(otherId))?.status, "ACTIVE");
   });
@@ -282,8 +335,7 @@ describe("account deletion", () => {
     const mail = await notices();
     const result = await deleteOwnAccount(driverId, { confirmation: "CONFIRM" }, mail);
     assert.equal(result.deleted, true);
-    assert.equal((await User.findById(driverId))?.status, "DELETED");
-    assert.equal((await User.findById(driverId))?.phone, "");
+    assert.equal(await User.findById(driverId), null);
     assert.equal((await Payment.findOne({ bookingId: row._id }))?.amount, row.totalAmount);
     assert.equal((await Booking.findById(row._id))?.totalAmount, 3675);
 
@@ -336,29 +388,16 @@ describe("account deletion", () => {
   it("deletes without asking for the account password", async () => {
     const mail = await notices();
     await deleteOwnAccount(driverId, { confirmation: "CONFIRM" }, mail);
-    assert.equal((await User.findById(driverId))?.status, "DELETED");
+    assert.equal(await User.findById(driverId), null);
     assert.equal(mail.sent.length, 1);
   });
 
-  it("accepts a matching Google confirmation and rejects a different Google account", async () => {
+  it("deletes a Google-only account without a Google or password confirmation", async () => {
     await User.updateOne({ _id: driverId }, { $set: { googleId: "google-sub-1" }, $unset: { passwordHash: 1 } });
-    await assert.rejects(
-      () =>
-        deleteOwnAccount(
-          driverId,
-          { confirmation: "CONFIRM", credential: "other" },
-          { verifyGoogleSub: async () => "someone-else", sendNotice: async () => undefined }
-        ),
-      (err: unknown) => err instanceof ApiError && err.status === 401
-    );
-    assert.equal((await User.findById(driverId))?.status, "ACTIVE");
     const mail = await notices();
-    await deleteOwnAccount(
-      driverId,
-      { confirmation: "CONFIRM", credential: "test-credential" },
-      { ...mail, verifyGoogleSub: async () => "google-sub-1" }
-    );
-    assert.equal((await User.findById(driverId))?.status, "DELETED");
+    await deleteOwnAccount(driverId, { confirmation: "CONFIRM" }, mail);
+    assert.equal(await User.findById(driverId), null);
+    assert.equal(await User.findOne({ googleId: "google-sub-1" }), null);
     assert.equal(mail.sent.length, 1);
   });
 
@@ -418,6 +457,7 @@ describe("account deletion", () => {
     await deleteOwnAccount(driverId, { confirmation: "CONFIRM", password }, mail);
     const again = await deleteOwnAccount(driverId, { confirmation: "CONFIRM", password }, mail);
     assert.equal(again.already, true);
+    assert.equal(await User.findById(driverId), null);
     assert.equal(mail.sent.length, 1);
     assert.equal(await AdminAudit.countDocuments({ action: "ACCOUNT_DELETED", actorId: driverId }), 1);
     const space = await ParkingSpace.findById(hostId && spaceId);
@@ -433,5 +473,88 @@ describe("account deletion", () => {
     assert.equal(space?.address, "Removed");
     assert.equal(space?.accessInstructions, "");
     assert.equal(space?.images.length, 0);
+    assert.equal(await User.findById(hostId), null);
+  });
+
+  it("destroys only this user's Cloudinary photos and local uploads", async () => {
+    const owned = `place2park/listings/${hostId}/photo`;
+    const foreign = `place2park/listings/${otherId}/secret`;
+    await User.updateOne(
+      { _id: hostId },
+      { $set: { image: `https://res.cloudinary.com/demo/image/upload/v1/${owned}.jpg` } }
+    );
+    await ParkingSpace.updateOne(
+      { _id: spaceId },
+      {
+        $set: {
+          images: [
+            { url: `https://res.cloudinary.com/demo/image/upload/v1/${owned}.jpg`, publicId: owned },
+            { url: "https://example.test/private.jpg", publicId: "private" },
+          ],
+        },
+      }
+    );
+    await PendingUpload.create({ hostId, url: "/uploads/abcdef0123456789.jpg", publicId: "" });
+    await PendingUpload.create({ hostId: otherId, url: `https://res.cloudinary.com/demo/image/upload/v1/${foreign}.jpg`, publicId: foreign });
+    const destroyed: string[] = [];
+    const mail = await notices();
+    await deleteOwnAccount(hostId, { confirmation: "CONFIRM" }, {
+      ...mail,
+      destroyImage: async (publicId) => {
+        destroyed.push(publicId);
+      },
+    });
+    assert.deepEqual(destroyed, [owned]);
+    assert.equal(await PendingUpload.countDocuments({ hostId }), 0);
+    assert.equal(await PendingUpload.countDocuments({ publicId: foreign }), 1);
+    assert.equal((await ParkingSpace.findById(spaceId))?.images.length, 0);
+  });
+
+  it("finishes a deletion that stopped after the account was locked", async () => {
+    await Vehicle.create({ userId: driverId, type: "CAR", plate: "MH01AB1234" });
+    const token = signToken(driverId, 0);
+    const mail = await notices();
+    let failed = false;
+    await assert.rejects(
+      () =>
+        deleteOwnAccount(driverId, { confirmation: "CONFIRM" }, {
+          ...mail,
+          beforeRemove: () => {
+            if (!failed) {
+              failed = true;
+              throw new Error("storage interrupted");
+            }
+          },
+        }),
+      (err: unknown) => err instanceof Error && err.message === "storage interrupted"
+    );
+
+    const pending = await User.findById(driverId).select("status tokenVersion email");
+    assert.equal(pending?.status, "DELETION_PENDING");
+    assert.equal(pending?.tokenVersion, 1);
+    assert.equal(pending?.email, "driver-delete@parkly.test");
+    assert.equal(await Vehicle.countDocuments({ userId: driverId }), 1);
+    assert.equal(await attemptLogin("driver-delete@parkly.test", password), 401);
+    await assert.rejects(
+      () => attemptAuth(token),
+      (err: unknown) => err instanceof ApiError && err.status === 401 && err.message === "Your session has expired. Please log in again."
+    );
+    await attemptAuth(token, "POST", "/api/account/delete");
+
+    const result = await deleteOwnAccount(driverId, { confirmation: "CONFIRM" }, mail);
+    assert.equal(result.deleted, true);
+    assert.equal(result.already, false);
+    assert.equal(await User.findById(driverId), null);
+    assert.equal(await Vehicle.countDocuments({ userId: driverId }), 0);
+    assert.equal(await attemptLogin("driver-delete@parkly.test", password), 401);
+    await assert.rejects(
+      () => attemptAuth(token, "POST", "/api/account/delete"),
+      (err: unknown) => err instanceof ApiError && err.status === 401 && err.message === "Account not found."
+    );
+
+    const again = await deleteOwnAccount(driverId, { confirmation: "CONFIRM" }, mail);
+    assert.equal(again.already, true);
+    assert.equal(mail.sent.length, 1);
+    assert.equal(await AdminAudit.countDocuments({ action: "ACCOUNT_DELETED", actorId: driverId }), 1);
   });
 });

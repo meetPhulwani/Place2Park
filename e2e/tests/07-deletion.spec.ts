@@ -96,7 +96,7 @@ test("deletes a disposable account and keeps the financial records", async ({ pa
   const retained = await page.request.get(`${API_ORIGIN}/api/__e2e/retention/${id}`, { headers: HOOK_HEADERS });
   expect(retained.ok()).toBeTruthy();
   const body = await retained.json();
-  expect(body.data.status).toBe("DELETED");
+  expect(body.data.status).toBeNull();
   expect(body.data.bookings).toBeGreaterThan(0);
   expect(body.data.payments).toBeGreaterThan(0);
   expect(body.data.audits).toBeGreaterThan(0);

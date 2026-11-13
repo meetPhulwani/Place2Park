@@ -218,6 +218,9 @@ export async function beginGoogleSignIn(identity: VerifiedGoogleIdentity, deps?:
   if (user?.status === "SUSPENDED") {
     throw new ApiError(403, "This account has been suspended. Contact support for help.");
   }
+  if (user?.status === "DELETED" || user?.status === "DELETION_PENDING") {
+    throw new ApiError(401, "Google sign-in failed. Try again.");
+  }
   if (user) return { kind: "session" as const, user };
 
   const pending = await issuePending(

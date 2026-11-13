@@ -1,6 +1,4 @@
-import { isTimeoutError } from "../utils/async.js";
-import { verifyGoogleIdToken } from "./google-identity.js";
-import { env } from "../config/env.js";
+import mongoose, { type ClientSession } from "mongoose";
 import { ApiError } from "../middleware/error.js";
 import {
   AdminAudit,
@@ -18,6 +16,7 @@ import {
   Review,
   SupportEvidence,
   SupportTicket,
+  TicketAudit,
   TicketMessage,
   User,
   UserReport,
@@ -25,9 +24,11 @@ import {
 } from "../models/index.js";
 import { emailBelongsToAdmin } from "./admin-auth.js";
 import { sendMail } from "./email.js";
+import { discardOwnedMedia, type DestroyListingImageFn } from "./media.js";
 import { OPEN_PAYOUT_STATUSES } from "../utils/constants.js";
 
 const CONFIRMATION = "CONFIRM";
+const REMOVAL_INTERRUPTED = "We couldn't finish deleting this account. Try again shortly.";
 
 export type DeleteAccountInput = {
   confirmation?: string;
@@ -36,29 +37,17 @@ export type DeleteAccountInput = {
 };
 
 type DeleteDeps = {
-  verifyGoogleSub?: (credential: string) => Promise<string>;
   sendNotice?: (to: string) => Promise<void>;
+  destroyImage?: DestroyListingImageFn;
+  /** Test hook. Runs after the account is locked and before records are removed. */
+  beforeRemove?: () => Promise<void> | void;
 };
-
-async function defaultGoogleSub(credential: string) {
-  if (!env.GOOGLE_CLIENT_ID) throw new ApiError(503, "Google confirmation isn't available.");
-  try {
-    const ticket = await verifyGoogleIdToken(credential, env.GOOGLE_CLIENT_ID);
-    const payload = ticket.getPayload();
-    if (!payload?.sub || payload.email_verified !== true) {
-      throw new ApiError(401, "Google confirmation didn't match this account.");
-    }
-    return payload.sub;
-  } catch (err) {
-    if (err instanceof ApiError) throw err;
-    if (isTimeoutError(err)) throw new ApiError(503, "Google confirmation took too long. Try again.");
-    throw new ApiError(401, "Google confirmation didn't match this account.");
-  }
-}
 
 export async function accountSecurity(userId: string) {
   const user = await User.findById(userId).select("+passwordHash googleId status");
-  if (!user || user.status === "DELETED") throw new ApiError(401, "Your session has expired. Please log in again.");
+  if (!user || user.status === "DELETED" || user.status === "DELETION_PENDING") {
+    throw new ApiError(401, "Your session has expired. Please log in again.");
+  }
   const hasPassword = Boolean(user.passwordHash);
   return { hasPassword, googleOnly: Boolean(user.googleId) && !hasPassword };
 }
@@ -67,31 +56,55 @@ export async function deleteOwnAccount(userId: string, input: DeleteAccountInput
   if (input.confirmation !== CONFIRMATION) {
     throw new ApiError(400, "Type CONFIRM to confirm.");
   }
-  const user = await User.findById(userId).select("+passwordHash +resetToken googleId email name role status");
-  if (!user) throw new ApiError(404, "Account not found.");
-  if (user.status === "DELETED") return { deleted: true, already: true };
+  const user = await User.findById(userId).select("email role status");
+  if (!user) return finishIfAlreadyRemoved(userId);
 
   if (user.role === "ADMIN" || (user.email && (await emailBelongsToAdmin(user.email)))) {
     throw new ApiError(403, "This account can't be deleted here.");
   }
 
-  if (!user.passwordHash && user.googleId) {
-    if (!input.credential) throw new ApiError(400, "Confirm with Google before deleting this account.");
-    const sub = await (deps.verifyGoogleSub ?? defaultGoogleSub)(input.credential);
-    if (sub !== user.googleId) throw new ApiError(401, "Google confirmation didn't match this account.");
+  const resuming = user.status === "DELETION_PENDING" || user.status === "DELETED";
+  if (!resuming) {
+    if (user.status !== "ACTIVE" && user.status !== "SUSPENDED") {
+      throw new ApiError(403, "This account can't be deleted here.");
+    }
+    const blockers = await deletionBlockers(userId);
+    if (blockers.length) throw new ApiError(409, blockers.join(" "));
+    const locked = await User.updateOne(
+      { _id: userId, status: user.status },
+      { $set: { status: "DELETION_PENDING", deletionRequestedAt: new Date() }, $inc: { tokenVersion: 1 } }
+    );
+    if (locked.modifiedCount === 0) {
+      const again = await User.findById(userId).select("status");
+      if (!again) return finishIfAlreadyRemoved(userId);
+      if (again.status !== "DELETION_PENDING" && again.status !== "DELETED") {
+        throw new ApiError(503, REMOVAL_INTERRUPTED);
+      }
+    } else {
+      await sendDeletionNotice(user.email, deps);
+    }
   }
 
-  const blockers = await deletionBlockers(userId);
-  if (blockers.length) {
-    throw new ApiError(409, blockers.join(" "));
-  }
+  if (deps.beforeRemove) await deps.beforeRemove();
 
-  const noticeTo = user.email;
   try {
-    if (deps.sendNotice) await deps.sendNotice(noticeTo);
+    const assets = await ownedAssets(userId);
+    await discardOwnedMedia(userId, assets, { destroy: deps.destroyImage });
+    await purgeAccount(userId, user.email);
+  } catch (err) {
+    if (await removalFinished(userId)) return { deleted: true, already: true };
+    if (err instanceof ApiError) throw err;
+    throw new ApiError(503, REMOVAL_INTERRUPTED);
+  }
+  return { deleted: true, already: false };
+}
+
+async function sendDeletionNotice(email: string, deps: DeleteDeps) {
+  try {
+    if (deps.sendNotice) await deps.sendNotice(email);
     else {
       await sendMail({
-        to: noticeTo,
+        to: email,
         subject: "Your Place2Park account was deleted",
         text: "Your Place2Park account has been deleted. Booking and payment records needed for accounting, fraud checks, or disputes are retained without your personal details.",
       });
@@ -99,48 +112,80 @@ export async function deleteOwnAccount(userId: string, input: DeleteAccountInput
   } catch {
     // Deletion still proceeds. The notice address is not written to the audit log.
   }
+}
 
-  await User.updateOne(
-    { _id: userId, status: { $nin: ["DELETED"] } },
-    { $set: { status: "DELETION_PENDING", deletionRequestedAt: new Date() } }
+async function finishIfAlreadyRemoved(userId: string) {
+  if (await removalFinished(userId)) return { deleted: true, already: true };
+  throw new ApiError(404, "Account not found.");
+}
+
+async function removalFinished(userId: string) {
+  const [user, audit] = await Promise.all([
+    User.exists({ _id: userId }),
+    AdminAudit.exists({ action: "ACCOUNT_DELETED", actorId: userId }),
+  ]);
+  return !user && Boolean(audit);
+}
+
+async function ownedAssets(userId: string) {
+  const [user, spaces, uploads, evidence, tickets, reports] = await Promise.all([
+    User.findById(userId).select("image"),
+    ParkingSpace.find({ hostId: userId }).select("images"),
+    PendingUpload.find({ hostId: userId }).select("url publicId"),
+    SupportEvidence.find({ userId }).select("url publicId"),
+    SupportTicket.find({ userId }).select("evidence"),
+    UserReport.find({ reporterId: userId }).select("evidence"),
+  ]);
+  const assets: { url?: string; publicId?: string }[] = [];
+  if (user?.image) assets.push({ url: user.image });
+  for (const space of spaces) {
+    for (const image of space.images ?? []) assets.push(image);
+  }
+  for (const row of uploads) assets.push(row);
+  for (const row of evidence) assets.push(row);
+  for (const ticket of tickets) {
+    for (const item of ticket.evidence ?? []) assets.push(item);
+  }
+  for (const report of reports) {
+    for (const item of report.evidence ?? []) assets.push(item);
+  }
+  return assets;
+}
+
+function transactionsUnsupported(err: unknown) {
+  const message = err instanceof Error ? err.message : String(err);
+  return /Transaction numbers are only allowed|replica set/i.test(message);
+}
+
+async function purgeAccount(userId: string, email: string) {
+  const session = await mongoose.startSession();
+  try {
+    await session.withTransaction(async () => {
+      await commitRemoval(userId, email, session);
+    });
+    return;
+  } catch (err) {
+    if (!transactionsUnsupported(err)) throw err;
+  } finally {
+    await session.endSession();
+  }
+  await commitRemoval(userId, email);
+}
+
+async function commitRemoval(userId: string, email: string, session?: ClientSession) {
+  await removePersonalData(userId, email, session);
+  await writeDeletionAudit(userId, session);
+  await User.deleteOne({ _id: userId }, session ? { session } : {});
+}
+
+async function writeDeletionAudit(userId: string, session?: ClientSession) {
+  const query = AdminAudit.countDocuments({ action: "ACCOUNT_DELETED", actorId: userId });
+  const prior = session ? await query.session(session) : await query;
+  if (prior > 0) return;
+  await AdminAudit.create(
+    [{ action: "ACCOUNT_DELETED", actorId: userId, hostId: userId, accountLast4: "" }],
+    session ? { session } : undefined
   );
-  await anonymizeOwnedData(userId);
-  const deletedEmail = `deleted.${userId}@users.place2park.invalid`;
-  const updated = await User.updateOne(
-    { _id: userId, status: { $ne: "DELETED" } },
-    {
-      $set: {
-        name: "Deleted user",
-        email: deletedEmail,
-        phone: "",
-        image: "",
-        status: "DELETED",
-        deletedAt: new Date(),
-        notifyEmail: false,
-        notifyReminders: false,
-        "privacy.marketingEmail": false,
-        "privacy.showPublicHostName": false,
-      },
-      $unset: {
-        passwordHash: 1,
-        googleId: 1,
-        resetToken: 1,
-        resetTokenExpires: 1,
-        payoutProfile: 1,
-        notifications: 1,
-      },
-      $inc: { tokenVersion: 1 },
-    }
-  );
-  if (updated.matchedCount === 0) return { deleted: true, already: true };
-  await EmailOtpPending.deleteMany({ email: noticeTo });
-  await AdminAudit.create({
-    action: "ACCOUNT_DELETED",
-    actorId: userId,
-    hostId: userId,
-    accountLast4: "",
-  });
-  return { deleted: true, already: false };
 }
 
 async function deletionBlockers(userId: string) {
@@ -187,36 +232,30 @@ async function deletionBlockers(userId: string) {
   return blockers;
 }
 
-async function anonymizeOwnedData(userId: string) {
-  await Vehicle.deleteMany({ userId });
-  await Favorite.deleteMany({ userId });
-  await Notification.deleteMany({ userId });
-  await PendingUpload.deleteMany({ hostId: userId });
-  await FaqFeedback.deleteMany({ userId });
-  await SupportEvidence.deleteMany({ userId });
-  await Review.updateMany({ userId }, { $set: { comment: "" } });
-  await Booking.updateMany({ userId }, { $set: { vehiclePlate: "", accessCode: "" } });
-  await Report.updateMany({ reporterId: userId }, { $set: { details: "" } });
-  await UserReport.updateMany({ reporterId: userId }, { $set: { description: "Removed.", evidence: [] } });
+async function removePersonalData(userId: string, email: string, session?: ClientSession) {
+  const opts = session ? { session } : {};
+  await Vehicle.deleteMany({ userId }, opts);
+  await Favorite.deleteMany({ userId }, opts);
+  await Notification.deleteMany({ userId }, opts);
+  await PendingUpload.deleteMany({ hostId: userId }, opts);
+  await FaqFeedback.deleteMany({ userId }, opts);
+  await SupportEvidence.deleteMany({ userId }, opts);
+  await EmailOtpPending.deleteMany({ $or: [{ email }, { userId }] }, opts);
+  await Review.updateMany({ userId }, { $set: { comment: "" } }, opts);
+  await Booking.updateMany({ userId }, { $set: { vehiclePlate: "", accessCode: "" } }, opts);
+  await Report.updateMany({ reporterId: userId }, { $set: { details: "" } }, opts);
+  await UserReport.updateMany({ reporterId: userId }, { $set: { description: "Removed.", evidence: [] } }, opts);
   await SupportTicket.updateMany(
     { userId },
-    { $set: { description: "Removed.", subject: "Removed", evidence: [] } }
+    { $set: { description: "Removed.", subject: "Removed", evidence: [] } },
+    opts
   );
-  const ticketIds = await SupportTicket.find({ userId }).select("_id");
-  const reportIds = await UserReport.find({
-    $or: [{ reporterId: userId }, { reportedUserId: userId }],
-  }).select("_id");
-  await TicketMessage.updateMany(
-    { authorId: userId },
-    { $set: { body: "Removed." } }
-  );
-  await TicketMessage.updateMany(
-    { ticketId: { $in: [...ticketIds.map((row) => row._id), ...reportIds.map((row) => row._id)] }, authorId: userId },
-    { $set: { body: "Removed." } }
-  );
-  const spaces = await ParkingSpace.find({ hostId: userId }).select("_id");
+  await TicketMessage.updateMany({ authorId: userId }, { $set: { body: "Removed." } }, opts);
+  await TicketAudit.updateMany({ actorId: userId }, { $set: { note: "" } }, opts);
+  const spacesQuery = ParkingSpace.find({ hostId: userId }).select("_id");
+  const spaces = session ? await spacesQuery.session(session) : await spacesQuery;
   const spaceIds = spaces.map((space) => space._id);
-  if (spaceIds.length) await BlockedSlot.deleteMany({ spaceId: { $in: spaceIds } });
+  if (spaceIds.length) await BlockedSlot.deleteMany({ spaceId: { $in: spaceIds } }, opts);
   await ParkingSpace.updateMany(
     { hostId: userId },
     {
@@ -229,6 +268,7 @@ async function anonymizeOwnedData(userId: string) {
         accessInstructions: "",
         images: [],
       },
-    }
+    },
+    opts
   );
 }

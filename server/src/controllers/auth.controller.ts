@@ -58,7 +58,9 @@ export async function login(req: Request, res: Response) {
   const user = await User.findOne({ email }).select("+passwordHash");
   if (!user?.passwordHash || !(await bcrypt.compare(password, user.passwordHash)))
     throw new ApiError(401, "Incorrect email or password.");
-  if (user.status === "DELETED") throw new ApiError(401, "Incorrect email or password.");
+  if (user.status === "DELETED" || user.status === "DELETION_PENDING") {
+    throw new ApiError(401, "Incorrect email or password.");
+  }
   if (user.status === "SUSPENDED")
     throw new ApiError(403, "This account has been suspended. Contact support for help.");
   res.json({ success: true, data: { token: issueToken(user), user: publicUser(user) } });
@@ -115,7 +117,7 @@ export async function forgotPassword(req: Request, res: Response) {
   }
   if (email && !(await emailBelongsToAdmin(email))) {
     const user = await User.findOne({ email });
-    if (user) {
+    if (user && user.status !== "DELETED" && user.status !== "DELETION_PENDING") {
       const token = crypto.randomBytes(24).toString("hex");
       await User.updateOne(
         { _id: user._id },
@@ -140,7 +142,9 @@ export async function resetPassword(req: Request, res: Response) {
     resetToken: hashResetToken(token),
     resetTokenExpires: { $gt: new Date() },
   }).select("+resetToken +resetTokenExpires");
-  if (!user) throw new ApiError(400, "This reset link is invalid or has expired.");
+  if (!user || user.status === "DELETED" || user.status === "DELETION_PENDING") {
+    throw new ApiError(400, "This reset link is invalid or has expired.");
+  }
   const passwordHash = await bcrypt.hash(nextPassword, 10);
   const updated = await User.updateOne(
     { _id: user._id, resetToken: hashResetToken(token), resetTokenExpires: { $gt: new Date() } },

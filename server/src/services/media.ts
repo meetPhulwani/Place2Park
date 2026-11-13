@@ -372,6 +372,54 @@ export async function markListingImagesAttached(images: { url?: string; publicId
 
 const LOCAL_UPLOAD_NAME = /^[a-f0-9]{16}\.(jpg|png|webp)$/;
 
+/** A Cloudinary delivery URL is destroyable only when its public id belongs to this user. */
+export function ownedPublicIdFromUrl(ownerId: string, url?: string) {
+  if (!url) return "";
+  try {
+    const parsed = new URL(url, "https://place2park.local");
+    if (parsed.hostname !== CLOUDINARY_HOST) return "";
+    const marker = "/upload/";
+    const idx = parsed.pathname.indexOf(marker);
+    if (idx < 0) return "";
+    let rest = decodeURIComponent(parsed.pathname.slice(idx + marker.length));
+    rest = rest.replace(/^v\d+\//, "");
+    rest = rest.replace(/\.[a-zA-Z0-9]+$/, "");
+    return canDestroyPublicId(ownerId, rest) ? rest : "";
+  } catch {
+    return "";
+  }
+}
+
+async function removeLocalUpload(url?: string) {
+  if (!url?.startsWith("/uploads/")) return;
+  const name = url.slice("/uploads/".length);
+  if (!LOCAL_UPLOAD_NAME.test(name)) return;
+  await fs.rm(path.join(UPLOADS_DIR, name), { force: true });
+}
+
+/**
+ * Destroys listing photos this user owns. Unmanaged or another user's public ids are left alone.
+ * Remote destroy runs only when Cloudinary is configured or the caller supplies one.
+ */
+export async function discardOwnedMedia(
+  ownerId: string,
+  assets: { publicId?: string; url?: string }[],
+  deps: { destroy?: DestroyListingImageFn } = {}
+) {
+  const destroy = deps.destroy ?? (cloudinaryConfigured() ? undefined : async () => undefined);
+  const seen = new Set<string>();
+  for (const asset of assets) {
+    const publicId = canDestroyPublicId(ownerId, asset.publicId ?? "")
+      ? asset.publicId!
+      : ownedPublicIdFromUrl(ownerId, asset.url);
+    if (publicId && !seen.has(publicId)) {
+      seen.add(publicId);
+      await destroyListingImage(publicId, destroy ? { destroy } : {});
+    }
+    await removeLocalUpload(asset.url);
+  }
+}
+
 /** Deletes ledger rows older than the retention window that no listing references. */
 export async function sweepUnattachedUploads(
   deps: { destroy?: DestroyListingImageFn; now?: Date; retentionMs?: number } = {}

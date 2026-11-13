@@ -1,7 +1,6 @@
 import * as React from "react";
 import { api, errorMessage, errorStatus } from "@/services/api";
 import { useAuth } from "@/context/auth";
-import { GoogleButton } from "@/components/google-button";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/input";
@@ -18,26 +17,16 @@ import {
 
 export function AccountManagement() {
   const { user, logout } = useAuth();
-  const [security, setSecurity] = React.useState({ hasPassword: true, googleOnly: false });
   const [step, setStep] = React.useState<"closed" | "warning" | "confirm">("closed");
-  const [credential, setCredential] = React.useState("");
   const [phrase, setPhrase] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [blockMessage, setBlockMessage] = React.useState<string | null>(null);
   const [held, setHeld] = React.useState(false);
   const deleting = React.useRef(false);
 
-  React.useEffect(() => {
-    api
-      .get("/account/security")
-      .then(({ data }) => setSecurity(data.data))
-      .catch(() => undefined);
-  }, []);
-
   function close() {
     if (deleting.current) return;
     setStep("closed");
-    setCredential("");
     setPhrase("");
     setBlockMessage(null);
     setHeld(false);
@@ -48,10 +37,7 @@ export function AccountManagement() {
     setBusy(true);
     setBlockMessage(null);
     try {
-      await api.post("/account/delete", {
-        confirmation: phrase,
-        ...(security.googleOnly ? { credential } : {}),
-      });
+      await api.post("/account/delete", { confirmation: phrase });
       toast.success("Your account has been deleted.");
       sessionStorage.setItem("p2p_after_delete", "1");
       logout();
@@ -67,7 +53,7 @@ export function AccountManagement() {
     }
   }
 
-  const ready = confirmationMatches(phrase) && (!security.googleOnly || credential.length > 0);
+  const ready = confirmationMatches(phrase);
 
   return (
     <section className="space-y-4" aria-labelledby="account-management-heading">
@@ -126,18 +112,6 @@ export function AccountManagement() {
               {blockMessage.split(/(?<=\.)\s+/).filter(Boolean).map((line) => (
                 <p key={line}>{line}</p>
               ))}
-            </div>
-          ) : null}
-          {security.googleOnly ? (
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-ink">Confirm with Google</p>
-              <GoogleButton
-                unavailableMessage="Google confirmation isn't available in this browser."
-                onConfirm={(value) => {
-                  setCredential(value);
-                  toast.success("Google confirmation received.");
-                }}
-              />
             </div>
           ) : null}
           <div className="flex justify-end gap-2">
