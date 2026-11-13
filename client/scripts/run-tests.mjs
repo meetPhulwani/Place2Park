@@ -32,6 +32,7 @@ const files = [
   "src/lib/confirm-deletion.test.ts",
   "src/services/api-auth.test.ts",
   "src/lib/account-nav.test.ts",
+  "src/components/footer.test.ts",
 ];
 
 const nodeArgs = [];

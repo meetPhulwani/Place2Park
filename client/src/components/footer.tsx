@@ -1,5 +1,13 @@
 import Link from "@/components/link";
+import { useAuth } from "@/context/auth";
 import { Logo } from "./brand";
+
+/** Host links stay on the public site and for providers and all-rounders. Seekers do not see them. */
+export function showHostColumn(role?: string | null) {
+  if (!role) return true;
+  const value = role.toUpperCase();
+  return value === "HOST" || value === "BOTH";
+}
 
 const columns = [
   {
@@ -24,17 +32,26 @@ const columns = [
     links: [
       { href: "/#trust", label: "Safety" },
       { href: "/support", label: "Support" },
-      { href: "/privacy", label: "Privacy" },
-      { href: "/terms", label: "Terms" },
+      { href: "/privacy-policy", label: "Privacy Policy" },
+      { href: "/terms-and-conditions", label: "Terms & Conditions" },
     ],
   },
 ];
 
 export function Footer() {
+  const { user } = useAuth();
+  const visible = columns.filter((col) => col.title !== "Hosts" || showHostColumn(user?.role));
+
   return (
     <footer className="mt-4 border-t border-line bg-white">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
-        <div className="grid gap-10 md:grid-cols-[1.4fr_repeat(3,1fr)]">
+        <div
+          className={
+            visible.length === columns.length
+              ? "grid gap-10 md:grid-cols-[1.4fr_repeat(3,1fr)]"
+              : "grid gap-10 md:grid-cols-[1.4fr_repeat(2,1fr)]"
+          }
+        >
           <div>
             <Logo />
             <p className="mt-3 max-w-xs text-sm leading-relaxed text-slate-500">
@@ -42,7 +59,7 @@ export function Footer() {
               hand over your keys.
             </p>
           </div>
-          {columns.map((col) => (
+          {visible.map((col) => (
             <div key={col.title}>
               <h3 className="text-sm font-semibold text-slate-900">{col.title}</h3>
               <ul className="mt-3 space-y-2">

@@ -88,7 +88,9 @@ export default function App() {
         <Route path="/become-a-host" element={<BecomeAHostPage />} />
         <Route path="/support" element={<SupportPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/privacy-policy" element={<PrivacyPage />} />
         <Route path="/terms" element={<TermsPage />} />
+        <Route path="/terms-and-conditions" element={<TermsPage />} />
         <Route path="/faqs" element={<PublicFaqsPage />} />
 
         <Route element={<AuthLayout />}>

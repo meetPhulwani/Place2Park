@@ -328,10 +328,10 @@ export default function AccountSettingsPage() {
             <p className="text-sm text-muted">A download contains only your account, vehicles, favorites, bookings, payments, and payout status.</p>
             <Button variant="secondary" disabled={busy} onClick={() => void downloadData()}>Download my data</Button>
             <p className="text-sm">
-              <Link href="/privacy" className="font-medium text-brand-600">Privacy policy</Link>
+              <Link href="/privacy-policy" className="font-medium text-brand-600">Privacy policy</Link>
             </p>
             <p className="text-sm">
-              <Link href="/terms" className="font-medium text-brand-600">Terms and conditions</Link>
+              <Link href="/terms-and-conditions" className="font-medium text-brand-600">Terms and conditions</Link>
             </p>
           </section>
         ) : null}

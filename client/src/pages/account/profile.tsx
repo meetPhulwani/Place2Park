@@ -1,5 +1,6 @@
 import * as React from "react";
 import { Bike, Car, Plus, Trash2 } from "lucide-react";
+import Link from "@/components/link";
 import { api, errorMessage, fieldErrors } from "@/services/api";
 import { isHostRole, useAuth } from "@/context/auth";
 import { Avatar } from "@/components/ui/avatar";
@@ -415,6 +416,12 @@ function ProfileForm({ data, onSaved }: { data: ProfileData; onSaved: (d: Profil
           )}
         </CardContent>
       </Card>
+      <p className="text-sm text-slate-500">
+        <Link href="/privacy-policy">Privacy policy</Link>
+      </p>
+      <p className="text-sm text-slate-500">
+        <Link href="/terms-and-conditions">Terms and conditions</Link>
+      </p>
     </div>
   );
 }
