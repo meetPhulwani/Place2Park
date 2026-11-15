@@ -53,7 +53,7 @@ export function Footer() {
           }
         >
           <div>
-            <Logo />
+            <Logo variant="wordmark" height={22} />
             <p className="mt-3 max-w-xs text-sm leading-relaxed text-slate-500">
               Reserve verified private parking before you arrive. Self-parking only — you never
               hand over your keys.
@@ -78,7 +78,7 @@ export function Footer() {
           ))}
         </div>
         <div className="mt-10 flex flex-col items-center gap-2 border-t border-slate-200 pt-6 text-center">
-          <p className="text-sm font-semibold text-brand-500">Never hand over your vehicle keys.</p>
+          <p className="text-sm font-semibold text-brand-500">Never hand over your keys.</p>
           <p className="text-xs text-slate-400">© {new Date().getFullYear()} Place2Park.</p>
         </div>
       </div>

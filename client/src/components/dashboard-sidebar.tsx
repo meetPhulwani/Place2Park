@@ -1,4 +1,5 @@
 import Link from "@/components/link";
+import { Logo } from "@/components/brand";
 import { useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Search, CalendarClock, History, Heart, CreditCard, User,
@@ -26,6 +27,9 @@ export function DashboardSidebar({ items, title }: { items: SidebarItem[]; title
     <>
       <aside className="hidden w-56 shrink-0 lg:block" aria-label={title}>
         <nav className="sticky top-20 space-y-1 rounded-xl border border-line bg-white p-2 shadow-card">
+          <div className="px-2 py-1.5">
+            <Logo variant="lockup" height={28} />
+          </div>
           {items.map((it) => {
             const active = it.exact ? pathname === it.href : pathname.startsWith(it.href);
             const Icon = ICONS[it.icon];
@@ -50,8 +54,9 @@ export function DashboardSidebar({ items, title }: { items: SidebarItem[]; title
       </aside>
       <nav
         aria-label={title}
-        className="scrollbar-thin -mx-4 mb-4 flex min-w-0 w-full gap-1.5 overflow-x-auto px-4 pb-2 lg:hidden"
+        className="scrollbar-thin -mx-4 mb-4 flex min-w-0 w-full items-center gap-1.5 overflow-x-auto px-4 pb-2 lg:hidden"
       >
+        <Logo variant="mark" size="sm" className="shrink-0" />
         {items.map((it) => {
           const active = it.exact ? pathname === it.href : pathname.startsWith(it.href);
           const Icon = ICONS[it.icon];

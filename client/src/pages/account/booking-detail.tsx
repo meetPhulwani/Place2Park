@@ -19,6 +19,7 @@ import { gmapsDirectionsUrl } from "@/lib/geo";
 import { FREE_CANCEL_BEFORE_MINS } from "@/lib/constants";
 import { getDisplayLocation } from "@/lib/location";
 import { formatDate, formatDuration, formatINR, formatTime } from "@/lib/utils";
+import { BrandMark } from "@/components/brand";
 import { ErrorScreen } from "@/components/error-screen";
 
 interface DetailData {
@@ -55,6 +56,7 @@ export default function BookingDetailPage() {
   if (!data) {
     return (
       <div className="mx-auto max-w-4xl space-y-4">
+        <BrandMark size="xs" alt="" />
         <Skeleton className="h-9 w-72" />
         <div className="grid gap-6 md:grid-cols-2">
           <Skeleton className="h-72 rounded-2xl" />
@@ -64,7 +66,7 @@ export default function BookingDetailPage() {
     );
   }
 
-  const { booking, payment, review, revealExactLocation } = data;
+  const { booking, payment, review, revealExactLocation, isOwner } = data;
   const space = booking.spaceId as BookingSpaceRef;
   const host = booking.hostId as { name?: string };
   const rules = space.rules ?? [];
@@ -105,6 +107,7 @@ export default function BookingDetailPage() {
               : "border border-emerald-200 bg-emerald-50"
           }`}
         >
+          <BrandMark size="xs" alt="" />
           <CheckCircle2
             className={`size-6 shrink-0 ${booking.status === "PENDING" ? "text-amber-600" : "text-emerald-600"}`}
             aria-hidden
@@ -210,7 +213,10 @@ export default function BookingDetailPage() {
         {/* Payment */}
         <Card>
           <CardHeader>
-            <CardTitle>Payment</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <BrandMark size="xs" alt="" />
+              Payment
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <PriceBreakdown
@@ -310,6 +316,7 @@ export default function BookingDetailPage() {
             <ReviewDialog
               bookingId={booking.id}
               spaceTitle={space.title}
+              role={isOwner ? "DRIVER" : "HOST"}
               triggerVariant="primary"
               onReviewed={() => setReloadKey((k) => k + 1)}
             />

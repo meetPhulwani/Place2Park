@@ -4,6 +4,8 @@ import { CalendarClock } from "lucide-react";
 import { api } from "@/services/api";
 import type { Booking, BookingSpaceRef } from "@/types";
 import { BookingStatusBadge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { VehicleArrivalDialog } from "@/components/vehicle-arrival-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate, formatDuration, formatINR, formatTime } from "@/lib/utils";
@@ -12,6 +14,7 @@ export default function HostBookingsPage() {
   const [params, setParams] = useSearchParams();
   const [bookings, setBookings] = React.useState<Booking[] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [arrival, setArrival] = React.useState<Booking | null>(null);
 
   const statusFilter = ["CONFIRMED", "ACTIVE", "COMPLETED", "CANCELLED"].includes(params.get("status") ?? "")
     ? params.get("status")!
@@ -75,6 +78,7 @@ export default function HostBookingsPage() {
         <Skeleton className="h-64 rounded-2xl" />
       ) : bookings.length === 0 && !error ? (
         <EmptyState
+          branded
           icon={CalendarClock}
           title="No bookings here"
           description="Bookings for your listings appear here. Other hosts' reservations are never shown."
@@ -112,7 +116,14 @@ export default function HostBookingsPage() {
                       {b.status === "CANCELLED" ? "—" : formatINR(b.hostEarning)}
                     </td>
                     <td className="px-5 py-3.5">
-                      <BookingStatusBadge status={b.status} />
+                      <div className="flex flex-col items-start gap-2">
+                        <BookingStatusBadge status={b.status} />
+                        {(b.status === "CONFIRMED" || b.status === "ACTIVE") && (
+                          <Button type="button" size="sm" variant="secondary" onClick={() => setArrival(b)}>
+                            Enter OTP
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -120,6 +131,13 @@ export default function HostBookingsPage() {
             </tbody>
           </table>
         </div>
+      )}
+      {arrival && (
+        <VehicleArrivalDialog
+          bookingId={arrival.id}
+          vehiclePlate={arrival.vehiclePlate}
+          onClose={() => setArrival(null)}
+        />
       )}
     </div>
   );

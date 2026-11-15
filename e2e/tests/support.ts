@@ -3,10 +3,10 @@ import { expect, type APIRequestContext, type Page } from "@playwright/test";
 /** In-memory seed fixture. This is not a production credential. */
 export const DEMO_PASSWORD = "password123";
 
-export const DRIVER_EMAIL = "driver@parkly.dev";
-export const HOST_EMAIL = "host@parkly.dev";
-export const OTHER_HOST_EMAIL = "rohan@parkly.dev";
-export const SPARE_DRIVER_EMAIL = "kabir@parkly.dev";
+export const DRIVER_EMAIL = "driver@place2park.test";
+export const HOST_EMAIL = "host@place2park.test";
+export const OTHER_HOST_EMAIL = "rohan@place2park.test";
+export const SPARE_DRIVER_EMAIL = "kabir@place2park.test";
 
 export const SYNTHETIC_ACCOUNT = "987654321098";
 

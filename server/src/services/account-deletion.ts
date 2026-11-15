@@ -14,6 +14,7 @@ import {
   PendingUpload,
   Report,
   Review,
+  ReviewRequest,
   SupportEvidence,
   SupportTicket,
   TicketAudit,
@@ -242,6 +243,7 @@ async function removePersonalData(userId: string, email: string, session?: Clien
   await SupportEvidence.deleteMany({ userId }, opts);
   await EmailOtpPending.deleteMany({ $or: [{ email }, { userId }] }, opts);
   await Review.updateMany({ userId }, { $set: { comment: "" } }, opts);
+  await ReviewRequest.deleteMany({ reviewerId: userId }, opts);
   await Booking.updateMany({ userId }, { $set: { vehiclePlate: "", accessCode: "" } }, opts);
   await Report.updateMany({ reporterId: userId }, { $set: { details: "" } }, opts);
   await UserReport.updateMany({ reporterId: userId }, { $set: { description: "Removed.", evidence: [] } }, opts);

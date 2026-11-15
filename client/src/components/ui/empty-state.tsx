@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
+import { BrandMark } from "@/components/brand";
 import { cn } from "@/lib/utils";
 
 export function EmptyState({
@@ -7,12 +8,14 @@ export function EmptyState({
   title,
   description,
   action,
+  branded = false,
   className,
 }: {
   icon: LucideIcon;
   title: string;
   description?: string;
   action?: ReactNode;
+  branded?: boolean;
   className?: string;
 }) {
   return (
@@ -22,6 +25,7 @@ export function EmptyState({
         className
       )}
     >
+      {branded && <BrandMark size="sm" alt="" className="mb-3" />}
       <div className="mb-4 flex size-11 items-center justify-center rounded-lg bg-brand-50">
         <Icon className="size-5 text-brand-500" aria-hidden />
       </div>

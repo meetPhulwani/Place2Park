@@ -42,7 +42,7 @@ test("does not open a session when email delivery is unavailable", async ({ page
 
 test("shows an error for invalid credentials", async ({ page }) => {
   await page.goto("/login");
-  await page.getByLabel("Email").fill("driver@parkly.dev");
+  await page.getByLabel("Email").fill("driver@place2park.test");
   await page.getByLabel("Password", { exact: true }).fill("not-the-seed-password");
   await page.getByRole("button", { name: "Log in" }).click();
   await expect(page.getByText(/incorrect email or password/i)).toBeVisible();

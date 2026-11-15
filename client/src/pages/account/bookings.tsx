@@ -111,6 +111,7 @@ export default function BookingsPage() {
           </div>
         ) : upcoming.length === 0 && !error ? (
           <EmptyState
+            branded
             icon={CalendarClock}
             title="Nothing booked yet"
             description="When you reserve parking, it will show up here with directions and your access code."

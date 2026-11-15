@@ -20,6 +20,7 @@ import {
   Wallet,
   X,
 } from "lucide-react";
+import { Logo } from "@/components/brand";
 import { consoleApi } from "@/services/console-api";
 import { SuperAdminPassword } from "./security";
 import "./console.css";
@@ -118,12 +119,17 @@ export function ConsoleShell() {
   function navigation(compact: boolean) {
     return (
       <>
-        {!compact && (
-          <div className="px-3 pb-6">
-            <p className="font-display text-lg font-bold leading-none tracking-tight">Place2Park</p>
-            <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#D1FF42]">Admin Console</p>
-          </div>
-        )}
+        <div className={compact ? "flex justify-center px-1 pb-4" : "px-3 pb-6"}>
+          <Logo
+            variant={compact ? "mark" : "lockup"}
+            plate
+            href="/"
+            size={compact ? "sm" : "md"}
+            height={compact ? undefined : 28}
+            label="Place2Park console"
+          />
+          {!compact && <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#D1FF42]">Admin Console</p>}
+        </div>
         <nav className="min-h-0 flex-1 space-y-5 overflow-y-auto px-2 pb-4">
           {groups.map((group) => (
             <div key={group.label}>
@@ -184,6 +190,7 @@ export function ConsoleShell() {
               <button type="button" className="rounded-xl border border-[#C7D1DD] p-2 text-[#0251B0] md:hidden" onClick={() => setOpen(true)} aria-label="Open navigation">
                 {open ? <X className="size-5" /> : <Menu className="size-5" />}
               </button>
+              <Logo variant="mark" size="sm" href="/" label="Place2Park console" />
               <div className="min-w-0">
                 <p className="truncate text-xs font-medium text-[#64748b]">Admin Console / {title}</p>
                 <p className="truncate font-display text-lg font-bold text-[#111827]">{title}</p>

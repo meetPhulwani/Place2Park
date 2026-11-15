@@ -44,10 +44,10 @@ import {
   accountCodeSchema, accountEmailRequestSchema, accountNameSchema, accountPasswordSchema, accountPhoneRequestSchema,
   deleteAccountSchema, emailOtpVerifySchema, emptyBodySchema, favoriteSchema, forgotPasswordSchema, googleLoginSchema, googleRegistrationSchema,
   listingSchema, listingStatusSchema, loginSchema, payoutDetailsUpdateSchema, payoutProfileSchema,
-  notificationPrefsSchema, privacyPrefsSchema, profileSchema, reportSchema, resetPasswordSchema, reviewSchema, signupSchema,
+  notificationPrefsSchema, privacyPrefsSchema, profileSchema, reportSchema, resetPasswordSchema, reviewSchema, reviewReportSchema, signupSchema,
   faqFeedbackSchema,
   supportTicketSchema, ticketReplySchema, userReportSchema,
-  vehicleSchema, verifyPaymentSchema,
+  vehicleSchema, vehicleCheckSchema, arrivalCodeSchema, verifyPaymentSchema,
 } from "../utils/validation.js";
 import { ALLOWED_UPLOAD_TYPES, MAX_UPLOAD_BYTES } from "../services/media.js";
 
@@ -138,7 +138,10 @@ r.post("/payments/webhook", rateLimit("webhook", positiveIntEnv("RATE_LIMIT_WEBH
 r.get("/payments", authenticate, a(payments.listMine));
 
 // ---- Reviews / favorites / reports / notifications
+r.get("/reviews/pending", authenticate, a(engagement.pendingReviews));
+r.post("/reviews/pending/:id/skip", authenticate, rateLimit("review-skip", positiveIntEnv("RATE_LIMIT_REVIEW", 10), positiveIntEnv("RATE_LIMIT_REVIEW_WINDOW_MS", 60 * 60_000, 86_400_000)), a(engagement.skipReview));
 r.post("/reviews", authenticate, rateLimit("review", positiveIntEnv("RATE_LIMIT_REVIEW", 10), positiveIntEnv("RATE_LIMIT_REVIEW_WINDOW_MS", 60 * 60_000, 86_400_000)), validate(reviewSchema), a(engagement.createReview));
+r.post("/reviews/:id/report", authenticate, rateLimit("review-report", positiveIntEnv("RATE_LIMIT_REPORT", 5), positiveIntEnv("RATE_LIMIT_REPORT_WINDOW_MS", 60 * 60_000, 86_400_000)), validate(reviewReportSchema), a(engagement.reportReviewHandler));
 r.get("/favorites", authenticate, a(engagement.listFavorites));
 r.post("/favorites/toggle", authenticate, rateLimit("favorite", positiveIntEnv("RATE_LIMIT_FAVORITE", 60), positiveIntEnv("RATE_LIMIT_FAVORITE_WINDOW_MS", 10 * 60_000, 86_400_000)), validate(favoriteSchema), a(engagement.toggleFavorite));
 r.post("/reports", authenticate, rateLimit("report", positiveIntEnv("RATE_LIMIT_REPORT", 5), positiveIntEnv("RATE_LIMIT_REPORT_WINDOW_MS", 60 * 60_000, 86_400_000)), validate(reportSchema), a(engagement.createReport));
@@ -164,6 +167,8 @@ r.get("/host/calendar", authenticate, hostOnly, a(host.calendar));
 r.post("/host/calendar/block", authenticate, hostOnly, validate(blockSlotSchema), a(host.blockSlot));
 r.delete("/host/calendar/block/:id", authenticate, hostOnly, a(host.unblockSlot));
 r.get("/host/bookings", authenticate, hostOnly, a(host.listBookings));
+r.post("/host/bookings/:id/vehicle-check", authenticate, hostOnly, rateLimit("vehicle-check", positiveIntEnv("RATE_LIMIT_REVIEW", 20), positiveIntEnv("RATE_LIMIT_REVIEW_WINDOW_MS", 60 * 60_000, 86_400_000)), validate(vehicleCheckSchema), a(host.checkVehicle));
+r.post("/host/bookings/:id/access-code", authenticate, hostOnly, rateLimit("arrival-code", positiveIntEnv("RATE_LIMIT_REVIEW", 10), positiveIntEnv("RATE_LIMIT_REVIEW_WINDOW_MS", 60 * 60_000, 86_400_000)), validate(arrivalCodeSchema), a(host.submitArrivalCode));
 r.get("/host/earnings", authenticate, hostOnly, a(host.earnings));
 r.get("/host/payout-profile", authenticate, hostOnly, a(payouts.getPayoutProfile));
 r.put("/host/payout-profile", authenticate, hostOnly, rateLimit("payout-details", positiveIntEnv("RATE_LIMIT_PAYOUT_DETAILS", 10), positiveIntEnv("RATE_LIMIT_PAYOUT_DETAILS_WINDOW_MS", 10 * 60_000, 86_400_000)), validate(payoutProfileSchema), a(payouts.updatePayoutProfile));

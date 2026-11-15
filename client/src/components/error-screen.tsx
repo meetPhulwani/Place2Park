@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import Link from "@/components/link";
+import { Logo } from "@/components/brand";
 import { errorCopy } from "@/lib/http-error";
 
 /** Full-screen HTTP error. One action, no server details. */
@@ -22,6 +23,7 @@ export function ErrorScreen({ status }: { status: number }) {
         </div>
       </div>
       <div className="relative max-w-lg animate-slide-up">
+        <Logo variant="lockup" height={36} className="mb-6" />
         <p className="font-display text-[5.5rem] font-bold leading-none tracking-tight text-[#0251B0] sm:text-[7.5rem]">
           {copy.code}
         </p>

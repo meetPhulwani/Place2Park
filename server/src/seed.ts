@@ -10,6 +10,8 @@ import {
 import { PLATFORM_FEE_PCT, SERVICE_FEE_PCT } from "./utils/constants.js";
 
 const PASSWORD = "password123";
+const demoDomain = process.env.NODE_ENV !== "production" && process.env.E2E_TEST_HOOKS === "1" ? "place2park.test" : "parkly.dev";
+const demoEmail = (local: string) => `${local}@${demoDomain}`;
 const paise = (rupees: number) => rupees * 100;
 const code = (i: number) => `PK-DEMO${String(i).padStart(2, "0")}`;
 
@@ -64,13 +66,13 @@ export async function seed() {
 
   const hash = await bcrypt.hash(PASSWORD, 10);
   const [_admin, driver, host1, host2, host3, extra1, extra2] = await User.create([
-    { name: "Parkly Admin", email: "admin@parkly.dev", role: "ADMIN", passwordHash: hash },
-    { name: "Aarav Mehta", email: "driver@parkly.dev", role: "DRIVER", passwordHash: hash },
-    { name: "Priya Sharma", email: "host@parkly.dev", role: "BOTH", hostVerified: true, passwordHash: hash },
-    { name: "Rohan Kulkarni", email: "rohan@parkly.dev", role: "HOST", hostVerified: true, passwordHash: hash },
-    { name: "Meera Iyer", email: "meera@parkly.dev", role: "HOST", passwordHash: hash },
-    { name: "Kabir Anand", email: "kabir@parkly.dev", role: "DRIVER", passwordHash: hash },
-    { name: "Sneha Patil", email: "sneha@parkly.dev", role: "DRIVER", passwordHash: hash },
+    { name: "Parkly Admin", email: demoEmail("admin"), role: "ADMIN", passwordHash: hash },
+    { name: "Aarav Mehta", email: demoEmail("driver"), role: "DRIVER", passwordHash: hash },
+    { name: "Priya Sharma", email: demoEmail("host"), role: "BOTH", hostVerified: true, passwordHash: hash },
+    { name: "Rohan Kulkarni", email: demoEmail("rohan"), role: "HOST", hostVerified: true, passwordHash: hash },
+    { name: "Meera Iyer", email: demoEmail("meera"), role: "HOST", passwordHash: hash },
+    { name: "Kabir Anand", email: demoEmail("kabir"), role: "DRIVER", passwordHash: hash },
+    { name: "Sneha Patil", email: demoEmail("sneha"), role: "DRIVER", passwordHash: hash },
   ]);
 
   await Vehicle.create({ userId: driver._id, type: "CAR", make: "Hyundai", model: "i20", plate: "MH02AB1234" });
@@ -230,7 +232,7 @@ export async function seed() {
     details: "Gate was locked when I arrived; no one answered the intercom.",
   });
   console.log(`Seeded ${spaces.length} demo parking spaces, 12 bookings, reviews, favorites.`);
-  console.log("Demo accounts: driver@parkly.dev · host@parkly.dev · admin@parkly.dev");
+  console.log(`Demo accounts: ${demoEmail("driver")} · ${demoEmail("host")} · ${demoEmail("admin")}`);
 }
 
 // Standalone run: connect using env, seed, exit.

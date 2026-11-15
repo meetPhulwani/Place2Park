@@ -33,6 +33,8 @@ const files = [
   "src/services/api-auth.test.ts",
   "src/lib/account-nav.test.ts",
   "src/components/footer.test.ts",
+  "src/components/brand.test.ts",
+  "src/lib/review-vehicle.test.ts",
 ];
 
 const nodeArgs = [];

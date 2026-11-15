@@ -50,7 +50,7 @@ export default function SupportPage() {
             Safety reminder
           </p>
           <p className="mt-1 text-sm text-brand-800">
-            Place2Park is self-parking only. If anyone asks you to hand over your vehicle keys, refuse
+            Place2Park is self-parking only. If anyone asks you to hand over your keys, refuse
             and report the listing immediately.
           </p>
         </div>

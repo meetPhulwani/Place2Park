@@ -7,6 +7,7 @@ import {
   Menu, X, CalendarClock, Heart, User,
   Building2, LogOut, CircleHelp, Settings,
 } from "lucide-react";
+import { Logo } from "./brand";
 import { Avatar } from "./ui/avatar";
 import { cn } from "@/lib/utils";
 
@@ -163,8 +164,8 @@ export function MobileMenu({
           <div className="fixed inset-0 z-[100]">
             <div className="absolute inset-0 bg-ink/50" onClick={() => setOpen(false)} />
             <div className="absolute inset-y-0 right-0 flex w-[min(100%,20rem)] flex-col border-l border-line bg-white p-5 shadow-pop">
-              <div className="mb-4 flex items-center justify-between">
-                <span className="font-display text-lg font-bold text-ink">Menu</span>
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <Logo variant="nav" />
                 <button
                   type="button"
                   onClick={() => setOpen(false)}

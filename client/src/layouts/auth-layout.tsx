@@ -16,7 +16,7 @@ export function AuthLayout() {
           }}
         />
         <div className="relative flex h-full flex-col justify-between p-10">
-          <Logo dark />
+          <Logo variant="lockup" height={44} plate className="self-start" />
           <div className="max-w-md rounded-xl border border-white/10 bg-white/5 p-8">
             <h1 className="font-display text-3xl font-bold leading-snug text-white">
               Guaranteed parking, booked before you leave home.
@@ -41,7 +41,7 @@ export function AuthLayout() {
         <div className="flex min-h-dvh flex-col px-4 py-8 sm:px-8 lg:min-h-full">
           <div className="flex items-center justify-between lg:justify-end">
             <span className="lg:hidden">
-              <Logo />
+              <Logo variant="lockup" height={36} />
             </span>
             <Link href="/" className="text-sm font-medium text-muted hover:text-ink">
               ← Back to home

@@ -1,5 +1,6 @@
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
+import { Logo } from "@/components/brand";
 import { consoleApi, consoleError } from "@/services/console-api";
 import "./console.css";
 
@@ -48,8 +49,10 @@ export function ConsoleSignIn() {
   return (
     <main className="p2p-signin flex min-h-screen items-center justify-center px-4 py-10">
       <section className="w-full max-w-md rounded-3xl border border-[#C7D1DD] bg-white p-8 shadow-[0_18px_50px_rgb(2_81_176_/_0.08)]">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0251B0]">Admin Console</p>
-      <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-[#111827]">Place2Park</h1>
+      <h1 className="font-display">
+        <Logo variant="lockup" height={40} href={null} />
+      </h1>
+      <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#0251B0]">Admin Console</p>
       <p className="mt-2 text-sm text-[#64748b]">Sign in with your administrator credentials.</p>
       <form className="mt-6 space-y-3" onSubmit={(event) => void submit(event)}>
         {stage === "credentials" && (

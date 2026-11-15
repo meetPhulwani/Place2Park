@@ -62,6 +62,7 @@ export default function HostReviewsPage() {
                 {r.spaceId?.title}
               </p>
               <ReviewCard
+                canReport
                 review={{
                   id: r.id,
                   rating: r.rating,

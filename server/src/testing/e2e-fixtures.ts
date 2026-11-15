@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
-import { AdminAccount, AdminAudit, AdminConsoleSession, Booking, EmailOtpPending, HostPayout, ParkingSpace, Payment, User } from "../models/index.js";
+import { AdminAccount, AdminAudit, AdminConsoleSession, Booking, EmailOtpPending, HostPayout, Notification, ParkingSpace, Payment, User } from "../models/index.js";
 import { provisionSuperAdmin } from "../services/admin-auth.js";
 import { sealSecret } from "../utils/admin-secret.js";
 import { normalizeSecurityAnswer } from "../utils/admin-access.js";
@@ -82,7 +82,7 @@ export async function createReviewListing() {
 
 export async function createRequestedPayout() {
   assertHooks();
-  const host = await User.findOne({ email: "host@parkly.dev" }).select("_id");
+  const host = await User.findOne({ email: "host@place2park.test" }).select("_id");
   if (!host) return null;
   const stamp = crypto.randomBytes(3).toString("hex");
   const holder = `Synthetic Host ${stamp}`;
@@ -179,6 +179,104 @@ export async function releaseSignupResend(email: string) {
     { email: email.toLowerCase(), consumed: false },
     { $set: { sentAt: new Date(Date.now() - 120_000) } }
   );
+}
+
+const E2E_DRIVER = "driver@place2park.test";
+const E2E_HOST = "host@place2park.test";
+
+function fixtureMoney() {
+  return { baseAmount: 10000, serviceFee: 500, totalAmount: 10500, platformFee: 1000, hostEarning: 9000 };
+}
+
+/** Isolated booking pair for browser checks. The access code stays inside this test response. */
+export async function prepareReviewArrivalFixture() {
+  assertHooks();
+  const driver = await User.findOne({ email: E2E_DRIVER }).select("_id");
+  const host = await User.findOne({ email: E2E_HOST }).select("_id");
+  const space = await ParkingSpace.findOne({ hostId: host?._id, status: { $in: ["VERIFIED", "ACTIVE"] } }).select("_id title");
+  if (!driver || !host || !space) return null;
+  await User.updateMany({ _id: { $in: [driver._id, host._id] } }, { $set: { reviewSkipCount: 0 } });
+
+  const past = new Date(Date.now() - 3 * 60 * 60 * 1000);
+  const reviewBooking = await Booking.create({
+    code: `PK-RV${crypto.randomBytes(3).toString("hex")}`,
+    userId: driver._id,
+    spaceId: space._id,
+    hostId: host._id,
+    start: past,
+    end: new Date(Date.now() - 60 * 60 * 1000),
+    durationMins: 120,
+    status: "CONFIRMED",
+    vehicleType: "CAR",
+    vehiclePlate: "MH02AB1234",
+    accessCode: "135790",
+    ...fixtureMoney(),
+  });
+  const { progressOneBooking } = await import("../services/availability.js");
+  await progressOneBooking(String(reviewBooking._id));
+
+  const arrival = await Booking.create({
+    code: `PK-AR${crypto.randomBytes(3).toString("hex")}`,
+    userId: driver._id,
+    spaceId: space._id,
+    hostId: host._id,
+    start: new Date(Date.now() + 60 * 60 * 1000),
+    end: new Date(Date.now() + 2 * 60 * 60 * 1000),
+    durationMins: 60,
+    status: "CONFIRMED",
+    vehicleType: "CAR",
+    vehiclePlate: "KA01AB1234",
+    accessCode: "246810",
+    ...fixtureMoney(),
+  });
+  const decline = await Booking.create({
+    code: `PK-DC${crypto.randomBytes(3).toString("hex")}`,
+    userId: driver._id,
+    spaceId: space._id,
+    hostId: host._id,
+    start: new Date(Date.now() + 3 * 60 * 60 * 1000),
+    end: new Date(Date.now() + 4 * 60 * 60 * 1000),
+    durationMins: 60,
+    status: "CONFIRMED",
+    vehicleType: "CAR",
+    vehiclePlate: "MH12CD9999",
+    accessCode: "369258",
+    ...fixtureMoney(),
+  });
+  return {
+    spaceId: String(space._id),
+    spaceTitle: space.title,
+    reviewBookingId: String(reviewBooking._id),
+    arrivalBookingId: String(arrival._id),
+    arrivalCode: arrival.code,
+    vehiclePlate: arrival.vehiclePlate,
+    accessCode: arrival.accessCode,
+    declineBookingId: String(decline._id),
+    declineCode: decline.code,
+    declinePlate: decline.vehiclePlate,
+    declineAccessCode: decline.accessCode,
+  };
+}
+
+export async function resetReviewSkips() {
+  assertHooks();
+  await User.updateMany({ email: { $in: [E2E_DRIVER, E2E_HOST] } }, { $set: { reviewSkipCount: 0 } });
+}
+
+export async function replaceFixturePlate(bookingId: string, plate: string) {
+  assertHooks();
+  await Booking.updateOne({ _id: bookingId }, { $set: { vehiclePlate: plate } });
+}
+
+export async function vehicleOverrideAudit(bookingId: string) {
+  assertHooks();
+  const booking = await Booking.findById(bookingId).select("accessCode");
+  const audits = await AdminAudit.countDocuments({ action: "VEHICLE_MISMATCH_OVERRIDE", bookingId });
+  const notes = await Notification.find({ type: "VEHICLE_MISMATCH", "data.bookingId": bookingId }).select("title body data");
+  const leaked = Boolean(booking?.accessCode) && JSON.stringify(notes).includes(booking!.accessCode);
+  const auditNotes = await AdminAudit.find({ action: "VEHICLE_MISMATCH_OVERRIDE", bookingId }).select("note vehiclePlate");
+  const auditLeaked = Boolean(booking?.accessCode) && JSON.stringify(auditNotes).includes(booking!.accessCode);
+  return { audits, leaked: leaked || auditLeaked };
 }
 
 export async function expireConsoleSessions() {

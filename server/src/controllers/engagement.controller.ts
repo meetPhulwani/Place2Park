@@ -1,8 +1,9 @@
 import type { Response } from "express";
-import { Booking, Favorite, ParkingSpace, Report, Review } from "../models/index.js";
+import { Favorite, ParkingSpace, Report } from "../models/index.js";
 import type { AuthedRequest } from "../middleware/auth.js";
 import { ApiError } from "../middleware/error.js";
 import { spaceToSummary } from "../services/search.js";
+import { listPendingReviews, reportReview, skipReviewRequest, submitBookingReview } from "../services/reviews.js";
 
 export async function listFavorites(req: AuthedRequest, res: Response) {
   const favorites = await Favorite.find({ userId: req.userId }).sort({ createdAt: -1 }).populate("spaceId");
@@ -31,22 +32,27 @@ export async function toggleFavorite(req: AuthedRequest, res: Response) {
 }
 
 export async function createReview(req: AuthedRequest, res: Response) {
-  const { bookingId, rating, comment } = req.body as { bookingId: string; rating: number; comment: string };
-  const booking = await Booking.findById(bookingId);
-  if (!booking || String(booking.userId) !== req.userId) throw new ApiError(404, "Booking not found.");
-  if (booking.status !== "COMPLETED") throw new ApiError(409, "You can review only completed bookings.");
-  if (await Review.exists({ bookingId })) throw new ApiError(409, "You already reviewed this booking.");
+  const { bookingId, rating, comment, categories } = req.body as {
+    bookingId: string;
+    rating: number;
+    comment: string;
+    categories?: unknown;
+  };
+  const review = await submitBookingReview({ userId: req.userId, bookingId, rating, comment, categories });
+  res.status(201).json({ success: true, data: { id: String(review._id) } });
+}
 
-  await Review.create({ bookingId, spaceId: booking.spaceId, userId: req.userId, rating, comment });
-  // Recompute the space's rating aggregate.
-  const agg = await Review.aggregate([
-    { $match: { spaceId: booking.spaceId } },
-    { $group: { _id: null, avg: { $avg: "$rating" }, count: { $sum: 1 } } },
-  ]);
-  await ParkingSpace.updateOne(
-    { _id: booking.spaceId },
-    { $set: { ratingAvg: Math.round((agg[0]?.avg ?? 0) * 10) / 10, ratingCount: agg[0]?.count ?? 0 } }
-  );
+export async function pendingReviews(req: AuthedRequest, res: Response) {
+  res.json({ success: true, data: await listPendingReviews(req.userId) });
+}
+
+export async function skipReview(req: AuthedRequest, res: Response) {
+  res.json({ success: true, data: await skipReviewRequest(req.userId, String(req.params.id)) });
+}
+
+export async function reportReviewHandler(req: AuthedRequest, res: Response) {
+  const { reason, details } = req.body as { reason: string; details: string };
+  await reportReview(req.userId, String(req.params.id), reason, details ?? "");
   res.status(201).json({ success: true, data: {} });
 }
 

@@ -1,5 +1,5 @@
 import type { Response } from "express";
-import { Booking, Favorite, Notification, ParkingSpace, Review, User, Vehicle } from "../models/index.js";
+import { Booking, Favorite, Notification, ParkingSpace, ReviewRequest, User, Vehicle } from "../models/index.js";
 import type { AuthedRequest } from "../middleware/auth.js";
 import { ApiError } from "../middleware/error.js";
 import { progressBookingStatuses } from "../services/availability.js";
@@ -94,11 +94,7 @@ export async function dashboard(req: AuthedRequest, res: Response) {
       { $match: { userId: (await User.findById(req.userId))!._id, status: "COMPLETED" } },
       { $group: { _id: null, count: { $sum: 1 }, total: { $sum: "$totalAmount" } } },
     ]),
-    (async () => {
-      const done = await Booking.find({ userId: req.userId, status: "COMPLETED" }).select("_id");
-      const reviewed = await Review.countDocuments({ bookingId: { $in: done.map((b) => b._id) } });
-      return done.length - reviewed;
-    })(),
+    ReviewRequest.countDocuments({ reviewerId: req.userId, status: "PENDING" }),
   ]);
   res.json({
     success: true,

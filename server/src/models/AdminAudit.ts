@@ -8,6 +8,9 @@ const adminAuditSchema = new Schema(
     payoutId: { type: Schema.Types.ObjectId, ref: "HostPayout", index: true },
     hostId: { type: Schema.Types.ObjectId, ref: "User" },
     accountLast4: { type: String, default: "", maxlength: 4 },
+    bookingId: { type: Schema.Types.ObjectId, ref: "Booking" },
+    vehiclePlate: { type: String, default: "", maxlength: 20 },
+    note: { type: String, default: "", maxlength: 80 },
   },
   {
     timestamps: { createdAt: true, updatedAt: false },

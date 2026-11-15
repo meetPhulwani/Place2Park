@@ -27,6 +27,7 @@ const userSchema = new Schema(
     resetToken: { type: String, select: false },
     resetTokenExpires: { type: Date, select: false },
     tokenVersion: { type: Number, default: 0 },
+    reviewSkipCount: { type: Number, default: 0, min: 0 },
     payoutProfile: {
       accountHolder: { type: String, default: "", maxlength: 80 },
       bankName: { type: String, default: "", maxlength: 80 },

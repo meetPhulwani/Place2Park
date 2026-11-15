@@ -36,6 +36,7 @@ export default function PaymentsPage() {
         <Skeleton className="h-64 rounded-2xl" />
       ) : payments.length === 0 ? (
         <EmptyState
+          branded
           icon={CreditCard}
           title="No payments yet"
           description="Payments appear here after your first booking."

@@ -22,7 +22,7 @@ export function Navbar({ overlay }: { overlay?: boolean }) {
         className="flex h-14 w-full items-center justify-between gap-4 px-4 sm:h-16 sm:px-6 lg:px-8"
         aria-label="Primary"
       >
-        <Logo />
+        <Logo variant="nav" />
         {showHostDashboard && (
           <div className="hidden items-center gap-1 md:flex">
             <NavLink href="/host">Host dashboard</NavLink>

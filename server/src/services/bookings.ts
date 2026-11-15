@@ -3,6 +3,7 @@ import { Booking, Payment, ParkingSpace } from "../models/index.js";
 import { isProd } from "../config/env.js";
 import { ApiError } from "../middleware/error.js";
 import { computeQuote } from "../utils/pricing.js";
+import { assertCanTransact } from "./reviews.js";
 import { bookingCode, accessCode } from "../utils/codes.js";
 import { FREE_CANCEL_BEFORE_MINS, PENDING_HOLD_MINS } from "../utils/constants.js";
 import {
@@ -119,6 +120,7 @@ async function insertBookingAtomically(
  * re-check after insert (delete own booking if an earlier one overlaps).
  */
 export async function createBooking(input: CreateBookingInput) {
+  await assertCanTransact(input.userId);
   if (!mongoose.isValidObjectId(input.spaceId)) throw new ApiError(404, "Listing not found.");
   const space = await ParkingSpace.findById(input.spaceId);
   if (!space) throw new ApiError(404, "Listing not found.");

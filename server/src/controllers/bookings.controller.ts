@@ -126,7 +126,7 @@ export async function listMine(req: AuthedRequest, res: Response) {
 
   // Attach review status for history rows.
   const reviewed = new Set(
-    (await Review.find({ bookingId: { $in: bookings.map((b) => b._id) } }).select("bookingId")).map((r) =>
+    (await Review.find({ bookingId: { $in: bookings.map((b) => b._id) }, userId: req.userId }).select("bookingId")).map((r) =>
       String(r.bookingId)
     )
   );
@@ -158,7 +158,7 @@ export async function detail(req: AuthedRequest, res: Response) {
 
   const [payment, review] = await Promise.all([
     Payment.findOne({ bookingId: booking._id }),
-    Review.findOne({ bookingId: booking._id }),
+    Review.findOne({ bookingId: booking._id, userId: req.userId }),
   ]);
   const reveal = revealExactForStatus(booking.status);
   const bookingJson = redactBooking(booking.toJSON() as Record<string, unknown>);

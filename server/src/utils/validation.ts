@@ -128,10 +128,33 @@ export const bookingRequestSchema = z.object({
   vehiclePlate: z.string().trim().min(4, "Enter the vehicle number").max(15),
 }).strict();
 
+const optionalStar = z.number().int().min(1).max(5).optional();
+
 export const reviewSchema = z.object({
   bookingId: objectIdSchema,
   rating: z.number().int().min(1).max(5),
   comment: z.string().trim().max(1000).default(""),
+  categories: z.object({
+    access: optionalStar,
+    safety: optionalStar,
+    value: optionalStar,
+    punctuality: optionalStar,
+    respect: optionalStar,
+  }).strict().optional(),
+}).strict();
+
+export const reviewReportSchema = z.object({
+  reason: z.enum(["ABUSIVE", "SPAM", "PRIVATE_INFO", "OTHER"]),
+  details: z.string().trim().max(500).default(""),
+}).strict();
+
+export const vehicleCheckSchema = z.object({
+  decision: z.enum(["MATCH", "MISMATCH_DECLINED", "MISMATCH_OVERRIDE"]),
+  acknowledgement: z.string().max(40).optional(),
+}).strict();
+
+export const arrivalCodeSchema = z.object({
+  code: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit code"),
 }).strict();
 
 const userReportCategories = [...new Set([...DRIVER_REPORT_CATEGORIES, ...HOST_REPORT_CATEGORIES])] as [string, ...string[]];

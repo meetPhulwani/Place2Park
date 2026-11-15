@@ -5,6 +5,7 @@ import { summarizeHostEarnings } from "../services/payouts.js";
 import type { AuthedRequest } from "../middleware/auth.js";
 import { ApiError } from "../middleware/error.js";
 import { expireStalePendingBookings, hasConflict, progressBookingStatuses } from "../services/availability.js";
+import { recordVehicleCheck, verifyArrivalCode } from "../services/vehicle-arrival.js";
 import { redactBooking } from "../utils/privacy.js";
 import { env } from "../config/env.js";
 import type { ListingInput } from "../utils/validation.js";
@@ -285,9 +286,25 @@ export async function earnings(req: AuthedRequest, res: Response) {
   });
 }
 
+export async function checkVehicle(req: AuthedRequest, res: Response) {
+  const { decision, acknowledgement } = req.body as { decision: "MATCH" | "MISMATCH_DECLINED" | "MISMATCH_OVERRIDE"; acknowledgement?: string };
+  const check = await recordVehicleCheck({
+    hostId: req.userId,
+    bookingId: String(req.params.id),
+    decision,
+    acknowledgement,
+  });
+  res.json({ success: true, data: { id: String(check._id), decision: check.decision } });
+}
+
+export async function submitArrivalCode(req: AuthedRequest, res: Response) {
+  const { code } = req.body as { code: string };
+  res.json({ success: true, data: await verifyArrivalCode(req.userId, String(req.params.id), code) });
+}
+
 export async function listReviews(req: AuthedRequest, res: Response) {
   const spaces = await ParkingSpace.find({ hostId: req.userId }).select("_id title");
-  const reviews = await Review.find({ spaceId: { $in: spaces.map((s) => s._id) } })
+  const reviews = await Review.find({ spaceId: { $in: spaces.map((s) => s._id) }, authorRole: { $ne: "HOST" } })
     .sort({ createdAt: -1 }).limit(50).populate("userId", "name image").populate("spaceId", "title");
   res.json({ success: true, data: { reviews } });
 }

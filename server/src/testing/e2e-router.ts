@@ -13,8 +13,12 @@ import {
   e2eTotp,
   expireConsoleSessions,
   expireSignupCode,
+  prepareReviewArrivalFixture,
   releaseSignupResend,
+  replaceFixturePlate,
+  resetReviewSkips,
   retainedRecords,
+  vehicleOverrideAudit,
 } from "./e2e-fixtures.js";
 
 const hidden = { success: false, message: "Not found." };
@@ -81,6 +85,40 @@ e2eHookRouter.post("/fixtures/payout", async (_req, res) => {
     return;
   }
   res.status(201).json({ success: true, data: payout });
+});
+
+e2eHookRouter.post("/fixtures/reviews", async (_req, res) => {
+  const data = await prepareReviewArrivalFixture();
+  if (!data) {
+    res.status(404).json(hidden);
+    return;
+  }
+  res.status(201).json({ success: true, data });
+});
+
+e2eHookRouter.post("/fixtures/reviews/reset", async (_req, res) => {
+  await resetReviewSkips();
+  res.json({ success: true, data: {} });
+});
+
+e2eHookRouter.post("/fixtures/vehicle-plate", async (req, res) => {
+  const bookingId = typeof req.body?.bookingId === "string" ? req.body.bookingId : "";
+  const plate = typeof req.body?.plate === "string" ? req.body.plate : "";
+  if (!bookingId || !plate) {
+    res.status(400).json({ success: false, message: "Missing booking." });
+    return;
+  }
+  await replaceFixturePlate(bookingId, plate);
+  res.json({ success: true, data: {} });
+});
+
+e2eHookRouter.get("/fixtures/vehicle-audit", async (req, res) => {
+  const bookingId = typeof req.query.bookingId === "string" ? req.query.bookingId : "";
+  if (!bookingId) {
+    res.status(400).json({ success: false, message: "Missing booking." });
+    return;
+  }
+  res.json({ success: true, data: await vehicleOverrideAudit(bookingId) });
 });
 
 e2eHookRouter.post("/fixtures/history", async (req, res) => {

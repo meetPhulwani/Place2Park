@@ -264,7 +264,7 @@ export default function ParkingDetailPage() {
                   </ul>
                   <p className="mt-3 flex items-center gap-2 border-t border-ink/15 pt-3 font-semibold">
                     <KeyRound className="size-4" aria-hidden />
-                    Never hand over your vehicle keys.
+                    Never hand over your keys.
                   </p>
                   <p className="mt-1">
                     Self-parking only. Your keys never leave your hand. Report any host who asks for your keys.
@@ -321,7 +321,7 @@ export default function ParkingDetailPage() {
               ) : (
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   {reviews.map((r) => (
-                    <ReviewCard key={r.id} review={r} />
+                    <ReviewCard key={r.id} review={r} canReport={!!user} />
                   ))}
                 </div>
               )}

@@ -55,6 +55,8 @@ const INTEGRATION = [
   "src/services/admin-otp-delivery.test.ts",
   "src/services/account-deletion.test.ts",
   "src/services/account-settings.test.ts",
+  "src/services/reviews-vehicle.test.ts",
+  "src/services/review-migration.test.ts",
 ];
 
 const args = process.argv.slice(2);

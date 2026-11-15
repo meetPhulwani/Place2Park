@@ -142,7 +142,7 @@ export async function detail(req: Request, res: Response) {
 
   const [host, reviews, favorite, hasConfirmedBooking] = await Promise.all([
     User.findById(space.hostId).select("name image hostVerified createdAt"),
-    Review.find({ spaceId: space._id }).sort({ createdAt: -1 }).limit(20).populate("userId", "name image"),
+    Review.find({ spaceId: space._id, authorRole: { $ne: "HOST" } }).sort({ createdAt: -1 }).limit(20).populate("userId", "name image"),
     userId ? Favorite.exists({ userId, spaceId: space._id }) : null,
     userId
       ? Booking.exists({

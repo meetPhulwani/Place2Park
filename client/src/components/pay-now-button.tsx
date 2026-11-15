@@ -2,6 +2,7 @@ import * as React from "react";
 import { trackBookingConfirmed } from "@/lib/ga";
 import { api, errorMessage } from "@/services/api";
 import { useAuth } from "@/context/auth";
+import { BrandMark } from "./brand";
 import { Button } from "./ui/button";
 
 function loadCheckoutScript() {
@@ -117,18 +118,21 @@ export function PayNowButton({ bookingId, bookingCode, onPaid }: Props) {
         Pay now
       </Button>
       {message && (
-        <p
-          role={status === "error" ? "alert" : "status"}
-          className={`text-sm ${
-            status === "success"
-              ? "text-emerald-700"
-              : status === "cancelled"
-                ? "text-slate-500"
-                : "text-red-700"
-          }`}
-        >
-          {message}
-        </p>
+        <div className="flex items-start gap-2">
+          {(status === "success" || status === "error") && <BrandMark size="xs" alt="" />}
+          <p
+            role={status === "error" ? "alert" : "status"}
+            className={`text-sm ${
+              status === "success"
+                ? "text-emerald-700"
+                : status === "cancelled"
+                  ? "text-slate-500"
+                  : "text-red-700"
+            }`}
+          >
+            {message}
+          </p>
+        </div>
       )}
     </div>
   );

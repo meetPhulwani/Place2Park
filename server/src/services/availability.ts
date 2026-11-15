@@ -188,6 +188,14 @@ async function applyProgress(filter: Record<string, unknown>) {
     { ...filter, status: { $in: ["CONFIRMED", "ACTIVE"] }, end: { $lte: now } },
     { $set: { status: "COMPLETED" } }
   );
+  if (completing.length) {
+    try {
+      const { ensureReviewRequests } = await import("./reviews.js");
+      await ensureReviewRequests(completing.map((row) => String(row._id)));
+    } catch (err) {
+      console.error("[reviews] request create failed", err instanceof Error ? err.message : err);
+    }
+  }
   const hostIds = [...new Set(completing.map((row) => String(row.hostId)).filter(Boolean))];
   if (!hostIds.length) return;
   try {
