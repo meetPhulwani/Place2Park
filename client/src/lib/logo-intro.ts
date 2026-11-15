@@ -1,5 +1,5 @@
 /** Plays once per tab. Cleared when the tab closes. */
-export const LOGO_INTRO_KEY = "p2p_logo_intro_5";
+export const LOGO_INTRO_KEY = "p2p_logo_intro_7";
 
 /** Icon only. The intro does not use the wordmark or the tagline file. */
 export function logoIntroSrc(base = "/"): string {

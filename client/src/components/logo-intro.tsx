@@ -7,8 +7,9 @@ import { LOGO_INTRO_KEY, logoIntroSrc, shouldPlayLogoIntro } from "@/lib/logo-in
 const MARK = { x: 310, y: 303, w: 404, h: 412 };
 
 const EASE = [0.65, 0, 0.35, 1] as const;
-/** Reveal starts at 0.4s and lasts 0.95s. The finished icon then holds for 1.5s. */
-const HOLD_THEN_FADE = 2.85;
+/** Reveal starts at 0.15s and lasts 0.65s. The finished icon then holds for 0.55s. */
+const HOLD_THEN_FADE = 1.35;
+const FADE_DURATION = 0.32;
 
 let started = false;
 
@@ -39,7 +40,7 @@ export function LogoIntro() {
     const skip = (event: KeyboardEvent) => {
       if (event.key === "Escape") setVisible(false);
     };
-    const timer = window.setTimeout(() => setVisible(false), (HOLD_THEN_FADE + 0.5) * 1000);
+    const timer = window.setTimeout(() => setVisible(false), (HOLD_THEN_FADE + FADE_DURATION) * 1000);
     window.addEventListener("keydown", skip);
     return () => {
       window.clearTimeout(timer);
@@ -56,7 +57,7 @@ export function LogoIntro() {
       style={{ backgroundColor: "#FFFFFF" }}
       initial={{ opacity: 1 }}
       animate={{ opacity: 0 }}
-      transition={{ delay: HOLD_THEN_FADE, duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+      transition={{ delay: HOLD_THEN_FADE, duration: FADE_DURATION, ease: [0.4, 0, 0.2, 1] }}
       onPointerDown={() => setVisible(false)}
       aria-hidden
     >
@@ -65,7 +66,7 @@ export function LogoIntro() {
         style={{ aspectRatio: `${MARK.w} / ${MARK.h}` }}
         initial={{ opacity: 0, scale: 0.96, clipPath: "polygon(0% 100%, 0% 100%, 0% 100%)" }}
         animate={{ opacity: 1, scale: 1, clipPath: "polygon(0% 120%, 180% -20%, -10% -30%)" }}
-        transition={{ delay: 0.4, duration: 0.95, ease: EASE }}
+        transition={{ delay: 0.15, duration: 0.65, ease: EASE }}
       >
         <img
           src={logoIntroSrc(import.meta.env.BASE_URL)}
@@ -88,7 +89,7 @@ export function LogoIntro() {
           style={{ backgroundColor: "rgba(21, 84, 181, 0.16)" }}
           initial={{ x: "-160%", opacity: 0 }}
           animate={{ x: "420%", opacity: [0, 1, 0] }}
-          transition={{ delay: 0.7, duration: 0.7, ease: [0.4, 0, 0.2, 1] }}
+          transition={{ delay: 0.28, duration: 0.45, ease: [0.4, 0, 0.2, 1] }}
         />
       </motion.div>
     </motion.div>
