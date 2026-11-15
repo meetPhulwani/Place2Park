@@ -11,8 +11,8 @@ const TAGLINE = { x: 382, y: 160, w: 318, h: 40 };
 const KEYS = { x: 698, y: 160, w: 84, h: 40 };
 
 const EASE = [0.22, 1, 0.36, 1] as const;
-/** The full logo is together near 2.9s, then holds for about 2 seconds. */
-const HOLD_THEN_FADE = 4.9;
+/** The full logo is together near 2.1s, then holds briefly before the fade. */
+const HOLD_THEN_FADE = 2.55;
 
 let started = false;
 
@@ -110,7 +110,7 @@ export function LogoIntro() {
     const skip = (event: KeyboardEvent) => {
       if (event.key === "Escape") setVisible(false);
     };
-    const timer = window.setTimeout(() => setVisible(false), (HOLD_THEN_FADE + 0.75) * 1000);
+    const timer = window.setTimeout(() => setVisible(false), (HOLD_THEN_FADE + 0.45) * 1000);
     window.addEventListener("keydown", skip);
     return () => {
       window.clearTimeout(timer);
@@ -127,7 +127,7 @@ export function LogoIntro() {
       style={{ backgroundColor: "#FFFFFF" }}
       initial={{ opacity: 1 }}
       animate={{ opacity: 0 }}
-      transition={{ delay: HOLD_THEN_FADE, duration: 0.7, ease: [0.4, 0, 0.2, 1] }}
+      transition={{ delay: HOLD_THEN_FADE, duration: 0.45, ease: [0.4, 0, 0.2, 1] }}
       onPointerDown={() => setVisible(false)}
       aria-hidden
     >
@@ -137,13 +137,13 @@ export function LogoIntro() {
         style={{ background: "radial-gradient(ellipse at center, rgba(21,84,181,0.10), rgba(255,255,255,0) 68%)" }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 0.4, duration: 0.8, ease: EASE }}
+        transition={{ delay: 0.15, duration: 0.55, ease: EASE }}
       />
       <div className="relative w-[min(94vw,920px)]" style={{ aspectRatio: `${FRAME.w} / ${FRAME.h}` }}>
-        <Piece box={SYMBOL} delay={0.45} reveal="diagonal" />
-        <Piece box={KEYS} delay={1.7} reveal="slide" />
-        <Piece box={TAGLINE} delay={2.45} reveal="fade" />
-        <Piece box={WORD} delay={2.45} reveal="fade" />
+        <Piece box={SYMBOL} delay={0.2} reveal="diagonal" />
+        <Piece box={KEYS} delay={1.05} reveal="slide" />
+        <Piece box={TAGLINE} delay={1.6} reveal="fade" />
+        <Piece box={WORD} delay={1.6} reveal="fade" />
       </div>
     </motion.div>
   );

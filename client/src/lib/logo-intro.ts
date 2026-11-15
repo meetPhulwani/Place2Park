@@ -1,5 +1,5 @@
 /** Plays once per tab. Cleared when the tab closes. */
-export const LOGO_INTRO_KEY = "p2p_logo_intro_2";
+export const LOGO_INTRO_KEY = "p2p_logo_intro_3";
 
 /** Blue half-arrow and the lime word “keys”. */
 export function logoIntroSrc(base = "/"): string {
