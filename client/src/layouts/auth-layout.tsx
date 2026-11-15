@@ -16,7 +16,7 @@ export function AuthLayout() {
           }}
         />
         <div className="relative flex h-full flex-col justify-between p-10">
-          <Logo variant="lockup" height={44} plate className="self-start" />
+          <Logo variant="lockup" height={44} tone="light" className="self-start" />
           <div className="max-w-md rounded-xl border border-white/10 bg-white/5 p-8">
             <h1 className="font-display text-3xl font-bold leading-snug text-white">
               Guaranteed parking, booked before you leave home.

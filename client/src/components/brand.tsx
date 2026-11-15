@@ -106,11 +106,12 @@ function Artwork({
   );
 }
 
-function Word({ size, className }: { size: number; className?: string }) {
+function Word({ size, className, light }: { size: number; className?: string; light?: boolean }) {
   return (
     <span
       className={cn(
-        "whitespace-nowrap font-display font-extrabold leading-none tracking-[-0.03em] text-ink",
+        "whitespace-nowrap font-display font-extrabold leading-none tracking-[-0.03em]",
+        light ? "text-white" : "text-ink",
         className
       )}
       style={{ fontSize: size }}
@@ -132,6 +133,7 @@ export function Logo({
   size = "md",
   height,
   plate = false,
+  tone = "ink",
   href = "/",
   label = "Place2Park home",
 }: {
@@ -140,6 +142,8 @@ export function Logo({
   size?: LogoSize;
   height?: number;
   plate?: boolean;
+  /** `light` keeps the blue symbol and draws the word in white on a dark surface. */
+  tone?: "ink" | "light";
   href?: string | null;
   label?: string;
 }) {
@@ -162,6 +166,7 @@ export function Logo({
         )}
         <Word
           size={wordSize}
+          light={tone === "light"}
           className={variant === "nav" ? "text-[1.125rem] md:!text-[1.25rem]" : undefined}
         />
       </>
