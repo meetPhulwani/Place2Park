@@ -34,6 +34,7 @@ const files = [
   "src/lib/account-nav.test.ts",
   "src/components/footer.test.ts",
   "src/components/brand.test.ts",
+  "src/lib/logo-intro.test.ts",
   "src/lib/review-vehicle.test.ts",
 ];
 

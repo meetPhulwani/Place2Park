@@ -5,6 +5,7 @@ import { AnalyticsListener } from "@/components/analytics-listener";
 import { Toaster } from "@/components/ui/toaster";
 import { ScrollToTop } from "@/components/scroll-to-top";
 import { Navbar } from "@/components/navbar";
+import { LogoIntro } from "@/components/logo-intro";
 import { AuthLayout } from "@/layouts/auth-layout";
 import { AccountLayout } from "@/layouts/account-layout";
 import { HostLayout } from "@/layouts/host-layout";
@@ -80,6 +81,7 @@ export default function App() {
       <PublicNotice />
       <AnalyticsListener />
       <ScrollToTop />
+      <LogoIntro />
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/search" element={<SearchPage />} />
