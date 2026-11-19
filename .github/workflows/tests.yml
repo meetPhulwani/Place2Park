@@ -10,25 +10,30 @@ on:
       - "dev/**"
   pull_request:
 
+# Blank mail, payment, and database settings so a test process cannot
+# reach production. Browser readiness is the API health check, which
+# listens only after the in-memory database is up.
+env:
+  NODE_ENV: test
+  MONGODB_URI: ""
+  REDIS_URL: " "
+  RESEND_API_KEY: ""
+  SMTP_HOST: ""
+  SMTP_USER: ""
+  SMTP_PASS: ""
+  EMAIL_FROM: ""
+  ADMIN_NOTIFICATION_EMAIL: ""
+  RAZORPAY_KEY_ID: ""
+  RAZORPAY_KEY_SECRET: ""
+  RAZORPAY_WEBHOOK_SECRET: ""
+  CLOUDINARY_CLOUD_NAME: ""
+  CLOUDINARY_API_KEY: ""
+  CLOUDINARY_API_SECRET: ""
+
 jobs:
-  test:
+  checks:
+    name: Unit tests and typecheck
     runs-on: ubuntu-latest
-    env:
-      NODE_ENV: test
-      MONGODB_URI: ""
-      REDIS_URL: " "
-      RESEND_API_KEY: ""
-      SMTP_HOST: ""
-      SMTP_USER: ""
-      SMTP_PASS: ""
-      EMAIL_FROM: ""
-      ADMIN_NOTIFICATION_EMAIL: ""
-      RAZORPAY_KEY_ID: ""
-      RAZORPAY_KEY_SECRET: ""
-      RAZORPAY_WEBHOOK_SECRET: ""
-      CLOUDINARY_CLOUD_NAME: ""
-      CLOUDINARY_API_KEY: ""
-      CLOUDINARY_API_SECRET: ""
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -64,17 +69,37 @@ jobs:
       - name: Client typecheck
         run: npm run typecheck --prefix client
 
+  browser:
+    name: Browser tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+            client/package-lock.json
+
+      - name: Install server dependencies
+        run: npm ci --prefix server
+
+      - name: Install client dependencies
+        run: npm ci --prefix client
+
+      - name: Install root dependencies
+        run: npm ci
+
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
       - name: Browser tests
         run: npm run test:e2e
-
-      - name: Build public frontend
-        run: npm run build --prefix client
-
-      - name: Build admin console
-        run: npm run build:console
 
       - name: Upload Playwright report
         if: failure()
@@ -84,3 +109,29 @@ jobs:
           path: |
             playwright-report
             test-results
+
+  build:
+    name: Production builds
+    needs: [checks, browser]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            client/package-lock.json
+
+      - name: Install client dependencies
+        run: npm ci --prefix client
+
+      - name: Build public frontend
+        run: npm run build --prefix client
+
+      - name: Build admin console
+        run: npm run build:console

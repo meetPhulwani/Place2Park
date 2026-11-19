@@ -2,6 +2,7 @@ import * as React from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Calendar, Clock, List, Map as MapIcon, SearchX, SlidersHorizontal, X } from "lucide-react";
 import { Navbar } from "@/components/navbar";
+import { PageMeta } from "@/components/page-meta";
 import { MapView } from "@/components/map/map-view";
 import { ParkingCard } from "@/components/parking-card";
 import { SearchBar } from "@/components/search-bar";
@@ -68,10 +69,6 @@ export default function SearchPage() {
     minRating: params.get("minRating") ? Number(params.get("minRating")) : undefined,
     sort: (params.get("sort") as Filters["sort"]) ?? "closest",
   };
-
-  React.useEffect(() => {
-    document.title = "Find parking · Place2Park";
-  }, []);
 
   React.useEffect(() => {
     setEditing(editRequested);
@@ -150,6 +147,9 @@ export default function SearchPage() {
   const hasDestination = hasDestinationCoords(urlLat, urlLng);
   const mobileExpanded = !hasDestination || editing;
   const destinationLabel = query.q || destination?.name || "";
+  const searchTitle = destinationLabel
+    ? `Parking near ${destinationLabel} · Place2Park`
+    : "Find parking · Place2Park";
   const dateLabel = formatSearchDateLabel(query.start);
   const timeLabel = formatSearchTimeLabel(query.start, query.durationMins);
   const results = spaces ?? [];
@@ -184,6 +184,12 @@ export default function SearchPage() {
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
+      <PageMeta
+        title={searchTitle}
+        description="Search private parking near your destination, compare the price, and reserve before you leave."
+        path="/search"
+      />
+      <h1 className="sr-only">{searchTitle.replace(" · Place2Park", "")}</h1>
       <Navbar />
       <div ref={stageRef} className="relative min-h-0 flex-1">
         <div className="absolute inset-0">

@@ -89,9 +89,9 @@ export default function App() {
         <Route path="/parking/:id" element={<ParkingDetailPage />} />
         <Route path="/become-a-host" element={<BecomeAHostPage />} />
         <Route path="/support" element={<SupportPage />} />
-        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/privacy" element={<Navigate to="/privacy-policy" replace />} />
         <Route path="/privacy-policy" element={<PrivacyPage />} />
-        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/terms" element={<Navigate to="/terms-and-conditions" replace />} />
         <Route path="/terms-and-conditions" element={<TermsPage />} />
         <Route path="/faqs" element={<PublicFaqsPage />} />
 

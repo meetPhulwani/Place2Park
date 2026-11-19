@@ -23,14 +23,14 @@ const columns = [
     title: "Hosts",
     links: [
       { href: "/become-a-host", label: "List your space" },
-      { href: "/#host-earnings", label: "Earnings" },
-      { href: "/#trust", label: "Trust & safety" },
+      { href: "/become-a-host#earnings", label: "Earnings" },
+      { href: "/support#safety", label: "Trust & safety" },
     ],
   },
   {
     title: "Company",
     links: [
-      { href: "/#trust", label: "Safety" },
+      { href: "/support#safety", label: "Safety" },
       { href: "/support", label: "Support" },
       { href: "/privacy-policy", label: "Privacy Policy" },
       { href: "/terms-and-conditions", label: "Terms & Conditions" },

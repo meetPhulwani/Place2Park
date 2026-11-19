@@ -11,6 +11,7 @@ import { pageErrorStatus } from "@/lib/http-error";
 import { useAuth } from "@/context/auth";
 import type { HostInfo, ParkingSpaceFull, Review } from "@/types";
 import { Navbar } from "@/components/navbar";
+import { PageMeta } from "@/components/page-meta";
 import { Footer } from "@/components/footer";
 import { Gallery } from "@/components/gallery";
 import { BookingWidget } from "@/components/booking-widget";
@@ -65,9 +66,10 @@ export default function ParkingDetailPage() {
     };
   }, [id, authLoading]);
 
-  React.useEffect(() => {
-    if (data) document.title = `${data.space.title} — ${getDisplayLocation(data.space)} · Place2Park`;
-  }, [data]);
+  const listingTitle = data ? `${data.space.title} — ${getDisplayLocation(data.space)} · Place2Park` : "";
+  const listingDescription = data
+    ? `${data.space.title} in ${getDisplayLocation(data.space)}. Self-parking only. The price is shown before you book.`
+    : "";
 
   if (failure) return <ErrorScreen status={failure} />;
   if (!data) {
@@ -119,6 +121,7 @@ export default function ParkingDetailPage() {
 
   return (
     <>
+      <PageMeta title={listingTitle} description={listingDescription} path={`/parking/${id}`} />
       <Navbar />
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
         {/* Header */}

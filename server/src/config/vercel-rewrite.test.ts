@@ -5,6 +5,7 @@ import { describe, it } from "node:test";
 import { SERVER_ROOT } from "./paths.js";
 
 type VercelConfig = {
+  redirects?: { source: string; destination: string; permanent?: boolean }[];
   rewrites?: { source: string; destination: string }[];
   headers?: { source: string; headers: { key: string; value: string }[] }[];
 };
@@ -90,6 +91,7 @@ const PRIVATE_PATHS = [
   "/settings",
   "/help",
   "/host",
+  "/become-a-host",
   "/admin",
   "/api",
   "/search/results",
@@ -116,7 +118,27 @@ function publicSitemap() {
   assert.equal(xml.includes("<lastmod>"), false);
   const robots = fs.readFileSync(path.join(SERVER_ROOT, "..", "client", "public", "robots.txt"), "utf8");
   assert.equal(robots.includes("Sitemap: https://www.place2park.me/sitemap.xml"), true);
+  assert.equal(robots.includes("Allow: /"), true);
+  for (const blocked of ["/login", "/signup", "/help", "/host", "/become-a-host", "/admin"]) {
+    assert.equal(robots.includes(`Disallow: ${blocked}`), true, blocked);
+  }
+  assert.equal(robots.includes("Disallow: /search"), false);
+  assert.equal(robots.includes("Disallow: /support"), false);
+  assert.equal(robots.includes("Disallow: /faqs"), false);
   return locs;
+}
+
+function canonicalRedirects(config: VercelConfig) {
+  const redirects = config.redirects ?? [];
+  const privacy = redirects.find((entry) => entry.source === "/privacy");
+  const terms = redirects.find((entry) => entry.source === "/terms");
+  const slash = redirects.find((entry) => entry.source === "/:path+/");
+  assert.equal(privacy?.destination, "/privacy-policy");
+  assert.equal(privacy?.permanent, true);
+  assert.equal(terms?.destination, "/terms-and-conditions");
+  assert.equal(terms?.permanent, true);
+  assert.equal(slash?.destination, "/:path+");
+  assert.equal(slash?.permanent, true);
 }
 
 describe("Vercel SPA rewrite", () => {
@@ -130,14 +152,13 @@ describe("Vercel SPA rewrite", () => {
     assert.deepEqual(locs, [
       "https://www.place2park.me/",
       "https://www.place2park.me/search",
-      "https://www.place2park.me/become-a-host",
       "https://www.place2park.me/support",
       "https://www.place2park.me/faqs",
-      "https://www.place2park.me/privacy",
       "https://www.place2park.me/privacy-policy",
-      "https://www.place2park.me/terms",
       "https://www.place2park.me/terms-and-conditions",
     ]);
+    canonicalRedirects(readVercelConfig("client/vercel.json"));
+    canonicalRedirects(readVercelConfig("vercel.json"));
   });
 
   it("sets CSP and clickjacking headers without blocking GIS, Maps, API, or Razorpay", () => {

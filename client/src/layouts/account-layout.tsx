@@ -4,6 +4,7 @@ import { DashboardSidebar, type SidebarItem } from "@/components/dashboard-sideb
 import { accountNavItems } from "@/lib/account-nav";
 import { GuardGate } from "./guards";
 import { ReviewPrompt } from "@/components/review-prompt";
+import { NoIndex } from "@/components/page-meta";
 
 const items: SidebarItem[] = accountNavItems.map((item) => ({ ...item }));
 
@@ -11,6 +12,7 @@ export function AccountLayout() {
   return (
     <GuardGate>
       <div className="min-h-screen">
+        <NoIndex />
         <Navbar />
         <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-6 sm:px-6 lg:flex-row lg:gap-8 lg:py-8">
           <DashboardSidebar items={items} title="Account navigation" />

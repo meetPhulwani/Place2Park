@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Calendar, Clock, SearchX } from "lucide-react";
 import type { SpaceSummary } from "@/types";
 import { Navbar } from "@/components/navbar";
+import { PageMeta } from "@/components/page-meta";
 import { ParkingCard } from "@/components/parking-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ParkingCardSkeleton } from "@/components/ui/skeleton";
@@ -40,9 +41,7 @@ export default function SearchResultsPage() {
   const query = readQuery(params);
   const destinationName = params.get("q") || apiDestination?.name || "";
 
-  React.useEffect(() => {
-    document.title = destinationName ? `Parking near ${destinationName} · Place2Park` : "Parking · Place2Park";
-  }, [destinationName]);
+  const resultsTitle = destinationName ? `Parking near ${destinationName} · Place2Park` : "Parking · Place2Park";
 
   React.useEffect(() => {
     setVisible(RESULTS_PAGE_SIZE);
@@ -71,6 +70,15 @@ export default function SearchResultsPage() {
 
   return (
     <div className="min-h-dvh bg-page">
+      <PageMeta
+        title={resultsTitle}
+        description={
+          destinationName
+            ? `Private parking near ${destinationName}. Compare the listed price and reserve before you leave.`
+            : "Private parking search results. Compare the listed price and reserve before you leave."
+        }
+        path="/search"
+      />
       <Navbar />
       <div className="sticky top-14 z-30 border-b border-line bg-white sm:top-16">
         <div className="mx-auto flex max-w-3xl items-center gap-2 px-4 py-3 sm:px-6">
@@ -82,9 +90,9 @@ export default function SearchResultsPage() {
             <ArrowLeft className="size-4" aria-hidden />
             Map
           </button>
-          <p className="min-w-0 flex-1 truncate text-sm font-semibold text-ink" title={destinationName || undefined}>
+          <h1 className="min-w-0 flex-1 truncate text-sm font-semibold text-ink" title={destinationName || undefined}>
             {destinationName || "Parking spaces"}
-          </p>
+          </h1>
           <Button type="button" variant="secondary" size="sm" onClick={() => backToMap(true)}>
             Edit
           </Button>

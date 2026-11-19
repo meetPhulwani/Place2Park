@@ -1,6 +1,6 @@
-import * as React from "react";
 import Link from "@/components/link";
 import { Navbar } from "@/components/navbar";
+import { PageMeta } from "@/components/page-meta";
 import { Footer } from "@/components/footer";
 
 const sections = [
@@ -33,21 +33,13 @@ const sections = [
 ] as const;
 
 export default function TermsPage() {
-  React.useEffect(() => {
-    document.title = "Terms and Conditions · Place2Park";
-    const description = document.querySelector('meta[name="description"]');
-    const previous = description?.getAttribute("content") ?? "";
-    description?.setAttribute(
-      "content",
-      "Terms for booking and listing parking on Place2Park, including fees, cancellations, refunds, and manual host payouts."
-    );
-    return () => {
-      if (description) description.setAttribute("content", previous);
-    };
-  }, []);
-
   return (
     <>
+      <PageMeta
+        title="Terms and Conditions · Place2Park"
+        description="Terms for booking and listing parking on Place2Park, including fees, cancellations, refunds, and manual host payouts."
+        path="/terms-and-conditions"
+      />
       <Navbar />
       <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-14">
         <p className="text-sm font-medium text-brand-600">Place2Park</p>

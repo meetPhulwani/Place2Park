@@ -2,10 +2,12 @@ import { Outlet } from "react-router-dom";
 import Link from "@/components/link";
 import { KeyRound, MapPin, ShieldCheck } from "lucide-react";
 import { Logo } from "@/components/brand";
+import { NoIndex } from "@/components/page-meta";
 
 export function AuthLayout() {
   return (
     <div className="grid min-h-dvh lg:h-dvh lg:grid-cols-[1fr_1.1fr] lg:overflow-hidden">
+      <NoIndex />
       <aside className="relative hidden overflow-hidden bg-ink lg:block">
         <div
           aria-hidden

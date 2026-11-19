@@ -2,6 +2,7 @@ import * as React from "react";
 import Link from "@/components/link";
 import { LocateFixed, MapPin } from "lucide-react";
 import { Navbar } from "@/components/navbar";
+import { PageMeta } from "@/components/page-meta";
 import { SearchBar, type SearchBarHandle } from "@/components/search-bar";
 import { MapView } from "@/components/map/map-view";
 import Image from "@/components/image";
@@ -28,7 +29,6 @@ export default function LandingPage() {
 
   React.useEffect(() => {
     sessionStorage.removeItem("p2p_after_delete");
-    document.title = "Place2Park — Find parking before you arrive";
   }, []);
 
   React.useEffect(() => {
@@ -110,6 +110,11 @@ export default function LandingPage() {
 
   return (
     <div className="relative isolate h-dvh overflow-hidden bg-page">
+      <PageMeta
+        title="Place2Park — Find parking before you arrive"
+        description="Reserve verified private parking near your destination. Transparent pricing, self-parking only — never hand over your keys."
+        path="/"
+      />
       <div className="absolute inset-x-0 top-0 z-40">
         <Navbar overlay />
       </div>

@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import Link from "@/components/link";
 import { Logo } from "@/components/brand";
 import { errorCopy } from "@/lib/http-error";
+import { NoIndex } from "@/components/page-meta";
 
 /** Full-screen HTTP error. One action, no server details. */
 export function ErrorScreen({ status }: { status: number }) {
@@ -13,6 +14,7 @@ export function ErrorScreen({ status }: { status: number }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-[#F3F5F7] px-6 text-center">
+      <NoIndex />
       <div aria-hidden className="pointer-events-none absolute inset-0">
         <div className="absolute -left-16 top-0 h-64 w-64 rounded-full bg-[#D1FF42]/35 blur-3xl" />
         <div className="absolute bottom-0 left-0 right-0 h-36 opacity-70">

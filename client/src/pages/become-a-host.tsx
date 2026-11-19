@@ -4,6 +4,7 @@ import { ArrowRight, CalendarCheck2, IndianRupee, ShieldCheck, Wallet } from "lu
 import { api, errorMessage } from "@/services/api";
 import { useAuth } from "@/context/auth";
 import { Navbar } from "@/components/navbar";
+import { NoIndex } from "@/components/page-meta";
 import { Footer } from "@/components/footer";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
@@ -38,6 +39,7 @@ export default function BecomeAHostPage() {
 
   return (
     <>
+      <NoIndex />
       <Navbar />
       <main className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
         <div className="text-center">
@@ -54,7 +56,7 @@ export default function BecomeAHostPage() {
           </p>
         </div>
 
-        <div className="mt-10 grid gap-4 sm:grid-cols-3">
+        <div id="earnings" className="mt-10 grid gap-4 sm:grid-cols-3">
           {[
             {
               icon: IndianRupee,

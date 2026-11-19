@@ -3,6 +3,7 @@ import { Navbar } from "@/components/navbar";
 import { DashboardSidebar, type SidebarItem } from "@/components/dashboard-sidebar";
 import { GuardGate } from "./guards";
 import { ReviewPrompt } from "@/components/review-prompt";
+import { NoIndex } from "@/components/page-meta";
 
 const items: SidebarItem[] = [
   { href: "/host", label: "Overview", icon: "LayoutDashboard", exact: true },
@@ -19,6 +20,7 @@ export function HostLayout() {
   return (
     <GuardGate requirement="host">
       <div className="min-h-screen">
+        <NoIndex />
         <Navbar />
         <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-6 sm:px-6 lg:flex-row lg:gap-8 lg:py-8">
           <DashboardSidebar items={items} title="Host navigation" />

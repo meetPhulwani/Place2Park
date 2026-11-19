@@ -39,6 +39,10 @@ export function createApp() {
   );
 
   app.use(requestTimeout);
+  app.use((_req, res, next) => {
+    res.setHeader("X-Robots-Tag", "noindex");
+    next();
+  });
   app.get("/api/health", (_req, res) => res.json({ success: true, data: { status: "ok" } }));
   if (e2eHooksEnabled()) app.use("/api/__e2e", e2eHookRouter);
   app.use("/api/console", consoleRoutes);
@@ -59,6 +63,9 @@ export function createApp() {
       success: true,
       data: { status: "ok", service: "Place2Park API" },
     });
+  });
+  app.get("/robots.txt", (_req, res) => {
+    res.type("text/plain").send("User-agent: *\nDisallow: /\n");
   });
 
   app.use(notFoundHandler);

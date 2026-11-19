@@ -1,15 +1,17 @@
-import * as React from "react";
 import Link from "@/components/link";
 import { KeyRound, LifeBuoy, Mail, MessageSquareWarning } from "lucide-react";
 import { Navbar } from "@/components/navbar";
+import { PageMeta } from "@/components/page-meta";
 import { Footer } from "@/components/footer";
 
 export default function SupportPage() {
-  React.useEffect(() => {
-    document.title = "Support · Place2Park";
-  }, []);
   return (
     <>
+      <PageMeta
+        title="Support · Place2Park"
+        description="Contact Place2Park about a booking, payment, or refund, and read the self-parking safety reminder."
+        path="/support"
+      />
       <Navbar />
       <main className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
         <div className="text-center">
@@ -44,7 +46,7 @@ export default function SupportPage() {
             </p>
           </div>
         </div>
-        <div className="mt-8 rounded-2xl border border-brand-200 bg-brand-50 p-5">
+        <div id="safety" className="mt-8 rounded-2xl border border-brand-200 bg-brand-50 p-5">
           <p className="flex items-center gap-2 font-semibold text-brand-900">
             <KeyRound className="size-4.5" aria-hidden />
             Safety reminder

@@ -14,6 +14,7 @@ Disallow: /profile
 Disallow: /settings
 Disallow: /help
 Disallow: /host
+Disallow: /become-a-host
 Disallow: /admin
 
 # The apex domain redirects to this host, so the sitemap URL is the one that returns 200.

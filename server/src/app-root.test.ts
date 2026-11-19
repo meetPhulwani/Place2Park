@@ -34,6 +34,12 @@ describe("API root and health", () => {
         data: { status: "ok", service: "Place2Park API" },
       });
 
+      const robots = await fetch(`http://127.0.0.1:${server.port}/robots.txt`);
+      assert.equal(robots.status, 200);
+      assert.match(robots.headers.get("content-type") ?? "", /text\/plain/);
+      assert.equal(await robots.text(), "User-agent: *\nDisallow: /\n");
+      assert.equal(root.headers.get("x-robots-tag"), "noindex");
+
       const missing = await fetch(`http://127.0.0.1:${server.port}/not-a-route`);
       const missingBody = (await missing.json()) as { success: boolean; message: string };
       assert.equal(missing.status, 404);

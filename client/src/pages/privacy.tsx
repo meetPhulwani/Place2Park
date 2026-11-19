@@ -1,6 +1,6 @@
-import * as React from "react";
 import Link from "@/components/link";
 import { Navbar } from "@/components/navbar";
+import { PageMeta } from "@/components/page-meta";
 import { Footer } from "@/components/footer";
 
 const sections = [
@@ -26,21 +26,13 @@ const sections = [
 ] as const;
 
 export default function PrivacyPage() {
-  React.useEffect(() => {
-    document.title = "Privacy Policy · Place2Park";
-    const description = document.querySelector('meta[name="description"]');
-    const previous = description?.getAttribute("content") ?? "";
-    description?.setAttribute(
-      "content",
-      "How Place2Park collects, uses, and keeps account, booking, payment, payout, and location information."
-    );
-    return () => {
-      if (description) description.setAttribute("content", previous);
-    };
-  }, []);
-
   return (
     <>
+      <PageMeta
+        title="Privacy Policy · Place2Park"
+        description="How Place2Park collects, uses, and keeps account, booking, payment, payout, and location information."
+        path="/privacy-policy"
+      />
       <Navbar />
       <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-14">
         <p className="text-sm font-medium text-brand-600">Place2Park</p>

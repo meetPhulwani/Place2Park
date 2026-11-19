@@ -2,6 +2,11 @@
   "installCommand": "npm install --prefix client",
   "buildCommand": "npm run build --prefix client",
   "outputDirectory": "client/dist",
+  "redirects": [
+    { "source": "/privacy", "destination": "/privacy-policy", "permanent": true },
+    { "source": "/terms", "destination": "/terms-and-conditions", "permanent": true },
+    { "source": "/:path+/", "destination": "/:path+", "permanent": true }
+  ],
   "rewrites": [
     {
       "source": "/((?!api/|sitemap\\.xml|robots\\.txt).*)",

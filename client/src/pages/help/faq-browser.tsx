@@ -7,7 +7,13 @@ import { useAuth } from "@/context/auth";
 import { FAQ_CATEGORY_LABELS, filterFaqs, type FaqItem } from "@/lib/faq-search";
 import { api, errorMessage } from "@/services/api";
 
-export function FaqBrowser({ initialCategory = "" }: { initialCategory?: string }) {
+export function FaqBrowser({
+  initialCategory = "",
+  documentTitle = "How can we help? · Place2Park",
+}: {
+  initialCategory?: string;
+  documentTitle?: string;
+}) {
   const { user } = useAuth();
   const [rows, setRows] = useState<FaqItem[] | null>(null);
   const [error, setError] = useState("");
@@ -17,7 +23,10 @@ export function FaqBrowser({ initialCategory = "" }: { initialCategory?: string 
   const [votes, setVotes] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    document.title = "How can we help? · Place2Park";
+    document.title = documentTitle;
+  }, [documentTitle]);
+
+  useEffect(() => {
     api.get("/faqs").then(({ data }) => setRows(data.data.faqs as FaqItem[])).catch(() => {
       setRows([]);
       setError("Couldn't load the help center.");
