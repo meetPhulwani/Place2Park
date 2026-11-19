@@ -472,6 +472,44 @@ describe("Resend HTTPS delivery", () => {
     assert.ok(report.warnings.some((line) => line.includes("sandbox")));
   });
 
+  it("warns in development when EMAIL_FROM is still the Resend sandbox sender", () => {
+    const report = evaluateEmailDeliveryConfig(
+      { ...resendOnly, EMAIL_FROM: "Place2Park <onboarding@resend.dev>" },
+      false
+    );
+    assert.equal(report.sendEnabled, true);
+    assert.equal(isResendSandboxSender("Place2Park <hello@place2park.app>"), false);
+    assert.ok(report.warnings.some((line) => /sandbox/i.test(line) && /verified domain/i.test(line)));
+    assert.equal(report.warnings.some((line) => /onboarding@resend\.dev|re_test_secret/i.test(line)), false);
+  });
+
+  it("logs the sandbox warning and still rejects the provider response", async () => {
+    const warnings: string[] = [];
+    let calls = 0;
+    await assert.rejects(
+      () =>
+        sendMail(
+          { to: "driver@gmail.com", subject: "Your Place2Park verification code", text: "Your code is 102938." },
+          {
+            cfg: { ...resendOnly, EMAIL_FROM: "Place2Park <onboarding@resend.dev>" },
+            isProd: false,
+            log: (line) => warnings.push(line),
+            fetch: async () => {
+              calls += 1;
+              return jsonResponse(403, {
+                name: "validation_error",
+                message: "You can only send testing emails to your own email address (owner@gmail.com).",
+              });
+            },
+          }
+        ),
+      (err: unknown) => (err as { category?: string }).category === "sandbox_recipient"
+    );
+    assert.equal(calls, 1);
+    assert.ok(warnings.some((line) => /sandbox/i.test(line) && /verified domain/i.test(line)));
+    assert.equal(warnings.some((line) => /owner@gmail.com|102938|re_test_secret/i.test(line)), false);
+  });
+
   it("sends a quoted EMAIL_FROM value without the wrapping quotes", async () => {
     const calls: { url: string; init: RequestInit }[] = [];
     await sendMail(

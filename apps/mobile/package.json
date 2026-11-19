@@ -1,0 +1,39 @@
+{
+  "name": "place2park-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "dependencies": {
+    "@tanstack/react-query": "^5.108.1",
+    "expo": "~58.0.26",
+    "expo-auth-session": "~58.0.19",
+    "expo-constants": "~58.0.16",
+    "expo-crypto": "~58.0.8",
+    "expo-linking": "~58.0.17",
+    "expo-location": "~58.0.22",
+    "expo-router": "~58.0.32",
+    "expo-secure-store": "~58.0.3",
+    "expo-status-bar": "~58.0.5",
+    "expo-web-browser": "~58.1.0",
+    "react": "19.3.0",
+    "react-native": "0.88.1",
+    "react-native-maps": "1.29.11",
+    "react-native-safe-area-context": "~5.11.1",
+    "react-native-screens": "~4.30.1"
+  },
+  "devDependencies": {
+    "@types/react": "~19.3.0",
+    "eslint": "^9.0.0",
+    "eslint-config-expo": "~58.0.4",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test --test-concurrency=1 src/api/client.test.ts src/api/auth.test.ts src/lib/token-store.test.ts src/lib/account-rules.test.ts src/lib/otp.test.ts src/lib/submit-lock.test.ts src/lib/navigation.test.ts src/lib/google-config.test.ts src/constants/env.test.ts src/lib/seeker.test.ts src/api/parking.test.ts src/services/session.test.ts",
+    "lint": "expo lint"
+  }
+}

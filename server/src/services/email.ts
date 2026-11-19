@@ -98,7 +98,7 @@ export function evaluateEmailDeliveryConfig(cfg: SmtpAuthConfig, production: boo
 
   const from = extractEmailAddress(cfg.EMAIL_FROM || cfg.SMTP_USER || "");
   let sendEnabled = true;
-  if (production && isResendSandboxSender(from)) {
+  if (isResendSandboxSender(from)) {
     warnings.push(
       "[email] EMAIL_FROM is the Resend sandbox domain. Verification codes can only be delivered to the Resend account address until EMAIL_FROM uses a verified domain."
     );
@@ -412,6 +412,8 @@ async function deliverOutboundMail(
     warnDelivery(log, report.warnings);
     throw new Error("Email delivery is disabled: sender is not a deliverable production address.");
   }
+  const sandboxWarnings = report.warnings.filter((line) => line.includes("Resend sandbox domain"));
+  if (sandboxWarnings.length > 0) warnDelivery(log, sandboxWarnings);
 
   const to = extractEmailAddress(message.to);
   if (isAlwaysBlockedRecipient(to) || (production && isPlaceholderEmail(to))) {

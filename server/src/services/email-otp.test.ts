@@ -553,3 +553,108 @@ describe("Google registration", () => {
     assert.equal(access.req.userId, undefined);
   });
 });
+
+describe("password login email delivery", () => {
+  const password = "GoodPass1!";
+  const resendCfg = {
+    SMTP_HOST: "",
+    SMTP_PORT: 0,
+    SMTP_USER: "",
+    SMTP_PASS: "",
+    RESEND_API_KEY: "re_test_secret_should_never_appear",
+    EMAIL_FROM: "Place2Park <hello@place2park.app>",
+  };
+
+  async function host() {
+    return User.create({
+      name: "Host Login",
+      email: "host.login@gmail.com",
+      passwordHash: await bcrypt.hash(password, 4),
+      role: "HOST",
+    });
+  }
+
+  it("does not open a session when Resend rejects the sandbox sender", async () => {
+    const existing = await host();
+    const failures: { category?: string; config?: { sandboxSender?: boolean } }[] = [];
+    await assert.rejects(
+      () =>
+        startPasswordLogin(existing.email, password, {
+          isProd: false,
+          requestId: "req-login-sandbox",
+          cfg: { ...resendCfg, EMAIL_FROM: "Place2Park <onboarding@resend.dev>" },
+          logFailure: (event) => failures.push(event),
+          fetch: async () =>
+            ({
+              ok: false,
+              status: 403,
+              json: async () => ({
+                name: "validation_error",
+                message: "You can only send testing emails to your own email address (owner@gmail.com).",
+              }),
+            }) as unknown as globalThis.Response,
+        }),
+      (err: unknown) =>
+        err instanceof ApiError &&
+        err.status === 503 &&
+        err.message === "We couldn't send the verification code. Try again shortly."
+    );
+    assert.equal(await EmailOtpPending.countDocuments({}), 0);
+    assert.equal(await User.countDocuments({ email: existing.email }), 1);
+    assert.equal(failures[0]?.category, "sandbox_recipient");
+    assert.equal(failures[0]?.config?.sandboxSender, true);
+    assert.doesNotMatch(JSON.stringify(failures), /owner@gmail.com|GoodPass1|re_test_secret|host\.login/);
+  });
+
+  it("sends the login code from the configured verified sender and withholds the session", async () => {
+    const existing = await host();
+    let posted = "";
+    const started = await startPasswordLogin(existing.email, password, {
+      isProd: true,
+      cfg: resendCfg,
+      fetch: async (_target, init) => {
+        posted = String(init?.body ?? "");
+        return { ok: true, status: 200, json: async () => ({ id: "msg_login" }) } as unknown as globalThis.Response;
+      },
+    });
+    const code = posted.match(/\b(\d{6})\b/)?.[1];
+    assert.ok(code);
+    assert.match(posted, /hello@place2park.app/);
+    assert.doesNotMatch(posted, /onboarding@resend\.dev|re_test_secret/);
+    assert.equal("token" in started, false);
+    assert.equal(JSON.stringify(started).includes(code!), false);
+    const blocked = await runAuth(started.pendingToken);
+    assert.ok(blocked.err instanceof ApiError && blocked.err.status === 401);
+    const user = await completeLoginOtp(started.pendingToken, code!);
+    assert.equal(String(user._id), String(existing._id));
+  });
+
+  it("does not keep a login challenge when Resend fails", async () => {
+    const existing = await host();
+    const failures: { category?: string; providerStatus?: number | null }[] = [];
+    await assert.rejects(
+      () =>
+        startPasswordLogin(existing.email, password, {
+          isProd: true,
+          requestId: "req-login-provider",
+          cfg: resendCfg,
+          logFailure: (event) => failures.push(event),
+          fetch: async () =>
+            ({
+              ok: false,
+              status: 500,
+              json: async () => ({ name: "internal_server_error", message: "provider body must stay private" }),
+            }) as unknown as globalThis.Response,
+        }),
+      (err: unknown) =>
+        err instanceof ApiError &&
+        err.status === 503 &&
+        err.message === "We couldn't send the verification code. Try again shortly." &&
+        !/provider body must stay private|re_test_secret/i.test(err.message)
+    );
+    assert.equal(await EmailOtpPending.countDocuments({}), 0);
+    assert.equal(failures[0]?.category, "provider_unavailable");
+    assert.equal(failures[0]?.providerStatus, 500);
+    assert.doesNotMatch(JSON.stringify(failures), /provider body must stay private|GoodPass1|re_test_secret/);
+  });
+});
